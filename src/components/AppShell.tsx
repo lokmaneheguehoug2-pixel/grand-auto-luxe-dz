@@ -72,7 +72,7 @@ export function AppShell() {
         </footer>
       )}
 
-      {user && access === "locked" && !isAuthPage && pathname !== "/paywall" && <PaywallGate />}
+      {user && access === "locked" && !isAdmin && !isAuthPage && pathname !== "/paywall" && <PaywallGate />}
       <Toaster theme="dark" />
     </div>
   );
