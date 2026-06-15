@@ -44,7 +44,12 @@ function VehicleDetail() {
   const price = isAuction ? (v.current_highest_bid ?? v.starting_price) : v.fixed_price;
   const isSeller = user?.id === v.seller_id;
   const isWinner = user?.id === v.current_highest_bidder;
-  const showOwnerNumber = !isAuction || auctionEnded ? (isSeller || (auctionEnded && isWinner)) || access !== "locked" : access !== "locked";
+  // Hide owner phone during active auction; show for fixed price, after auction (to seller+winner), and to any unlocked user otherwise
+  const showOwnerNumber = !isAuction
+    ? access !== "locked"
+    : auctionEnded
+      ? (isSeller || isWinner)
+      : access !== "locked" && !isSeller;
 
   const refresh = () => { qc.invalidateQueries({ queryKey: ["vehicle", id] }); qc.invalidateQueries({ queryKey: ["bids", id] }); };
 
