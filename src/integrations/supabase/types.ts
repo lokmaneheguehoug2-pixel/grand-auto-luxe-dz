@@ -14,16 +14,218 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      bids: {
+        Row: {
+          amount: number
+          bidder_id: string
+          created_at: string
+          id: string
+          vehicle_id: string
+        }
+        Insert: {
+          amount: number
+          bidder_id: string
+          created_at?: string
+          id?: string
+          vehicle_id: string
+        }
+        Update: {
+          amount?: number
+          bidder_id?: string
+          created_at?: string
+          id?: string
+          vehicle_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bids_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payments: {
+        Row: {
+          id: string
+          reviewed_at: string | null
+          screenshot_url: string
+          status: Database["public"]["Enums"]["payment_status"]
+          submitted_at: string
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          reviewed_at?: string | null
+          screenshot_url: string
+          status?: Database["public"]["Enums"]["payment_status"]
+          submitted_at?: string
+          user_id: string
+        }
+        Update: {
+          id?: string
+          reviewed_at?: string | null
+          screenshot_url?: string
+          status?: Database["public"]["Enums"]["payment_status"]
+          submitted_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          dob: string
+          first_name: string
+          id: string
+          last_name: string
+          phone: string
+          place_of_birth: string
+          subscription_status: Database["public"]["Enums"]["subscription_status"]
+          subscription_until: string | null
+          trial_started_at: string
+        }
+        Insert: {
+          created_at?: string
+          dob: string
+          first_name: string
+          id: string
+          last_name: string
+          phone: string
+          place_of_birth: string
+          subscription_status?: Database["public"]["Enums"]["subscription_status"]
+          subscription_until?: string | null
+          trial_started_at?: string
+        }
+        Update: {
+          created_at?: string
+          dob?: string
+          first_name?: string
+          id?: string
+          last_name?: string
+          phone?: string
+          place_of_birth?: string
+          subscription_status?: Database["public"]["Enums"]["subscription_status"]
+          subscription_until?: string | null
+          trial_started_at?: string
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
+      vehicles: {
+        Row: {
+          auction_ends_at: string | null
+          brand: string
+          created_at: string
+          current_highest_bid: number | null
+          current_highest_bidder: string | null
+          description: string | null
+          engine_type: string | null
+          fixed_price: number | null
+          fuel_type: Database["public"]["Enums"]["fuel_type"]
+          id: string
+          mileage: number
+          model: string
+          phone: string
+          photos: string[]
+          price_type: Database["public"]["Enums"]["price_type"]
+          seller_id: string
+          starting_price: number | null
+          status: Database["public"]["Enums"]["vehicle_status"]
+          transmission: Database["public"]["Enums"]["transmission_type"]
+          video_url: string | null
+          wilaya: string
+          year: number
+        }
+        Insert: {
+          auction_ends_at?: string | null
+          brand: string
+          created_at?: string
+          current_highest_bid?: number | null
+          current_highest_bidder?: string | null
+          description?: string | null
+          engine_type?: string | null
+          fixed_price?: number | null
+          fuel_type: Database["public"]["Enums"]["fuel_type"]
+          id?: string
+          mileage: number
+          model: string
+          phone: string
+          photos?: string[]
+          price_type: Database["public"]["Enums"]["price_type"]
+          seller_id: string
+          starting_price?: number | null
+          status?: Database["public"]["Enums"]["vehicle_status"]
+          transmission: Database["public"]["Enums"]["transmission_type"]
+          video_url?: string | null
+          wilaya: string
+          year: number
+        }
+        Update: {
+          auction_ends_at?: string | null
+          brand?: string
+          created_at?: string
+          current_highest_bid?: number | null
+          current_highest_bidder?: string | null
+          description?: string | null
+          engine_type?: string | null
+          fixed_price?: number | null
+          fuel_type?: Database["public"]["Enums"]["fuel_type"]
+          id?: string
+          mileage?: number
+          model?: string
+          phone?: string
+          photos?: string[]
+          price_type?: Database["public"]["Enums"]["price_type"]
+          seller_id?: string
+          starting_price?: number | null
+          status?: Database["public"]["Enums"]["vehicle_status"]
+          transmission?: Database["public"]["Enums"]["transmission_type"]
+          video_url?: string | null
+          wilaya?: string
+          year?: number
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "user"
+      fuel_type: "Diesel" | "Essence" | "GPL" | "Hybrid" | "Electrique"
+      payment_status: "pending" | "approved" | "rejected"
+      price_type: "fixed" | "auction"
+      subscription_status: "trial" | "active" | "locked"
+      transmission_type: "Manuelle" | "Automatique"
+      vehicle_status: "active" | "closed"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +352,14 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "user"],
+      fuel_type: ["Diesel", "Essence", "GPL", "Hybrid", "Electrique"],
+      payment_status: ["pending", "approved", "rejected"],
+      price_type: ["fixed", "auction"],
+      subscription_status: ["trial", "active", "locked"],
+      transmission_type: ["Manuelle", "Automatique"],
+      vehicle_status: ["active", "closed"],
+    },
   },
 } as const
