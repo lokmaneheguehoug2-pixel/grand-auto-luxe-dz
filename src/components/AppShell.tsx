@@ -18,12 +18,15 @@ export function AppShell() {
         <header className="sticky top-0 z-40 border-b border-border/60 backdrop-blur-xl bg-background/80">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
             <Link to="/" className="flex items-center gap-2.5 min-w-0">
-              <img src={logoAsset.url} alt="GRAND Auto Luxe" className="h-11 w-11 rounded-lg object-cover shrink-0 ring-1 ring-gold/30" />
+              <div className="relative shrink-0">
+                <div className="absolute inset-0 rounded-lg gold-gradient blur-md opacity-70" />
+                <img src={logoAsset.url} alt="GRAND Auto Luxe" className="relative h-11 w-11 rounded-lg object-cover ring-2 ring-gold/70 gold-glow" />
+              </div>
               <div className="min-w-0">
                 <div className="font-display text-lg leading-none tracking-wide truncate">
-                  <span className="gold-text">GRAND</span> Auto Luxe
+                  <span className="gold-shine font-bold">GRAND</span> <span className="gold-text">Auto Luxe</span>
                 </div>
-                <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Algeria · Premium</div>
+                <div className="text-[10px] uppercase tracking-[0.2em] text-gold/70">Algeria · Premium</div>
               </div>
             </Link>
             <nav className="flex items-center gap-1 sm:gap-2">
