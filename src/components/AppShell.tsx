@@ -2,7 +2,8 @@ import { Outlet, Link, useRouterState, useNavigate } from "@tanstack/react-route
 import { Toaster } from "@/components/ui/sonner";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
-import { Car, Plus, Shield, LogOut, User2 } from "lucide-react";
+import { Plus, Shield, LogOut, User2 } from "lucide-react";
+import logoAsset from "@/assets/granda-logo.png.asset.json";
 import { PaywallGate } from "@/components/PaywallGate";
 
 export function AppShell() {
@@ -16,10 +17,8 @@ export function AppShell() {
       {!isAuthPage && (
         <header className="sticky top-0 z-40 border-b border-border/60 backdrop-blur-xl bg-background/80">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
-            <Link to="/" className="flex items-center gap-2 min-w-0">
-              <div className="h-9 w-9 rounded-lg gold-gradient grid place-items-center shrink-0">
-                <Car className="h-5 w-5 text-gold-foreground" />
-              </div>
+            <Link to="/" className="flex items-center gap-2.5 min-w-0">
+              <img src={logoAsset.url} alt="GRAND Auto Luxe" className="h-11 w-11 rounded-lg object-cover shrink-0 ring-1 ring-gold/30" />
               <div className="min-w-0">
                 <div className="font-display text-lg leading-none tracking-wide truncate">
                   <span className="gold-text">GRAND</span> Auto Luxe
