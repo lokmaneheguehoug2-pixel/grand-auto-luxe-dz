@@ -112,18 +112,36 @@
 
 @layer utilities {
   .gold-gradient {
-    background: linear-gradient(135deg, #f4d36b 0%, #d4af37 45%, #a67c1f 100%);
+    background: linear-gradient(135deg, #fff4b0 0%, #ffd86b 25%, #f5c542 50%, #d4af37 75%, #8a6a1f 100%);
   }
   .gold-text {
-    background: linear-gradient(135deg, #f4d36b 0%, #d4af37 60%, #a67c1f 100%);
+    background: linear-gradient(135deg, #fff4b0 0%, #ffe27a 20%, #f5c542 45%, #d4af37 70%, #b8860b 100%);
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
+    text-shadow: 0 0 24px rgba(245, 197, 66, 0.25);
+  }
+  .gold-shine {
+    background: linear-gradient(110deg, #b8860b 0%, #d4af37 20%, #f5c542 35%, #fff4b0 45%, #ffffff 50%, #fff4b0 55%, #f5c542 65%, #d4af37 80%, #b8860b 100%);
+    background-size: 200% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: gold-shimmer 3.5s linear infinite;
+  }
+  @keyframes gold-shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
   }
   .gold-border {
-    border: 1px solid color-mix(in oklab, var(--gold) 70%, transparent);
-    box-shadow: 0 0 0 1px color-mix(in oklab, var(--gold) 20%, transparent),
-                0 10px 30px -10px color-mix(in oklab, var(--gold) 25%, transparent);
+    border: 1px solid color-mix(in oklab, var(--gold) 80%, transparent);
+    box-shadow: 0 0 0 1px color-mix(in oklab, var(--gold) 25%, transparent),
+                0 0 24px -4px color-mix(in oklab, var(--gold) 35%, transparent),
+                0 10px 30px -10px color-mix(in oklab, var(--gold) 30%, transparent);
+  }
+  .gold-glow {
+    box-shadow: 0 0 30px -2px color-mix(in oklab, var(--gold) 55%, transparent),
+                0 0 60px -10px color-mix(in oklab, var(--gold) 35%, transparent);
   }
   .premium-card {
     background: linear-gradient(180deg, oklch(0.24 0 0) 0%, oklch(0.2 0 0) 100%);
