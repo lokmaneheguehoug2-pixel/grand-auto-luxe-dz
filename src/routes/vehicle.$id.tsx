@@ -117,6 +117,7 @@ function VehicleDetail() {
               <>
                 <div className="text-[10px] uppercase tracking-widest text-gold mb-1">Price</div>
                 <div className="gold-text font-display text-4xl font-bold">{formatDZD(price)}</div>
+                <div className="text-xs text-gold/70 mt-1">{formatCentimes(price)}</div>
               </>
             )}
           </div>
