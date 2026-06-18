@@ -572,7 +572,13 @@ export type Database = {
       sub_status: "pending" | "approved" | "rejected"
       subscription_status: "trial" | "active" | "locked"
       transmission_type: "Manuelle" | "Automatique"
-      vehicle_status: "active" | "closed"
+      vehicle_status:
+        | "active"
+        | "closed"
+        | "sold"
+        | "pending"
+        | "rejected"
+        | "archived"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -708,7 +714,14 @@ export const Constants = {
       sub_status: ["pending", "approved", "rejected"],
       subscription_status: ["trial", "active", "locked"],
       transmission_type: ["Manuelle", "Automatique"],
-      vehicle_status: ["active", "closed"],
+      vehicle_status: [
+        "active",
+        "closed",
+        "sold",
+        "pending",
+        "rejected",
+        "archived",
+      ],
     },
   },
 } as const
