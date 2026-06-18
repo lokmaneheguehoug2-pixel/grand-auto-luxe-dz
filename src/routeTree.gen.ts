@@ -16,6 +16,7 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as VehicleIdRouteImport } from './routes/vehicle.$id'
+import { Route as EditListingIdRouteImport } from './routes/edit-listing.$id'
 
 const PostRoute = PostRouteImport.update({
   id: '/post',
@@ -52,6 +53,11 @@ const VehicleIdRoute = VehicleIdRouteImport.update({
   path: '/vehicle/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const EditListingIdRoute = EditListingIdRouteImport.update({
+  id: '/edit-listing/$id',
+  path: '/edit-listing/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -60,6 +66,7 @@ export interface FileRoutesByFullPath {
   '/brands': typeof BrandsRoute
   '/my-listings': typeof MyListingsRoute
   '/post': typeof PostRoute
+  '/edit-listing/$id': typeof EditListingIdRoute
   '/vehicle/$id': typeof VehicleIdRoute
 }
 export interface FileRoutesByTo {
@@ -69,6 +76,7 @@ export interface FileRoutesByTo {
   '/brands': typeof BrandsRoute
   '/my-listings': typeof MyListingsRoute
   '/post': typeof PostRoute
+  '/edit-listing/$id': typeof EditListingIdRoute
   '/vehicle/$id': typeof VehicleIdRoute
 }
 export interface FileRoutesById {
@@ -79,6 +87,7 @@ export interface FileRoutesById {
   '/brands': typeof BrandsRoute
   '/my-listings': typeof MyListingsRoute
   '/post': typeof PostRoute
+  '/edit-listing/$id': typeof EditListingIdRoute
   '/vehicle/$id': typeof VehicleIdRoute
 }
 export interface FileRouteTypes {
@@ -90,6 +99,7 @@ export interface FileRouteTypes {
     | '/brands'
     | '/my-listings'
     | '/post'
+    | '/edit-listing/$id'
     | '/vehicle/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -99,6 +109,7 @@ export interface FileRouteTypes {
     | '/brands'
     | '/my-listings'
     | '/post'
+    | '/edit-listing/$id'
     | '/vehicle/$id'
   id:
     | '__root__'
@@ -108,6 +119,7 @@ export interface FileRouteTypes {
     | '/brands'
     | '/my-listings'
     | '/post'
+    | '/edit-listing/$id'
     | '/vehicle/$id'
   fileRoutesById: FileRoutesById
 }
@@ -118,6 +130,7 @@ export interface RootRouteChildren {
   BrandsRoute: typeof BrandsRoute
   MyListingsRoute: typeof MyListingsRoute
   PostRoute: typeof PostRoute
+  EditListingIdRoute: typeof EditListingIdRoute
   VehicleIdRoute: typeof VehicleIdRoute
 }
 
@@ -172,6 +185,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof VehicleIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/edit-listing/$id': {
+      id: '/edit-listing/$id'
+      path: '/edit-listing/$id'
+      fullPath: '/edit-listing/$id'
+      preLoaderRoute: typeof EditListingIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -182,6 +202,7 @@ const rootRouteChildren: RootRouteChildren = {
   BrandsRoute: BrandsRoute,
   MyListingsRoute: MyListingsRoute,
   PostRoute: PostRoute,
+  EditListingIdRoute: EditListingIdRoute,
   VehicleIdRoute: VehicleIdRoute,
 }
 export const routeTree = rootRouteImport

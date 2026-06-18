@@ -11,6 +11,9 @@ import { useSignedUrl } from "@/hooks/use-signed-url";
 import { Countdown } from "@/components/Countdown";
 import { useState } from "react";
 import { toast } from "sonner";
+import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
+import { SoldOverlay } from "@/routes/my-listings";
+import { formatCentimes } from "@/lib/format";
 
 export const Route = createFileRoute("/vehicle/$id")({
   component: VehicleDetail,
