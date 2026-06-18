@@ -36,7 +36,12 @@ function Home() {
   const { data: vehicles = [], isLoading } = useQuery({
     queryKey: ["vehicles"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("vehicles").select("*").order("created_at", { ascending: false }).limit(100);
+      const { data, error } = await supabase
+        .from("vehicles")
+        .select("*")
+        .in("status", ["active", "sold"])
+        .order("created_at", { ascending: false })
+        .limit(100);
       if (error) throw error;
       return data as Vehicle[];
     },
