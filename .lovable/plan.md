@@ -1,58 +1,35 @@
+This is a very large multi-feature upgrade. I'll break it into phased, shippable batches so the app keeps working between turns. Here's the proposed roadmap — please confirm or reorder.
 
-# GRAND Auto Luxe — Build Plan
+## Phase 1 — Foundations (DB + currency + seller controls)
+- **DB migrations** (one combined migration):
+  - `pending_subscriptions` (user_id, plan: monthly|yearly, amount, receipt_url, status, reviewed_at)
+  - extend `vehicles`: `status` ('pending'|'active'|'sold'|'rejected'), `is_featured`, `featured_until`, `paint_condition`, `documents_status`, `transaction_types[]`, `is_vip`
+  - extend `profiles`: `is_banned`, `is_showroom`, `showroom_name`, `showroom_logo`, `showroom_description`, `trial_started_at`
+  - `vehicle_reports`, `admin_logs`, `notifications`, `broadcast_messages`, `car_alerts`, `messages` (buyer/seller chat), `showroom_reviews`, `stories` (videos), `vehicle_images` already exist
+  - RLS + GRANTs for each
+- **Algerian currency util** (`formatDZD`, `formatCentimes`, parsers) + price input that accepts millions/centimes
+- **Seller dashboard actions**: edit / delete / mark-as-sold with gold "SOLD / تم البيع" overlay on cards
+- **Horizontal image carousel** on vehicle detail page
 
-A premium, vehicle-only marketplace for Algeria with auctions, reels-style browsing, 72h trial → 1000 DZD/month paywall, and an admin panel.
+## Phase 2 — Checkout + Paywall + Admin v2
+- **Manual checkout page** with copy buttons for HEGUEHOUG LOKMANE CHAOUKI / RIP 007 99999 0043958063 39 / CCP 0043958063 clé 39, plan dropdown (1,000 / 10,000 DA), receipt upload → `pending_subscriptions`
+- **3-day trial paywall** modal triggered from `trial_started_at`
+- **Admin dashboard expansion**: tabs for Pending Subscriptions (approve/reject + revenue widget), Users (ban/reactivate/reset password via admin server fn), Moderation Queue (pre-approval), Reports, VIP/Showroom promotion, Broadcast, Activity Logs
 
-## 1. Backend (Lovable Cloud)
+## Phase 3 — Market filters + Compare + Chat
+- Smart filters on browse + post forms (paint, docs, transaction types)
+- "Luxury Compare" — select 2 vehicles, side-by-side overlay
+- In-app chat (messages table + realtime) with the 4 Arabic quick templates
 
-Enable Cloud first. Schema:
+## Phase 4 — Alerts + Showrooms + Stories
+- Car alerts CRUD + match trigger on new listing → notification
+- Showroom profile route + 5-star reviews
+- Stories/Reels horizontal rail on home, 30s vertical clips, gold CTA → vehicle page
 
-- **profiles** — `id (uuid, fk auth.users)`, `first_name`, `last_name`, `dob`, `place_of_birth`, `phone (UNIQUE, NOT NULL)`, `trial_started_at (timestamptz default now())`, `subscription_status (enum: trial | active | locked) default 'trial'`, `subscription_until (timestamptz)`.
-- **user_roles** — `user_id`, `role (enum app_role: admin|user)` + `has_role()` security-definer fn.
-- **vehicles** — brand, model, year, mileage, fuel_type, transmission, engine_type, wilaya, phone, photos (text[]), video_url, price_type (fixed|auction), fixed_price, starting_price, auction_ends_at, current_highest_bid, current_highest_bidder, status (active|closed), seller_id.
-- **bids** — vehicle_id, bidder_id, amount, created_at. Trigger validates amount > current_highest_bid and updates vehicle.
-- **payments** — user_id, screenshot_url, status (pending|approved|rejected), submitted_at.
-- **Storage buckets**: `vehicle-media` (public), `payment-receipts` (private).
-- **Phone uniqueness** enforced by UNIQUE constraint → friendly error in signup handler.
-- **RLS**: public read on vehicles; insert/update restricted to owners; bids insert if subscription active or in trial; admin policies via `has_role`.
+## Notes
+- All UI keeps the dark-luxury / glowing gold #D4AF37 theme already in `styles.css`
+- Password reset by admin requires `supabaseAdmin` + role check in a server fn
+- Stories use existing `vehicle-media` bucket (or new `stories` bucket if needed)
+- Each phase is independently deployable
 
-## 2. Auth flow
-
-- TanStack route `/auth` with signup form (first/last name, DOB, place of birth, phone). Email+password under the hood (use phone as login identifier surrogate via email like `{phone}@grandautoluxe.app` to keep Supabase auth simple, OR collect email too — going with **email + phone**, since Supabase needs email for auth).
-- Profile row created via trigger on signup; phone uniqueness via UNIQUE index → catch error and show red premium box.
-- `_authenticated/` layout (managed) gates the app.
-
-## 3. Trial / Paywall
-
-- `useSubscription()` hook computes: `if status='active'` → unlocked; `if status='trial' and now - trial_started_at < 72h` → unlocked; else → show locked paywall modal globally.
-- Paywall card: gold border, copy from spec, Baridimob account name + RIP placeholder, file upload to `payment-receipts` → creates `payments` row pending.
-
-## 4. Feed
-
-- `/` home: filters bar (brand, model, year, min/max price, fuel, transmission, wilaya — all 58 Algerian wilayas), tabs **Reels** / **Grid**.
-- Reels: vertical snap-scroll feed of vehicle videos, overlaid price/model/countdown.
-- Grid: premium cards.
-
-## 5. Listing detail `/vehicle/$id`
-
-- Photo carousel + video, specs, Call/WhatsApp gold buttons.
-- If fixed price → show price + contact buttons.
-- If auction → current highest bid badge + live countdown + "Place a Bid" button (modal). Validates > current. After timer = 0 → "Bidding Closed"; seller sees "Contact Winning Bidder" → reveals winner phone.
-
-## 6. Post Ad `/post`
-
-- Form: up to 5 photos + 1 vertical video, brand/model/year/mileage/engine/fuel/transmission/wilaya/phone, price type toggle (Fixed / Auction → starting price + duration 24h/48h/72h).
-
-## 7. Admin `/admin`
-
-- Gated by `has_role(admin)`. Tabs: Users, Listings (delete non-compliant), Pending Payments (view receipt, approve → set subscription_status='active', subscription_until=+30d).
-
-## 8. Design system
-
-- Matte black `#121212` bg, deep charcoal `#1a1a1a` surfaces, brushed gold `#D4AF37` accents, premium red `#C8102E` for errors.
-- Typography: Playfair Display (headings) + Inter (body).
-- Tokens in `src/styles.css` (oklch). Button variants: `gold`, `gold-outline`, `destructive-premium`.
-
-## Scope of this first build
-
-Ship the full architecture end-to-end with realistic UI polish on all main screens. Reels view uses video element with snap scroll. No real payment processor — Baridimob receipt upload + admin approval only (as specified).
+**Scope of this plan is roughly 2–4 full work sessions.** I recommend approving Phase 1 first, then I'll proceed sequentially. Reply with "go phase 1" (or specify a different order / subset) to start.
