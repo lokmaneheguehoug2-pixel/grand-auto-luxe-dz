@@ -10,15 +10,22 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as PostRouteImport } from './routes/post'
+import { Route as MyListingsRouteImport } from './routes/my-listings'
 import { Route as BrandsRouteImport } from './routes/brands'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as VehicleIdRouteImport } from './routes/vehicle.$id'
+import { Route as EditListingIdRouteImport } from './routes/edit-listing.$id'
 
 const PostRoute = PostRouteImport.update({
   id: '/post',
   path: '/post',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MyListingsRoute = MyListingsRouteImport.update({
+  id: '/my-listings',
+  path: '/my-listings',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BrandsRoute = BrandsRouteImport.update({
@@ -46,13 +53,20 @@ const VehicleIdRoute = VehicleIdRouteImport.update({
   path: '/vehicle/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const EditListingIdRoute = EditListingIdRouteImport.update({
+  id: '/edit-listing/$id',
+  path: '/edit-listing/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/auth': typeof AuthRoute
   '/brands': typeof BrandsRoute
+  '/my-listings': typeof MyListingsRoute
   '/post': typeof PostRoute
+  '/edit-listing/$id': typeof EditListingIdRoute
   '/vehicle/$id': typeof VehicleIdRoute
 }
 export interface FileRoutesByTo {
@@ -60,7 +74,9 @@ export interface FileRoutesByTo {
   '/admin': typeof AdminRoute
   '/auth': typeof AuthRoute
   '/brands': typeof BrandsRoute
+  '/my-listings': typeof MyListingsRoute
   '/post': typeof PostRoute
+  '/edit-listing/$id': typeof EditListingIdRoute
   '/vehicle/$id': typeof VehicleIdRoute
 }
 export interface FileRoutesById {
@@ -69,21 +85,41 @@ export interface FileRoutesById {
   '/admin': typeof AdminRoute
   '/auth': typeof AuthRoute
   '/brands': typeof BrandsRoute
+  '/my-listings': typeof MyListingsRoute
   '/post': typeof PostRoute
+  '/edit-listing/$id': typeof EditListingIdRoute
   '/vehicle/$id': typeof VehicleIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/admin' | '/auth' | '/brands' | '/post' | '/vehicle/$id'
+  fullPaths:
+    | '/'
+    | '/admin'
+    | '/auth'
+    | '/brands'
+    | '/my-listings'
+    | '/post'
+    | '/edit-listing/$id'
+    | '/vehicle/$id'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/admin' | '/auth' | '/brands' | '/post' | '/vehicle/$id'
+  to:
+    | '/'
+    | '/admin'
+    | '/auth'
+    | '/brands'
+    | '/my-listings'
+    | '/post'
+    | '/edit-listing/$id'
+    | '/vehicle/$id'
   id:
     | '__root__'
     | '/'
     | '/admin'
     | '/auth'
     | '/brands'
+    | '/my-listings'
     | '/post'
+    | '/edit-listing/$id'
     | '/vehicle/$id'
   fileRoutesById: FileRoutesById
 }
@@ -92,7 +128,9 @@ export interface RootRouteChildren {
   AdminRoute: typeof AdminRoute
   AuthRoute: typeof AuthRoute
   BrandsRoute: typeof BrandsRoute
+  MyListingsRoute: typeof MyListingsRoute
   PostRoute: typeof PostRoute
+  EditListingIdRoute: typeof EditListingIdRoute
   VehicleIdRoute: typeof VehicleIdRoute
 }
 
@@ -103,6 +141,13 @@ declare module '@tanstack/react-router' {
       path: '/post'
       fullPath: '/post'
       preLoaderRoute: typeof PostRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/my-listings': {
+      id: '/my-listings'
+      path: '/my-listings'
+      fullPath: '/my-listings'
+      preLoaderRoute: typeof MyListingsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/brands': {
@@ -140,6 +185,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof VehicleIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/edit-listing/$id': {
+      id: '/edit-listing/$id'
+      path: '/edit-listing/$id'
+      fullPath: '/edit-listing/$id'
+      preLoaderRoute: typeof EditListingIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -148,19 +200,11 @@ const rootRouteChildren: RootRouteChildren = {
   AdminRoute: AdminRoute,
   AuthRoute: AuthRoute,
   BrandsRoute: BrandsRoute,
+  MyListingsRoute: MyListingsRoute,
   PostRoute: PostRoute,
+  EditListingIdRoute: EditListingIdRoute,
   VehicleIdRoute: VehicleIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

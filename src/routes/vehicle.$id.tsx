@@ -11,6 +11,9 @@ import { useSignedUrl } from "@/hooks/use-signed-url";
 import { Countdown } from "@/components/Countdown";
 import { useState } from "react";
 import { toast } from "sonner";
+import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
+import { SoldOverlay } from "@/routes/my-listings";
+import { formatCentimes } from "@/lib/format";
 
 export const Route = createFileRoute("/vehicle/$id")({
   component: VehicleDetail,
@@ -57,7 +60,26 @@ function VehicleDetail() {
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
       <div className="grid lg:grid-cols-[1.4fr_1fr] gap-8">
         <div className="space-y-3">
-          {v.photos?.map((p: string, i: number) => <Photo key={i} path={p} />)}
+          {v.photos && v.photos.length > 0 && (
+            <div className="relative">
+              <Carousel className="w-full">
+                <CarouselContent>
+                  {v.photos.map((p: string, i: number) => (
+                    <CarouselItem key={i}>
+                      <Photo path={p} />
+                    </CarouselItem>
+                  ))}
+                </CarouselContent>
+                <CarouselPrevious className="left-3 bg-black/70 border-gold/40 text-gold hover:bg-black/90" />
+                <CarouselNext className="right-3 bg-black/70 border-gold/40 text-gold hover:bg-black/90" />
+              </Carousel>
+              {v.status === "sold" && (
+                <div className="absolute inset-0 rounded-2xl overflow-hidden pointer-events-none">
+                  <SoldOverlay />
+                </div>
+              )}
+            </div>
+          )}
           {v.video_url && <Video path={v.video_url} />}
         </div>
         <div className="lg:sticky lg:top-20 self-start space-y-5">
@@ -95,6 +117,7 @@ function VehicleDetail() {
               <>
                 <div className="text-[10px] uppercase tracking-widest text-gold mb-1">Price</div>
                 <div className="gold-text font-display text-4xl font-bold">{formatDZD(price)}</div>
+                <div className="text-xs text-gold/70 mt-1">{formatCentimes(price)}</div>
               </>
             )}
           </div>

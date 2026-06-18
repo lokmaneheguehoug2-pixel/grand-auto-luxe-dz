@@ -14,6 +14,36 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_logs: {
+        Row: {
+          action: string
+          admin_id: string
+          created_at: string
+          details: Json | null
+          id: string
+          target_id: string | null
+          target_type: string | null
+        }
+        Insert: {
+          action: string
+          admin_id: string
+          created_at?: string
+          details?: Json | null
+          id?: string
+          target_id?: string | null
+          target_type?: string | null
+        }
+        Update: {
+          action?: string
+          admin_id?: string
+          created_at?: string
+          details?: Json | null
+          id?: string
+          target_id?: string | null
+          target_type?: string | null
+        }
+        Relationships: []
+      }
       bids: {
         Row: {
           amount: number
@@ -46,6 +76,140 @@ export type Database = {
           },
         ]
       }
+      broadcast_messages: {
+        Row: {
+          admin_id: string
+          body: string
+          created_at: string
+          id: string
+          title: string
+        }
+        Insert: {
+          admin_id: string
+          body: string
+          created_at?: string
+          id?: string
+          title: string
+        }
+        Update: {
+          admin_id?: string
+          body?: string
+          created_at?: string
+          id?: string
+          title?: string
+        }
+        Relationships: []
+      }
+      car_alerts: {
+        Row: {
+          active: boolean
+          brand: string | null
+          created_at: string
+          id: string
+          model: string | null
+          price_max: number | null
+          user_id: string
+          wilaya: string | null
+          year_max: number | null
+          year_min: number | null
+        }
+        Insert: {
+          active?: boolean
+          brand?: string | null
+          created_at?: string
+          id?: string
+          model?: string | null
+          price_max?: number | null
+          user_id: string
+          wilaya?: string | null
+          year_max?: number | null
+          year_min?: number | null
+        }
+        Update: {
+          active?: boolean
+          brand?: string | null
+          created_at?: string
+          id?: string
+          model?: string | null
+          price_max?: number | null
+          user_id?: string
+          wilaya?: string | null
+          year_max?: number | null
+          year_min?: number | null
+        }
+        Relationships: []
+      }
+      messages: {
+        Row: {
+          body: string
+          created_at: string
+          id: string
+          read_at: string | null
+          recipient_id: string
+          sender_id: string
+          vehicle_id: string
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          id?: string
+          read_at?: string | null
+          recipient_id: string
+          sender_id: string
+          vehicle_id: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          id?: string
+          read_at?: string | null
+          recipient_id?: string
+          sender_id?: string
+          vehicle_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "messages_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notifications: {
+        Row: {
+          body: string | null
+          created_at: string
+          id: string
+          kind: string
+          link: string | null
+          read_at: string | null
+          title: string
+          user_id: string
+        }
+        Insert: {
+          body?: string | null
+          created_at?: string
+          id?: string
+          kind?: string
+          link?: string | null
+          read_at?: string | null
+          title: string
+          user_id: string
+        }
+        Update: {
+          body?: string | null
+          created_at?: string
+          id?: string
+          kind?: string
+          link?: string | null
+          read_at?: string | null
+          title?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       payments: {
         Row: {
           id: string
@@ -73,15 +237,60 @@ export type Database = {
         }
         Relationships: []
       }
+      pending_subscriptions: {
+        Row: {
+          amount: number
+          id: string
+          plan: Database["public"]["Enums"]["sub_plan"]
+          receipt_url: string
+          review_note: string | null
+          reviewed_at: string | null
+          reviewer_id: string | null
+          status: Database["public"]["Enums"]["sub_status"]
+          submitted_at: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          id?: string
+          plan: Database["public"]["Enums"]["sub_plan"]
+          receipt_url: string
+          review_note?: string | null
+          reviewed_at?: string | null
+          reviewer_id?: string | null
+          status?: Database["public"]["Enums"]["sub_status"]
+          submitted_at?: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          id?: string
+          plan?: Database["public"]["Enums"]["sub_plan"]
+          receipt_url?: string
+          review_note?: string | null
+          reviewed_at?: string | null
+          reviewer_id?: string | null
+          status?: Database["public"]["Enums"]["sub_status"]
+          submitted_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
           dob: string
           first_name: string
           id: string
+          is_banned: boolean
+          is_showroom: boolean
           last_name: string
+          last_seen_at: string | null
           phone: string
           place_of_birth: string
+          showroom_description: string | null
+          showroom_logo: string | null
+          showroom_name: string | null
           subscription_status: Database["public"]["Enums"]["subscription_status"]
           subscription_until: string | null
           trial_started_at: string
@@ -91,9 +300,15 @@ export type Database = {
           dob: string
           first_name: string
           id: string
+          is_banned?: boolean
+          is_showroom?: boolean
           last_name: string
+          last_seen_at?: string | null
           phone: string
           place_of_birth: string
+          showroom_description?: string | null
+          showroom_logo?: string | null
+          showroom_name?: string | null
           subscription_status?: Database["public"]["Enums"]["subscription_status"]
           subscription_until?: string | null
           trial_started_at?: string
@@ -103,14 +318,85 @@ export type Database = {
           dob?: string
           first_name?: string
           id?: string
+          is_banned?: boolean
+          is_showroom?: boolean
           last_name?: string
+          last_seen_at?: string | null
           phone?: string
           place_of_birth?: string
+          showroom_description?: string | null
+          showroom_logo?: string | null
+          showroom_name?: string | null
           subscription_status?: Database["public"]["Enums"]["subscription_status"]
           subscription_until?: string | null
           trial_started_at?: string
         }
         Relationships: []
+      }
+      showroom_reviews: {
+        Row: {
+          comment: string | null
+          created_at: string
+          id: string
+          rating: number
+          reviewer_id: string
+          showroom_id: string
+        }
+        Insert: {
+          comment?: string | null
+          created_at?: string
+          id?: string
+          rating: number
+          reviewer_id: string
+          showroom_id: string
+        }
+        Update: {
+          comment?: string | null
+          created_at?: string
+          id?: string
+          rating?: number
+          reviewer_id?: string
+          showroom_id?: string
+        }
+        Relationships: []
+      }
+      stories: {
+        Row: {
+          caption: string | null
+          created_at: string
+          expires_at: string
+          id: string
+          showroom_id: string
+          vehicle_id: string | null
+          video_url: string
+        }
+        Insert: {
+          caption?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          showroom_id: string
+          vehicle_id?: string | null
+          video_url: string
+        }
+        Update: {
+          caption?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          showroom_id?: string
+          vehicle_id?: string | null
+          video_url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stories_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {
@@ -130,6 +416,44 @@ export type Database = {
         }
         Relationships: []
       }
+      vehicle_reports: {
+        Row: {
+          created_at: string
+          details: string | null
+          id: string
+          reason: string
+          reporter_id: string
+          status: string
+          vehicle_id: string
+        }
+        Insert: {
+          created_at?: string
+          details?: string | null
+          id?: string
+          reason: string
+          reporter_id: string
+          status?: string
+          vehicle_id: string
+        }
+        Update: {
+          created_at?: string
+          details?: string | null
+          id?: string
+          reason?: string
+          reporter_id?: string
+          status?: string
+          vehicle_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vehicle_reports_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vehicles: {
         Row: {
           auction_ends_at: string | null
@@ -138,18 +462,25 @@ export type Database = {
           current_highest_bid: number | null
           current_highest_bidder: string | null
           description: string | null
+          documents_status: string | null
           engine_type: string | null
+          featured_until: string | null
           fixed_price: number | null
           fuel_type: Database["public"]["Enums"]["fuel_type"]
           id: string
+          is_featured: boolean
+          is_vip: boolean
           mileage: number
           model: string
+          paint_condition: string | null
           phone: string
           photos: string[]
           price_type: Database["public"]["Enums"]["price_type"]
           seller_id: string
+          sold_at: string | null
           starting_price: number | null
           status: Database["public"]["Enums"]["vehicle_status"]
+          transaction_types: string[] | null
           transmission: Database["public"]["Enums"]["transmission_type"]
           video_url: string | null
           wilaya: string
@@ -162,18 +493,25 @@ export type Database = {
           current_highest_bid?: number | null
           current_highest_bidder?: string | null
           description?: string | null
+          documents_status?: string | null
           engine_type?: string | null
+          featured_until?: string | null
           fixed_price?: number | null
           fuel_type: Database["public"]["Enums"]["fuel_type"]
           id?: string
+          is_featured?: boolean
+          is_vip?: boolean
           mileage: number
           model: string
+          paint_condition?: string | null
           phone: string
           photos?: string[]
           price_type: Database["public"]["Enums"]["price_type"]
           seller_id: string
+          sold_at?: string | null
           starting_price?: number | null
           status?: Database["public"]["Enums"]["vehicle_status"]
+          transaction_types?: string[] | null
           transmission: Database["public"]["Enums"]["transmission_type"]
           video_url?: string | null
           wilaya: string
@@ -186,18 +524,25 @@ export type Database = {
           current_highest_bid?: number | null
           current_highest_bidder?: string | null
           description?: string | null
+          documents_status?: string | null
           engine_type?: string | null
+          featured_until?: string | null
           fixed_price?: number | null
           fuel_type?: Database["public"]["Enums"]["fuel_type"]
           id?: string
+          is_featured?: boolean
+          is_vip?: boolean
           mileage?: number
           model?: string
+          paint_condition?: string | null
           phone?: string
           photos?: string[]
           price_type?: Database["public"]["Enums"]["price_type"]
           seller_id?: string
+          sold_at?: string | null
           starting_price?: number | null
           status?: Database["public"]["Enums"]["vehicle_status"]
+          transaction_types?: string[] | null
           transmission?: Database["public"]["Enums"]["transmission_type"]
           video_url?: string | null
           wilaya?: string
@@ -223,9 +568,17 @@ export type Database = {
       fuel_type: "Diesel" | "Essence" | "GPL" | "Hybrid" | "Electrique"
       payment_status: "pending" | "approved" | "rejected"
       price_type: "fixed" | "auction"
+      sub_plan: "monthly" | "yearly"
+      sub_status: "pending" | "approved" | "rejected"
       subscription_status: "trial" | "active" | "locked"
       transmission_type: "Manuelle" | "Automatique"
-      vehicle_status: "active" | "closed"
+      vehicle_status:
+        | "active"
+        | "closed"
+        | "sold"
+        | "pending"
+        | "rejected"
+        | "archived"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -357,9 +710,18 @@ export const Constants = {
       fuel_type: ["Diesel", "Essence", "GPL", "Hybrid", "Electrique"],
       payment_status: ["pending", "approved", "rejected"],
       price_type: ["fixed", "auction"],
+      sub_plan: ["monthly", "yearly"],
+      sub_status: ["pending", "approved", "rejected"],
       subscription_status: ["trial", "active", "locked"],
       transmission_type: ["Manuelle", "Automatique"],
-      vehicle_status: ["active", "closed"],
+      vehicle_status: [
+        "active",
+        "closed",
+        "sold",
+        "pending",
+        "rejected",
+        "archived",
+      ],
     },
   },
 } as const

@@ -30,13 +30,21 @@ type Vehicle = {
   current_highest_bid: number | null; auction_ends_at: string | null; status: string;
 };
 
+import { SoldOverlay } from "@/routes/my-listings";
+import { formatCentimes } from "@/lib/format";
+
 function Home() {
   const [filters, setFilters] = useState({ q: "", brand: "all", fuel: "all", trans: "all", wilaya: "all", min: "", max: "", year: "" });
 
   const { data: vehicles = [], isLoading } = useQuery({
     queryKey: ["vehicles"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("vehicles").select("*").order("created_at", { ascending: false }).limit(100);
+      const { data, error } = await supabase
+        .from("vehicles")
+        .select("*")
+        .in("status", ["active", "sold"])
+        .order("created_at", { ascending: false })
+        .limit(100);
       if (error) throw error;
       return data as Vehicle[];
     },
@@ -162,7 +170,8 @@ function VehicleCard({ v }: { v: Vehicle }) {
         ) : (
           <div className="h-full w-full grid place-items-center text-muted-foreground"><Play className="h-8 w-8" /></div>
         )}
-        {v.price_type === "auction" && v.auction_ends_at && new Date(v.auction_ends_at) > new Date() && (
+        {v.status === "sold" && <SoldOverlay />}
+        {v.status !== "sold" && v.price_type === "auction" && v.auction_ends_at && new Date(v.auction_ends_at) > new Date() && (
           <div className="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-gold text-gold-foreground text-[10px] font-bold uppercase tracking-wider">Live Auction</div>
         )}
         {v.video_url && (
@@ -182,6 +191,7 @@ function VehicleCard({ v }: { v: Vehicle }) {
           <div>
             {v.price_type === "auction" && <div className="text-[10px] uppercase tracking-wider text-gold mb-0.5">Highest Bid</div>}
             <div className="gold-text font-display text-xl font-bold">{formatDZD(price)}</div>
+            <div className="text-[10px] text-gold/60 mt-0.5">{formatCentimes(price)}</div>
           </div>
           {v.price_type === "auction" && v.auction_ends_at && new Date(v.auction_ends_at) > new Date() && (
             <Countdown endsAt={v.auction_ends_at} className="text-[11px] text-gold" />

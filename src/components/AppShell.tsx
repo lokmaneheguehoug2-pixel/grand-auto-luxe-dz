@@ -33,6 +33,11 @@ export function AppShell() {
               <Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex">
                 <Link to="/brands">Brands</Link>
               </Button>
+              {user && (
+                <Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex">
+                  <Link to="/my-listings">My Listings</Link>
+                </Button>
+              )}
               {user && access !== "locked" && (
                 <Button asChild variant="gold-outline" size="sm" className="hidden sm:inline-flex">
                   <Link to="/post"><Plus className="h-4 w-4" /> List a Vehicle</Link>
