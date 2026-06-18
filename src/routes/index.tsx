@@ -30,6 +30,9 @@ type Vehicle = {
   current_highest_bid: number | null; auction_ends_at: string | null; status: string;
 };
 
+import { SoldOverlay } from "@/routes/my-listings";
+import { formatCentimes } from "@/lib/format";
+
 function Home() {
   const [filters, setFilters] = useState({ q: "", brand: "all", fuel: "all", trans: "all", wilaya: "all", min: "", max: "", year: "" });
 
