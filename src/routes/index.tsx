@@ -201,14 +201,6 @@ function VehicleCard({ v }: { v: Vehicle }) {
     </Link>
   );
 }
-          {v.price_type === "auction" && v.auction_ends_at && new Date(v.auction_ends_at) > new Date() && (
-            <Countdown endsAt={v.auction_ends_at} className="text-[11px] text-gold" />
-          )}
-        </div>
-      </div>
-    </Link>
-  );
-}
 
 function ReelsFeed({ vehicles }: { vehicles: Vehicle[] }) {
   return (
