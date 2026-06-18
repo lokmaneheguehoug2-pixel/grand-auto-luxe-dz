@@ -193,20 +193,14 @@ function VehicleCard({ v }: { v: Vehicle }) {
             <div className="gold-text font-display text-xl font-bold">{formatDZD(price)}</div>
             <div className="text-[10px] text-gold/60 mt-0.5">{formatCentimes(price)}</div>
           </div>
-      <div className="p-4">
-        <div className="flex items-baseline justify-between gap-2">
-          <h3 className="font-display text-lg truncate">{v.brand} {v.model}</h3>
-          <span className="text-xs text-muted-foreground shrink-0">{v.year}</span>
+          {v.price_type === "auction" && v.auction_ends_at && new Date(v.auction_ends_at) > new Date() && (
+            <Countdown endsAt={v.auction_ends_at} className="text-[11px] text-gold" />
+          )}
         </div>
-        <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
-          <span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{v.wilaya}</span>
-          <span className="flex items-center gap-1"><Gauge className="h-3 w-3" />{v.mileage.toLocaleString()} km</span>
-        </div>
-        <div className="mt-3 flex items-end justify-between">
-          <div>
-            {v.price_type === "auction" && <div className="text-[10px] uppercase tracking-wider text-gold mb-0.5">Highest Bid</div>}
-            <div className="gold-text font-display text-xl font-bold">{formatDZD(price)}</div>
-          </div>
+      </div>
+    </Link>
+  );
+}
           {v.price_type === "auction" && v.auction_ends_at && new Date(v.auction_ends_at) > new Date() && (
             <Countdown endsAt={v.auction_ends_at} className="text-[11px] text-gold" />
           )}
