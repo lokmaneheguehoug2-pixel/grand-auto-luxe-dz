@@ -123,6 +123,26 @@ function Home() {
             <Input type="number" placeholder="Min DZD" className="bg-background" value={filters.min} onChange={(e) => setFilters({ ...filters, min: e.target.value })} />
             <Input type="number" placeholder="Max DZD" className="bg-background" value={filters.max} onChange={(e) => setFilters({ ...filters, max: e.target.value })} />
           </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-2">
+            <Select value={filters.paint} onValueChange={(v) => setFilters({ ...filters, paint: v })}>
+              <SelectTrigger className="bg-background"><SelectValue placeholder="Peinture" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All paint</SelectItem>
+                <SelectItem value="original">Peinture d'origine</SelectItem>
+                <SelectItem value="touched">Choc / Peinture</SelectItem>
+                <SelectItem value="voile">Voile / Raccord</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={filters.docs} onValueChange={(v) => setFilters({ ...filters, docs: v })}>
+              <SelectTrigger className="bg-background"><SelectValue placeholder="Documents" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All documents</SelectItem>
+                <SelectItem value="clean">Carte Grise صافية</SelectItem>
+                <SelectItem value="mujahidine">Licence Mujahidine</SelectItem>
+                <SelectItem value="other">Autre</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </section>
 
