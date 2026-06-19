@@ -129,6 +129,9 @@ function VehicleDetail() {
               <Button asChild variant="gold-outline" className="h-12"><a href={`https://wa.me/${v.phone.replace(/\D/g, "")}`} target="_blank" rel="noopener noreferrer"><MessageCircle className="h-4 w-4" /> WhatsApp</a></Button>
             </div>
           )}
+          {user && !isSeller && access !== "locked" && (
+            <ChatDialog vehicleId={id} sellerId={v.seller_id} vehicleTitle={`${v.brand} ${v.model}`} />
+          )}
 
           <div className="premium-card rounded-2xl p-5 grid grid-cols-2 gap-4 text-sm">
             <Spec icon={<Calendar className="h-4 w-4" />} label="Year" value={v.year} />
