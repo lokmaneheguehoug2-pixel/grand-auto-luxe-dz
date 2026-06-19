@@ -35,7 +35,7 @@ import { SoldOverlay } from "@/routes/my-listings";
 import { formatCentimes } from "@/lib/format";
 
 function Home() {
-  const [filters, setFilters] = useState({ q: "", brand: "all", fuel: "all", trans: "all", wilaya: "all", min: "", max: "", year: "" });
+  const [filters, setFilters] = useState({ q: "", brand: "all", fuel: "all", trans: "all", wilaya: "all", min: "", max: "", year: "", paint: "all", docs: "all" });
 
   const { data: vehicles = [], isLoading } = useQuery({
     queryKey: ["vehicles"],
