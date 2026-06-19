@@ -94,11 +94,16 @@ function SubscriptionsTab() {
   const { data = [] } = useQuery({
     queryKey: ["admin-pending-subs"],
     queryFn: async () => {
-      const { data } = await supabase
+      const { data: subs } = await supabase
         .from("pending_subscriptions")
-        .select("*, profiles!pending_subscriptions_user_id_fkey(first_name,last_name,phone)")
+        .select("*")
         .order("submitted_at", { ascending: false });
-      return data ?? [];
+      const ids = Array.from(new Set((subs ?? []).map((s) => s.user_id)));
+      const { data: profs } = ids.length
+        ? await supabase.from("profiles").select("id,first_name,last_name,phone").in("id", ids)
+        : { data: [] as any[] };
+      const map = new Map((profs ?? []).map((p: any) => [p.id, p]));
+      return (subs ?? []).map((s) => ({ ...s, profiles: map.get(s.user_id) }));
     },
   });
 
