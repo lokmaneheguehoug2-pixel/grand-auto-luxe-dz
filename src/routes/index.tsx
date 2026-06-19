@@ -8,9 +8,10 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Search, MapPin, Gauge, Fuel, Cog, Play, Grid3X3, Film, Phone } from "lucide-react";
+import { Search, MapPin, Gauge, Fuel, Cog, Play, Grid3X3, Film, Phone, Scale } from "lucide-react";
 import { Countdown } from "@/components/Countdown";
 import { useSignedUrl } from "@/hooks/use-signed-url";
+import { compareStore, useCompare } from "@/lib/compare";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -28,13 +29,14 @@ type Vehicle = {
   photos: string[]; video_url: string | null;
   price_type: "fixed" | "auction"; fixed_price: number | null; starting_price: number | null;
   current_highest_bid: number | null; auction_ends_at: string | null; status: string;
+  paint_condition: string | null; documents_status: string | null;
 };
 
 import { SoldOverlay } from "@/routes/my-listings";
 import { formatCentimes } from "@/lib/format";
 
 function Home() {
-  const [filters, setFilters] = useState({ q: "", brand: "all", fuel: "all", trans: "all", wilaya: "all", min: "", max: "", year: "" });
+  const [filters, setFilters] = useState({ q: "", brand: "all", fuel: "all", trans: "all", wilaya: "all", min: "", max: "", year: "", paint: "all", docs: "all" });
 
   const { data: vehicles = [], isLoading } = useQuery({
     queryKey: ["vehicles"],
@@ -58,6 +60,8 @@ function Home() {
       if (filters.trans !== "all" && v.transmission !== filters.trans) return false;
       if (filters.wilaya !== "all" && v.wilaya !== filters.wilaya) return false;
       if (filters.year && v.year !== Number(filters.year)) return false;
+      if (filters.paint !== "all" && v.paint_condition !== filters.paint) return false;
+      if (filters.docs !== "all" && v.documents_status !== filters.docs) return false;
       const price = v.price_type === "fixed" ? v.fixed_price : (v.current_highest_bid ?? v.starting_price);
       if (filters.min && (price ?? 0) < Number(filters.min)) return false;
       if (filters.max && (price ?? Infinity) > Number(filters.max)) return false;
@@ -119,6 +123,26 @@ function Home() {
             <Input type="number" placeholder="Min DZD" className="bg-background" value={filters.min} onChange={(e) => setFilters({ ...filters, min: e.target.value })} />
             <Input type="number" placeholder="Max DZD" className="bg-background" value={filters.max} onChange={(e) => setFilters({ ...filters, max: e.target.value })} />
           </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-2">
+            <Select value={filters.paint} onValueChange={(v) => setFilters({ ...filters, paint: v })}>
+              <SelectTrigger className="bg-background"><SelectValue placeholder="Peinture" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All paint</SelectItem>
+                <SelectItem value="original">Peinture d'origine</SelectItem>
+                <SelectItem value="touched">Choc / Peinture</SelectItem>
+                <SelectItem value="voile">Voile / Raccord</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={filters.docs} onValueChange={(v) => setFilters({ ...filters, docs: v })}>
+              <SelectTrigger className="bg-background"><SelectValue placeholder="Documents" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All documents</SelectItem>
+                <SelectItem value="clean">Carte Grise صافية</SelectItem>
+                <SelectItem value="mujahidine">Licence Mujahidine</SelectItem>
+                <SelectItem value="other">Autre</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </section>
 
@@ -162,6 +186,8 @@ function Home() {
 function VehicleCard({ v }: { v: Vehicle }) {
   const cover = useSignedUrl("vehicle-media", v.photos?.[0]);
   const price = v.price_type === "fixed" ? v.fixed_price : (v.current_highest_bid ?? v.starting_price);
+  const compared = useCompare();
+  const inCompare = compared.includes(v.id);
   return (
     <Link to="/vehicle/$id" params={{ id: v.id }} className="group premium-card rounded-xl overflow-hidden hover:gold-border transition-all">
       <div className="aspect-[4/3] bg-charcoal relative overflow-hidden">
@@ -177,6 +203,14 @@ function VehicleCard({ v }: { v: Vehicle }) {
         {v.video_url && (
           <div className="absolute top-3 right-3 h-7 w-7 rounded-full bg-black/60 grid place-items-center"><Play className="h-3 w-3 text-gold" /></div>
         )}
+        <button
+          type="button"
+          onClick={(e) => { e.preventDefault(); e.stopPropagation(); compareStore.toggle(v.id); }}
+          className={`absolute bottom-3 right-3 h-8 w-8 rounded-full grid place-items-center backdrop-blur transition-all ${inCompare ? "gold-gradient text-gold-foreground" : "bg-black/70 text-gold hover:bg-black/90"}`}
+          title={inCompare ? "Remove from compare" : "Add to compare"}
+        >
+          <Scale className="h-3.5 w-3.5" />
+        </button>
       </div>
       <div className="p-4">
         <div className="flex items-baseline justify-between gap-2">

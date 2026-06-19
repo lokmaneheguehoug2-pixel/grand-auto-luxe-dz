@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
 import { SoldOverlay } from "@/routes/my-listings";
 import { formatCentimes } from "@/lib/format";
+import { ChatDialog } from "@/components/ChatDialog";
 
 export const Route = createFileRoute("/vehicle/$id")({
   component: VehicleDetail,
@@ -127,6 +128,9 @@ function VehicleDetail() {
               <Button asChild variant="gold" className="h-12"><a href={`tel:${v.phone}`}><Phone className="h-4 w-4" /> Call Owner</a></Button>
               <Button asChild variant="gold-outline" className="h-12"><a href={`https://wa.me/${v.phone.replace(/\D/g, "")}`} target="_blank" rel="noopener noreferrer"><MessageCircle className="h-4 w-4" /> WhatsApp</a></Button>
             </div>
+          )}
+          {user && !isSeller && access !== "locked" && (
+            <ChatDialog vehicleId={id} sellerId={v.seller_id} vehicleTitle={`${v.brand} ${v.model}`} />
           )}
 
           <div className="premium-card rounded-2xl p-5 grid grid-cols-2 gap-4 text-sm">

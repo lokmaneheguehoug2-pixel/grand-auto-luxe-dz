@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Plus, Shield, LogOut, User2 } from "lucide-react";
 import logoAsset from "@/assets/granda-logo.png.asset.json";
 import { PaywallGate } from "@/components/PaywallGate";
+import { CompareTray } from "@/components/CompareTray";
 
 export function AppShell() {
   const { user, profile, isAdmin, signOut, access, hoursLeft } = useAuth();
@@ -82,7 +83,8 @@ export function AppShell() {
         </footer>
       )}
 
-      {user && access === "locked" && !isAdmin && !isAuthPage && pathname !== "/paywall" && <PaywallGate />}
+      {user && access === "locked" && !isAdmin && !isAuthPage && pathname !== "/paywall" && pathname !== "/checkout" && <PaywallGate />}
+      {!isAuthPage && <CompareTray />}
       <Toaster theme="dark" />
     </div>
   );
