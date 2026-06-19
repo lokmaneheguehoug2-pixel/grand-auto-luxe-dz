@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
 import { SoldOverlay } from "@/routes/my-listings";
 import { formatCentimes } from "@/lib/format";
+import { ChatDialog } from "@/components/ChatDialog";
 
 export const Route = createFileRoute("/vehicle/$id")({
   component: VehicleDetail,
