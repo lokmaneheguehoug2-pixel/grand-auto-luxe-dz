@@ -82,7 +82,8 @@ export function AppShell() {
         </footer>
       )}
 
-      {user && access === "locked" && !isAdmin && !isAuthPage && pathname !== "/paywall" && <PaywallGate />}
+      {user && access === "locked" && !isAdmin && !isAuthPage && pathname !== "/paywall" && pathname !== "/checkout" && <PaywallGate />}
+      {!isAuthPage && <CompareTray />}
       <Toaster theme="dark" />
     </div>
   );
