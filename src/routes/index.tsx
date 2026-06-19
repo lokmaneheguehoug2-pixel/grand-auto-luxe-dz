@@ -60,6 +60,8 @@ function Home() {
       if (filters.trans !== "all" && v.transmission !== filters.trans) return false;
       if (filters.wilaya !== "all" && v.wilaya !== filters.wilaya) return false;
       if (filters.year && v.year !== Number(filters.year)) return false;
+      if (filters.paint !== "all" && v.paint_condition !== filters.paint) return false;
+      if (filters.docs !== "all" && v.documents_status !== filters.docs) return false;
       const price = v.price_type === "fixed" ? v.fixed_price : (v.current_highest_bid ?? v.starting_price);
       if (filters.min && (price ?? 0) < Number(filters.min)) return false;
       if (filters.max && (price ?? Infinity) > Number(filters.max)) return false;
