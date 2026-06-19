@@ -29,6 +29,7 @@ type Vehicle = {
   photos: string[]; video_url: string | null;
   price_type: "fixed" | "auction"; fixed_price: number | null; starting_price: number | null;
   current_highest_bid: number | null; auction_ends_at: string | null; status: string;
+  paint_condition: string | null; documents_status: string | null;
 };
 
 import { SoldOverlay } from "@/routes/my-listings";
