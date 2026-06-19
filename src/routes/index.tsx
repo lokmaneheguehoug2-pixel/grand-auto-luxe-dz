@@ -186,6 +186,8 @@ function Home() {
 function VehicleCard({ v }: { v: Vehicle }) {
   const cover = useSignedUrl("vehicle-media", v.photos?.[0]);
   const price = v.price_type === "fixed" ? v.fixed_price : (v.current_highest_bid ?? v.starting_price);
+  const compared = useCompare();
+  const inCompare = compared.includes(v.id);
   return (
     <Link to="/vehicle/$id" params={{ id: v.id }} className="group premium-card rounded-xl overflow-hidden hover:gold-border transition-all">
       <div className="aspect-[4/3] bg-charcoal relative overflow-hidden">
@@ -201,6 +203,14 @@ function VehicleCard({ v }: { v: Vehicle }) {
         {v.video_url && (
           <div className="absolute top-3 right-3 h-7 w-7 rounded-full bg-black/60 grid place-items-center"><Play className="h-3 w-3 text-gold" /></div>
         )}
+        <button
+          type="button"
+          onClick={(e) => { e.preventDefault(); e.stopPropagation(); compareStore.toggle(v.id); }}
+          className={`absolute bottom-3 right-3 h-8 w-8 rounded-full grid place-items-center backdrop-blur transition-all ${inCompare ? "gold-gradient text-gold-foreground" : "bg-black/70 text-gold hover:bg-black/90"}`}
+          title={inCompare ? "Remove from compare" : "Add to compare"}
+        >
+          <Scale className="h-3.5 w-3.5" />
+        </button>
       </div>
       <div className="p-4">
         <div className="flex items-baseline justify-between gap-2">
