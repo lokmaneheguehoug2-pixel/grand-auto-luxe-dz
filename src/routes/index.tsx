@@ -8,9 +8,10 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Search, MapPin, Gauge, Fuel, Cog, Play, Grid3X3, Film, Phone } from "lucide-react";
+import { Search, MapPin, Gauge, Fuel, Cog, Play, Grid3X3, Film, Phone, Scale } from "lucide-react";
 import { Countdown } from "@/components/Countdown";
 import { useSignedUrl } from "@/hooks/use-signed-url";
+import { compareStore, useCompare } from "@/lib/compare";
 
 export const Route = createFileRoute("/")({
   head: () => ({
