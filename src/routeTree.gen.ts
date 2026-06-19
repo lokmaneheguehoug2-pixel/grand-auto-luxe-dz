@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as PostRouteImport } from './routes/post'
 import { Route as MyListingsRouteImport } from './routes/my-listings'
+import { Route as CheckoutRouteImport } from './routes/checkout'
 import { Route as BrandsRouteImport } from './routes/brands'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AdminRouteImport } from './routes/admin'
@@ -26,6 +27,11 @@ const PostRoute = PostRouteImport.update({
 const MyListingsRoute = MyListingsRouteImport.update({
   id: '/my-listings',
   path: '/my-listings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CheckoutRoute = CheckoutRouteImport.update({
+  id: '/checkout',
+  path: '/checkout',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BrandsRoute = BrandsRouteImport.update({
@@ -64,6 +70,7 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AdminRoute
   '/auth': typeof AuthRoute
   '/brands': typeof BrandsRoute
+  '/checkout': typeof CheckoutRoute
   '/my-listings': typeof MyListingsRoute
   '/post': typeof PostRoute
   '/edit-listing/$id': typeof EditListingIdRoute
@@ -74,6 +81,7 @@ export interface FileRoutesByTo {
   '/admin': typeof AdminRoute
   '/auth': typeof AuthRoute
   '/brands': typeof BrandsRoute
+  '/checkout': typeof CheckoutRoute
   '/my-listings': typeof MyListingsRoute
   '/post': typeof PostRoute
   '/edit-listing/$id': typeof EditListingIdRoute
@@ -85,6 +93,7 @@ export interface FileRoutesById {
   '/admin': typeof AdminRoute
   '/auth': typeof AuthRoute
   '/brands': typeof BrandsRoute
+  '/checkout': typeof CheckoutRoute
   '/my-listings': typeof MyListingsRoute
   '/post': typeof PostRoute
   '/edit-listing/$id': typeof EditListingIdRoute
@@ -97,6 +106,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/auth'
     | '/brands'
+    | '/checkout'
     | '/my-listings'
     | '/post'
     | '/edit-listing/$id'
@@ -107,6 +117,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/auth'
     | '/brands'
+    | '/checkout'
     | '/my-listings'
     | '/post'
     | '/edit-listing/$id'
@@ -117,6 +128,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/auth'
     | '/brands'
+    | '/checkout'
     | '/my-listings'
     | '/post'
     | '/edit-listing/$id'
@@ -128,6 +140,7 @@ export interface RootRouteChildren {
   AdminRoute: typeof AdminRoute
   AuthRoute: typeof AuthRoute
   BrandsRoute: typeof BrandsRoute
+  CheckoutRoute: typeof CheckoutRoute
   MyListingsRoute: typeof MyListingsRoute
   PostRoute: typeof PostRoute
   EditListingIdRoute: typeof EditListingIdRoute
@@ -148,6 +161,13 @@ declare module '@tanstack/react-router' {
       path: '/my-listings'
       fullPath: '/my-listings'
       preLoaderRoute: typeof MyListingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/checkout': {
+      id: '/checkout'
+      path: '/checkout'
+      fullPath: '/checkout'
+      preLoaderRoute: typeof CheckoutRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/brands': {
@@ -200,6 +220,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminRoute: AdminRoute,
   AuthRoute: AuthRoute,
   BrandsRoute: BrandsRoute,
+  CheckoutRoute: CheckoutRoute,
   MyListingsRoute: MyListingsRoute,
   PostRoute: PostRoute,
   EditListingIdRoute: EditListingIdRoute,
@@ -208,13 +229,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
