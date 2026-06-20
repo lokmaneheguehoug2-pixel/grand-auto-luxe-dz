@@ -49,18 +49,35 @@ export function ChatDialog({
   useEffect(() => {
     if (!open || !user) return;
     let mounted = true;
+    const orFilter = `and(sender_id.eq.${user.id},recipient_id.eq.${otherId}),and(sender_id.eq.${otherId},recipient_id.eq.${user.id})`;
     const load = async () => {
       const { data } = await supabase
         .from("messages")
         .select("*")
         .eq("vehicle_id", vehicleId)
-        .or(`and(sender_id.eq.${user.id},recipient_id.eq.${otherId}),and(sender_id.eq.${otherId},recipient_id.eq.${user.id})`)
+        .or(orFilter)
         .order("created_at", { ascending: true });
-      if (mounted) setMessages((data ?? []) as Msg[]);
+      if (!mounted) return;
+      setMessages((data ?? []) as Msg[]);
+      // Mark incoming as read
+      await supabase
+        .from("messages")
+        .update({ read_at: new Date().toISOString() })
+        .eq("vehicle_id", vehicleId)
+        .eq("recipient_id", user.id)
+        .eq("sender_id", otherId)
+        .is("read_at", null);
     };
     load();
-    const t = setInterval(load, 3500);
-    return () => { mounted = false; clearInterval(t); };
+    const ch = supabase
+      .channel(`thread-${vehicleId}-${user.id}-${otherId}`)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages", filter: `vehicle_id=eq.${vehicleId}` }, (payload) => {
+        const m = payload.new as Msg;
+        const involved = (m.sender_id === user.id && m.recipient_id === otherId) || (m.sender_id === otherId && m.recipient_id === user.id);
+        if (involved) load();
+      })
+      .subscribe();
+    return () => { mounted = false; supabase.removeChannel(ch); };
   }, [open, user, vehicleId, otherId]);
 
   useEffect(() => {
@@ -76,10 +93,25 @@ export function ChatDialog({
       .insert({ vehicle_id: vehicleId, sender_id: user.id, recipient_id: otherId, body: value })
       .select()
       .single();
+    if (!error) {
+      // Fire notification for recipient
+      await supabase.from("notifications").insert({
+        user_id: otherId,
+        title: "💬 رسالة جديدة",
+        body: value.slice(0, 140),
+        link: `/messages`,
+        kind: "message",
+      });
+    }
     setSending(false);
     if (error) { toast.error(error.message); return; }
     setBody("");
     if (data) setMessages((m) => [...m, data as Msg]);
+  };
+
+  const handleOpenChange = (v: boolean) => {
+    setOpen(v);
+    if (!v) onClose?.();
   };
 
   if (!user) return null;
