@@ -123,10 +123,14 @@ function VehicleDetail() {
             )}
           </div>
 
-          {showOwnerNumber && (
+          {showOwnerNumber && v.phone && (
             <div className="grid grid-cols-2 gap-3">
-              <Button asChild variant="gold" className="h-12"><a href={`tel:${v.phone}`}><Phone className="h-4 w-4" /> Call Owner</a></Button>
-              <Button asChild variant="gold-outline" className="h-12"><a href={`https://wa.me/${v.phone.replace(/\D/g, "")}`} target="_blank" rel="noopener noreferrer"><MessageCircle className="h-4 w-4" /> WhatsApp</a></Button>
+              <Button asChild variant="gold" className="h-12">
+                <a href={`tel:${normalizeAlgPhone(v.phone)}`}><Phone className="h-4 w-4" /> Call Owner</a>
+              </Button>
+              <Button asChild variant="gold-outline" className="h-12">
+                <a href={`https://wa.me/${toWhatsApp(v.phone)}`} target="_blank" rel="noopener noreferrer"><MessageCircle className="h-4 w-4" /> WhatsApp</a>
+              </Button>
             </div>
           )}
           {user && !isSeller && access !== "locked" && (
