@@ -107,3 +107,26 @@ export function AppShell() {
     </div>
   );
 }
+
+function useUnreadMessages(userId?: string) {
+  const [count, setCount] = useState(0);
+  useEffect(() => {
+    if (!userId) { setCount(0); return; }
+    let mounted = true;
+    const load = async () => {
+      const { count: c } = await supabase
+        .from("messages")
+        .select("id", { count: "exact", head: true })
+        .eq("recipient_id", userId)
+        .is("read_at", null);
+      if (mounted) setCount(c ?? 0);
+    };
+    load();
+    const ch = supabase
+      .channel(`unread-${userId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "messages", filter: `recipient_id=eq.${userId}` }, () => load())
+      .subscribe();
+    return () => { mounted = false; supabase.removeChannel(ch); };
+  }, [userId]);
+  return count;
+}
