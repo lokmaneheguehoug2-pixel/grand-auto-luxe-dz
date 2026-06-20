@@ -60,8 +60,10 @@ export function AppShell() {
               )}
               {user ? (
                 <>
+                  <NotificationBell />
                   <span className="hidden sm:inline text-sm text-muted-foreground truncate max-w-[120px]">
                     {profile?.first_name ?? <User2 className="h-4 w-4 inline" />}
+                  </span>
                   </span>
                   <Button variant="ghost" size="icon" onClick={() => { signOut(); navigate({ to: "/auth" }); }}>
                     <LogOut className="h-4 w-4" />
