@@ -46,7 +46,7 @@ export function AppShell() {
                   <Link to="/my-listings">My Listings</Link>
                 </Button>
               )}
-              {user && access !== "locked" && (
+              {user && (
                 <Button asChild variant="gold-outline" size="sm" className="hidden sm:inline-flex">
                   <Link to="/post"><Plus className="h-4 w-4" /> List a Vehicle</Link>
                 </Button>
