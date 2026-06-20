@@ -16,6 +16,17 @@ import { SoldOverlay } from "@/routes/my-listings";
 import { formatCentimes } from "@/lib/format";
 import { ChatDialog } from "@/components/ChatDialog";
 
+/** Algerian phone helpers — accept "05XXXXXXXX" or "+213..." and produce dial/whatsapp formats. */
+function normalizeAlgPhone(raw: string): string {
+  const digits = (raw ?? "").replace(/\D/g, "");
+  if (digits.startsWith("213")) return `+${digits}`;
+  if (digits.startsWith("0")) return `+213${digits.slice(1)}`;
+  return `+213${digits}`;
+}
+function toWhatsApp(raw: string): string {
+  return normalizeAlgPhone(raw).replace(/\D/g, "");
+}
+
 export const Route = createFileRoute("/vehicle/$id")({
   component: VehicleDetail,
 });
