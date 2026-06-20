@@ -27,8 +27,12 @@ export function NotificationBell() {
   useEffect(() => {
     if (!user) return;
     load();
-    const t = setInterval(load, 30000);
-    return () => clearInterval(t);
+    const ch = supabase
+      .channel(`notif-${user.id}`)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${user.id}` }, () => load())
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "broadcast_messages" }, () => load())
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
   }, [user]);
 
   const markAll = async () => {
