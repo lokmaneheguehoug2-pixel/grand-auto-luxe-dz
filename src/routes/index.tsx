@@ -33,7 +33,7 @@ type Vehicle = {
 };
 
 import { SoldOverlay } from "@/routes/my-listings";
-import { formatCentimes } from "@/lib/format";
+import { StoriesStrip } from "@/components/StoriesStrip";
 
 function Home() {
   const [filters, setFilters] = useState({ q: "", brand: "all", fuel: "all", trans: "all", wilaya: "all", min: "", max: "", year: "", paint: "all", docs: "all" });
