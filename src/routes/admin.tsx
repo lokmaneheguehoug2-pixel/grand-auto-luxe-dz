@@ -324,10 +324,29 @@ function BroadcastTab() {
     if (!title.trim() || !body.trim() || !user) return;
     setSending(true);
     const { error } = await supabase.from("broadcast_messages").insert({ admin_id: user.id, title: title.trim(), body: body.trim() });
+    if (error) { setSending(false); toast.error(error.message); return; }
+
+    // Fan-out to every non-banned subscriber as a personal notification
+    const { data: targets } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("is_banned", false);
+    if (targets && targets.length > 0) {
+      const rows = targets.map((t: any) => ({
+        user_id: t.id,
+        title: `📢 ${title.trim()}`,
+        body: body.trim(),
+        kind: "broadcast",
+      }));
+      // Insert in chunks of 200 to stay friendly
+      for (let i = 0; i < rows.length; i += 200) {
+        await supabase.from("notifications").insert(rows.slice(i, i + 200));
+      }
+    }
+
     setSending(false);
-    if (error) { toast.error(error.message); return; }
     setTitle(""); setBody("");
-    toast.success("Broadcast sent");
+    toast.success(`Broadcast sent · ${targets?.length ?? 0} users`);
     qc.invalidateQueries({ queryKey: ["admin-broadcast"] });
   };
   return (
