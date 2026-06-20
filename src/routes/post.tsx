@@ -37,7 +37,15 @@ function PostPage() {
       <Button asChild variant="gold" className="mt-4"><Link to="/auth">Sign in</Link></Button>
     </div>
   );
-  if (access === "locked") return null; // PaywallGate covers
+  if (access === "locked") return (
+    <>
+      <div className="max-w-md mx-auto px-6 py-24 text-center">
+        <h2 className="font-display text-2xl mb-2 gold-text">Premium Required</h2>
+        <p className="text-sm text-muted-foreground">يجب تفعيل اشتراكك قبل نشر إعلان جديد.</p>
+      </div>
+      <PremiumPaywallModal open onOpenChange={() => navigate({ to: "/" })} reason="لنشر إعلان سيارة على GRAND Auto Luxe يجب أن يكون اشتراكك فعّالاً." />
+    </>
+  );
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
