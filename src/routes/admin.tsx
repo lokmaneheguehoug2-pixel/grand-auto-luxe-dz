@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Shield, Trash2, Check, X, Eye, DollarSign, Send, Ban, UserCheck, Crown, Megaphone } from "lucide-react";
+import { Shield, Trash2, Check, X, Eye, DollarSign, Send, Ban, UserCheck, Crown, Megaphone, Zap } from "lucide-react";
 import { useSignedUrl } from "@/hooks/use-signed-url";
 import { toast } from "sonner";
 import { useState } from "react";
