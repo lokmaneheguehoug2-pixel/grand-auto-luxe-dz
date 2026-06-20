@@ -117,11 +117,18 @@ export function ChatDialog({
   if (!user) return null;
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="gold-outline" className="h-12 w-full"><MessageCircle className="h-4 w-4" /> In-app Chat</Button>
-      </DialogTrigger>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      {!autoOpen && (
+        <DialogTrigger asChild>
+          <Button variant="gold-outline" className="h-12 w-full"><MessageCircle className="h-4 w-4" /> In-app Chat</Button>
+        </DialogTrigger>
+      )}
       <DialogContent className="bg-background border-gold/40 max-w-lg p-0 overflow-hidden">
+        <DialogHeader className="px-5 pt-5">
+          <DialogTitle className="font-display text-lg">
+            <span className="text-gold">Chat ·</span> {vehicleTitle}
+          </DialogTitle>
+        </DialogHeader>
         <DialogHeader className="px-5 pt-5">
           <DialogTitle className="font-display text-lg">
             <span className="text-gold">Chat ·</span> {vehicleTitle}
