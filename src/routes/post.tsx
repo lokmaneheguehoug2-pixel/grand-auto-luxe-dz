@@ -11,6 +11,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Loader2, Upload, X, Car } from "lucide-react";
 import { WILAYAS, BRANDS } from "@/lib/wilayas";
 import { toast } from "sonner";
+import { PremiumPaywallModal } from "@/components/PremiumPaywallModal";
 
 export const Route = createFileRoute("/post")({
   head: () => ({ meta: [{ title: "List your vehicle · GRAND Auto Luxe" }] }),
