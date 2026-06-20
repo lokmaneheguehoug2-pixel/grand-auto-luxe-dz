@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as PostReelRouteImport } from './routes/post-reel'
 import { Route as PostRouteImport } from './routes/post'
 import { Route as MyListingsRouteImport } from './routes/my-listings'
 import { Route as CheckoutRouteImport } from './routes/checkout'
@@ -19,6 +20,11 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as VehicleIdRouteImport } from './routes/vehicle.$id'
 import { Route as EditListingIdRouteImport } from './routes/edit-listing.$id'
 
+const PostReelRoute = PostReelRouteImport.update({
+  id: '/post-reel',
+  path: '/post-reel',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PostRoute = PostRouteImport.update({
   id: '/post',
   path: '/post',
@@ -73,6 +79,7 @@ export interface FileRoutesByFullPath {
   '/checkout': typeof CheckoutRoute
   '/my-listings': typeof MyListingsRoute
   '/post': typeof PostRoute
+  '/post-reel': typeof PostReelRoute
   '/edit-listing/$id': typeof EditListingIdRoute
   '/vehicle/$id': typeof VehicleIdRoute
 }
@@ -84,6 +91,7 @@ export interface FileRoutesByTo {
   '/checkout': typeof CheckoutRoute
   '/my-listings': typeof MyListingsRoute
   '/post': typeof PostRoute
+  '/post-reel': typeof PostReelRoute
   '/edit-listing/$id': typeof EditListingIdRoute
   '/vehicle/$id': typeof VehicleIdRoute
 }
@@ -96,6 +104,7 @@ export interface FileRoutesById {
   '/checkout': typeof CheckoutRoute
   '/my-listings': typeof MyListingsRoute
   '/post': typeof PostRoute
+  '/post-reel': typeof PostReelRoute
   '/edit-listing/$id': typeof EditListingIdRoute
   '/vehicle/$id': typeof VehicleIdRoute
 }
@@ -109,6 +118,7 @@ export interface FileRouteTypes {
     | '/checkout'
     | '/my-listings'
     | '/post'
+    | '/post-reel'
     | '/edit-listing/$id'
     | '/vehicle/$id'
   fileRoutesByTo: FileRoutesByTo
@@ -120,6 +130,7 @@ export interface FileRouteTypes {
     | '/checkout'
     | '/my-listings'
     | '/post'
+    | '/post-reel'
     | '/edit-listing/$id'
     | '/vehicle/$id'
   id:
@@ -131,6 +142,7 @@ export interface FileRouteTypes {
     | '/checkout'
     | '/my-listings'
     | '/post'
+    | '/post-reel'
     | '/edit-listing/$id'
     | '/vehicle/$id'
   fileRoutesById: FileRoutesById
@@ -143,12 +155,20 @@ export interface RootRouteChildren {
   CheckoutRoute: typeof CheckoutRoute
   MyListingsRoute: typeof MyListingsRoute
   PostRoute: typeof PostRoute
+  PostReelRoute: typeof PostReelRoute
   EditListingIdRoute: typeof EditListingIdRoute
   VehicleIdRoute: typeof VehicleIdRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/post-reel': {
+      id: '/post-reel'
+      path: '/post-reel'
+      fullPath: '/post-reel'
+      preLoaderRoute: typeof PostReelRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/post': {
       id: '/post'
       path: '/post'
@@ -223,6 +243,7 @@ const rootRouteChildren: RootRouteChildren = {
   CheckoutRoute: CheckoutRoute,
   MyListingsRoute: MyListingsRoute,
   PostRoute: PostRoute,
+  PostReelRoute: PostReelRoute,
   EditListingIdRoute: EditListingIdRoute,
   VehicleIdRoute: VehicleIdRoute,
 }
