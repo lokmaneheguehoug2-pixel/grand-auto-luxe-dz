@@ -362,31 +362,37 @@ export type Database = {
       }
       stories: {
         Row: {
+          author_id: string
           caption: string | null
           created_at: string
           expires_at: string
           id: string
-          showroom_id: string
+          likes_count: number
           vehicle_id: string | null
           video_url: string
+          views_count: number
         }
         Insert: {
+          author_id: string
           caption?: string | null
           created_at?: string
           expires_at?: string
           id?: string
-          showroom_id: string
+          likes_count?: number
           vehicle_id?: string | null
           video_url: string
+          views_count?: number
         }
         Update: {
+          author_id?: string
           caption?: string | null
           created_at?: string
           expires_at?: string
           id?: string
-          showroom_id?: string
+          likes_count?: number
           vehicle_id?: string | null
           video_url?: string
+          views_count?: number
         }
         Relationships: [
           {
