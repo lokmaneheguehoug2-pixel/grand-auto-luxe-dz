@@ -63,6 +63,16 @@ export function AppShell() {
               )}
               {user ? (
                 <>
+                  <Button asChild variant="ghost" size="icon" className="relative">
+                    <Link to="/messages" aria-label="Messages">
+                      <MessageSquare className="h-4 w-4 text-gold" />
+                      {unreadMsgs > 0 && (
+                        <span className="absolute top-1 right-1 min-w-[16px] h-4 px-1 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold grid place-items-center">
+                          {unreadMsgs > 9 ? "9+" : unreadMsgs}
+                        </span>
+                      )}
+                    </Link>
+                  </Button>
                   <NotificationBell />
                   <span className="hidden sm:inline text-sm text-muted-foreground truncate max-w-[120px]">
                     {profile?.first_name ?? <User2 className="h-4 w-4 inline" />}
