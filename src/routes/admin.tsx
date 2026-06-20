@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Shield, Trash2, Check, X, Eye, DollarSign, Send, Ban, UserCheck, Crown, Megaphone } from "lucide-react";
+import { Shield, Trash2, Check, X, Eye, DollarSign, Send, Ban, UserCheck, Crown, Megaphone, Zap } from "lucide-react";
 import { useSignedUrl } from "@/hooks/use-signed-url";
 import { toast } from "sonner";
 import { useState } from "react";
@@ -180,9 +180,22 @@ function UsersTab() {
     toast.success(u.is_banned ? "User reactivated" : "User banned");
     qc.invalidateQueries({ queryKey: ["admin-users"] });
   };
+  const activate = async (u: any, days: number) => {
+    const until = new Date(Date.now() + days * 86400_000).toISOString();
+    const { error } = await supabase.from("profiles").update({ subscription_status: "active", subscription_until: until }).eq("id", u.id);
+    if (error) { toast.error(error.message); return; }
+    await supabase.from("notifications").insert({
+      user_id: u.id,
+      title: "✨ تم تفعيل اشتراكك",
+      body: `حسابك مفعّل لمدة ${days} يوم. يمكنك الآن نشر الإعلانات والريلز بدون قيود.`,
+      kind: "subscription",
+    });
+    toast.success(`Activated · ${days} days`);
+    qc.invalidateQueries({ queryKey: ["admin-users"] });
+  };
   return (
     <div className="premium-card rounded-xl overflow-x-auto">
-      <table className="w-full text-sm min-w-[640px]">
+      <table className="w-full text-sm min-w-[720px]">
         <thead className="bg-charcoal text-xs uppercase tracking-widest text-muted-foreground">
           <tr><th className="text-left p-3">Name</th><th className="text-left p-3">Phone</th><th className="text-left p-3">Status</th><th className="text-left p-3">Joined</th><th></th></tr>
         </thead>
@@ -196,7 +209,13 @@ function UsersTab() {
               <td className="p-3 font-mono text-xs">{u.phone}</td>
               <td className="p-3"><span className={`px-2 py-0.5 rounded-full text-xs ${u.subscription_status==='active'?'bg-emerald-500/15 text-emerald-400':u.subscription_status==='trial'?'bg-gold-soft text-gold':'bg-destructive/15 text-destructive'}`}>{u.subscription_status}</span></td>
               <td className="p-3 text-muted-foreground text-xs">{new Date(u.created_at).toLocaleDateString()}</td>
-              <td className="p-3 text-right">
+              <td className="p-3 text-right whitespace-nowrap">
+                <Button variant="gold" size="sm" className="mr-1" onClick={() => activate(u, 30)} title="Activate 30 days">
+                  <Zap className="h-3.5 w-3.5" /> 30d
+                </Button>
+                <Button variant="gold-outline" size="sm" className="mr-1" onClick={() => activate(u, 365)}>
+                  365d
+                </Button>
                 <Button variant="ghost" size="sm" onClick={() => toggleBan(u)}>
                   {u.is_banned ? <><UserCheck className="h-4 w-4 text-emerald-400" /> Unban</> : <><Ban className="h-4 w-4 text-destructive" /> Ban</>}
                 </Button>
@@ -211,37 +230,79 @@ function UsersTab() {
 
 function ListingsTab() {
   const qc = useQueryClient();
+  const [tab, setTab] = useState<"pending" | "all">("pending");
   const { data = [] } = useQuery({
-    queryKey: ["admin-listings"],
+    queryKey: ["admin-listings", tab],
     queryFn: async () => {
-      const { data } = await supabase.from("vehicles").select("id, brand, model, year, wilaya, created_at, status").order("created_at", { ascending: false });
+      let q = supabase.from("vehicles").select("id, brand, model, year, wilaya, created_at, status, seller_id").order("created_at", { ascending: false });
+      if (tab === "pending") q = q.eq("status", "pending");
+      const { data } = await q;
       return data ?? [];
     },
   });
+  const setStatus = async (v: any, status: "active" | "rejected", notif: { title: string; body: string }) => {
+    const { error } = await supabase.from("vehicles").update({ status }).eq("id", v.id);
+    if (error) { toast.error(error.message); return; }
+    await supabase.from("notifications").insert({
+      user_id: v.seller_id,
+      title: notif.title,
+      body: notif.body,
+      link: `/vehicle/${v.id}`,
+      kind: status === "active" ? "approved" : "rejected",
+    });
+    toast.success(status === "active" ? "تم القبول ونشرها" : "تم الرفض");
+    qc.invalidateQueries({ queryKey: ["admin-listings"] });
+  };
   const del = async (id: string) => {
     if (!confirm("Delete this listing?")) return;
     await supabase.from("vehicles").delete().eq("id", id);
     qc.invalidateQueries({ queryKey: ["admin-listings"] });
     toast.success("Listing removed.");
   };
+
+  const pendingCount = data.filter((v: any) => v.status === "pending").length;
+
   return (
-    <div className="premium-card rounded-xl overflow-x-auto">
-      <table className="w-full text-sm min-w-[640px]">
-        <thead className="bg-charcoal text-xs uppercase tracking-widest text-muted-foreground">
-          <tr><th className="text-left p-3">Vehicle</th><th className="text-left p-3">Wilaya</th><th className="text-left p-3">Status</th><th className="text-left p-3">Date</th><th></th></tr>
-        </thead>
-        <tbody>
-          {data.map((v: any) => (
-            <tr key={v.id} className="border-t border-border">
-              <td className="p-3">{v.brand} {v.model} <span className="text-muted-foreground text-xs">· {v.year}</span></td>
-              <td className="p-3">{v.wilaya}</td>
-              <td className="p-3"><span className="text-xs px-2 py-0.5 rounded-full bg-charcoal border border-border">{v.status}</span></td>
-              <td className="p-3 text-muted-foreground text-xs">{new Date(v.created_at).toLocaleDateString()}</td>
-              <td className="p-3 text-right"><Button variant="ghost" size="sm" onClick={() => del(v.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button></td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="space-y-3">
+      <div className="flex items-center gap-2">
+        <Button size="sm" variant={tab === "pending" ? "gold" : "ghost"} onClick={() => setTab("pending")}>
+          Pending {tab === "pending" && pendingCount > 0 ? `· ${pendingCount}` : ""}
+        </Button>
+        <Button size="sm" variant={tab === "all" ? "gold" : "ghost"} onClick={() => setTab("all")}>All</Button>
+      </div>
+      <div className="premium-card rounded-xl overflow-x-auto">
+        <table className="w-full text-sm min-w-[720px]">
+          <thead className="bg-charcoal text-xs uppercase tracking-widest text-muted-foreground">
+            <tr><th className="text-left p-3">Vehicle</th><th className="text-left p-3">Wilaya</th><th className="text-left p-3">Status</th><th className="text-left p-3">Date</th><th></th></tr>
+          </thead>
+          <tbody>
+            {data.length === 0 && (
+              <tr><td colSpan={5} className="p-8 text-center text-muted-foreground">No listings here.</td></tr>
+            )}
+            {data.map((v: any) => (
+              <tr key={v.id} className="border-t border-border">
+                <td className="p-3">{v.brand} {v.model} <span className="text-muted-foreground text-xs">· {v.year}</span></td>
+                <td className="p-3">{v.wilaya}</td>
+                <td className="p-3"><span className={`text-xs px-2 py-0.5 rounded-full border ${v.status==='pending'?'bg-gold-soft text-gold border-gold/40':v.status==='active'?'bg-emerald-500/10 text-emerald-400 border-emerald-500/30':v.status==='rejected'?'bg-destructive/10 text-destructive border-destructive/40':'bg-charcoal border-border'}`}>{v.status}</span></td>
+                <td className="p-3 text-muted-foreground text-xs">{new Date(v.created_at).toLocaleDateString()}</td>
+                <td className="p-3 text-right whitespace-nowrap">
+                  {v.status === "pending" && (
+                    <>
+                      <Button variant="gold" size="sm" className="mr-1" onClick={() => setStatus(v, "active", { title: "✅ تم قبول إعلانك", body: `${v.brand} ${v.model} ظهر الآن في السوق.` })}>
+                        <Check className="h-3.5 w-3.5" /> Approve
+                      </Button>
+                      <Button variant="ghost" size="sm" className="mr-1" onClick={() => setStatus(v, "rejected", { title: "❌ تم رفض إعلانك", body: `إعلان ${v.brand} ${v.model} لم يستوفِ شروط النشر.` })}>
+                        <X className="h-3.5 w-3.5" /> Reject
+                      </Button>
+                    </>
+                  )}
+                  <Button variant="ghost" size="sm" onClick={() => del(v.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -263,10 +324,29 @@ function BroadcastTab() {
     if (!title.trim() || !body.trim() || !user) return;
     setSending(true);
     const { error } = await supabase.from("broadcast_messages").insert({ admin_id: user.id, title: title.trim(), body: body.trim() });
+    if (error) { setSending(false); toast.error(error.message); return; }
+
+    // Fan-out to every non-banned subscriber as a personal notification
+    const { data: targets } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("is_banned", false);
+    if (targets && targets.length > 0) {
+      const rows = targets.map((t: any) => ({
+        user_id: t.id,
+        title: `📢 ${title.trim()}`,
+        body: body.trim(),
+        kind: "broadcast",
+      }));
+      // Insert in chunks of 200 to stay friendly
+      for (let i = 0; i < rows.length; i += 200) {
+        await supabase.from("notifications").insert(rows.slice(i, i + 200));
+      }
+    }
+
     setSending(false);
-    if (error) { toast.error(error.message); return; }
     setTitle(""); setBody("");
-    toast.success("Broadcast sent");
+    toast.success(`Broadcast sent · ${targets?.length ?? 0} users`);
     qc.invalidateQueries({ queryKey: ["admin-broadcast"] });
   };
   return (

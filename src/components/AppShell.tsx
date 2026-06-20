@@ -2,17 +2,20 @@ import { Outlet, Link, useRouterState, useNavigate } from "@tanstack/react-route
 import { Toaster } from "@/components/ui/sonner";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
-import { Plus, Shield, LogOut, User2, Film } from "lucide-react";
+import { Plus, Shield, LogOut, User2, Film, MessageSquare } from "lucide-react";
 import logoAsset from "@/assets/granda-logo.png.asset.json";
 import { PaywallGate } from "@/components/PaywallGate";
 import { CompareTray } from "@/components/CompareTray";
 import { NotificationBell } from "@/components/NotificationBell";
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
 
 export function AppShell() {
   const { user, profile, isAdmin, signOut, access, hoursLeft } = useAuth();
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const isAuthPage = pathname === "/auth";
+  const unreadMsgs = useUnreadMessages(user?.id);
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
@@ -43,7 +46,7 @@ export function AppShell() {
                   <Link to="/my-listings">My Listings</Link>
                 </Button>
               )}
-              {user && access !== "locked" && (
+              {user && (
                 <Button asChild variant="gold-outline" size="sm" className="hidden sm:inline-flex">
                   <Link to="/post"><Plus className="h-4 w-4" /> List a Vehicle</Link>
                 </Button>
@@ -60,6 +63,16 @@ export function AppShell() {
               )}
               {user ? (
                 <>
+                  <Button asChild variant="ghost" size="icon" className="relative">
+                    <Link to="/messages" aria-label="Messages">
+                      <MessageSquare className="h-4 w-4 text-gold" />
+                      {unreadMsgs > 0 && (
+                        <span className="absolute top-1 right-1 min-w-[16px] h-4 px-1 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold grid place-items-center">
+                          {unreadMsgs > 9 ? "9+" : unreadMsgs}
+                        </span>
+                      )}
+                    </Link>
+                  </Button>
                   <NotificationBell />
                   <span className="hidden sm:inline text-sm text-muted-foreground truncate max-w-[120px]">
                     {profile?.first_name ?? <User2 className="h-4 w-4 inline" />}
@@ -88,9 +101,32 @@ export function AppShell() {
         </footer>
       )}
 
-      {user && access === "locked" && !isAdmin && !isAuthPage && pathname !== "/paywall" && pathname !== "/checkout" && <PaywallGate />}
+      {user && access === "locked" && !isAdmin && !isAuthPage && !["/paywall","/checkout","/post","/post-reel"].includes(pathname) && <PaywallGate />}
       {!isAuthPage && <CompareTray />}
       <Toaster theme="dark" />
     </div>
   );
+}
+
+function useUnreadMessages(userId?: string) {
+  const [count, setCount] = useState(0);
+  useEffect(() => {
+    if (!userId) { setCount(0); return; }
+    let mounted = true;
+    const load = async () => {
+      const { count: c } = await supabase
+        .from("messages")
+        .select("id", { count: "exact", head: true })
+        .eq("recipient_id", userId)
+        .is("read_at", null);
+      if (mounted) setCount(c ?? 0);
+    };
+    load();
+    const ch = supabase
+      .channel(`unread-${userId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "messages", filter: `recipient_id=eq.${userId}` }, () => load())
+      .subscribe();
+    return () => { mounted = false; supabase.removeChannel(ch); };
+  }, [userId]);
+  return count;
 }

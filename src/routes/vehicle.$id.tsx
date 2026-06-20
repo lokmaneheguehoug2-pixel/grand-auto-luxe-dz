@@ -16,6 +16,17 @@ import { SoldOverlay } from "@/routes/my-listings";
 import { formatCentimes } from "@/lib/format";
 import { ChatDialog } from "@/components/ChatDialog";
 
+/** Algerian phone helpers — accept "05XXXXXXXX" or "+213..." and produce dial/whatsapp formats. */
+function normalizeAlgPhone(raw: string): string {
+  const digits = (raw ?? "").replace(/\D/g, "");
+  if (digits.startsWith("213")) return `+${digits}`;
+  if (digits.startsWith("0")) return `+213${digits.slice(1)}`;
+  return `+213${digits}`;
+}
+function toWhatsApp(raw: string): string {
+  return normalizeAlgPhone(raw).replace(/\D/g, "");
+}
+
 export const Route = createFileRoute("/vehicle/$id")({
   component: VehicleDetail,
 });
@@ -123,10 +134,14 @@ function VehicleDetail() {
             )}
           </div>
 
-          {showOwnerNumber && (
+          {showOwnerNumber && v.phone && (
             <div className="grid grid-cols-2 gap-3">
-              <Button asChild variant="gold" className="h-12"><a href={`tel:${v.phone}`}><Phone className="h-4 w-4" /> Call Owner</a></Button>
-              <Button asChild variant="gold-outline" className="h-12"><a href={`https://wa.me/${v.phone.replace(/\D/g, "")}`} target="_blank" rel="noopener noreferrer"><MessageCircle className="h-4 w-4" /> WhatsApp</a></Button>
+              <Button asChild variant="gold" className="h-12">
+                <a href={`tel:${normalizeAlgPhone(v.phone)}`}><Phone className="h-4 w-4" /> Call Owner</a>
+              </Button>
+              <Button asChild variant="gold-outline" className="h-12">
+                <a href={`https://wa.me/${toWhatsApp(v.phone)}`} target="_blank" rel="noopener noreferrer"><MessageCircle className="h-4 w-4" /> WhatsApp</a>
+              </Button>
             </div>
           )}
           {user && !isSeller && access !== "locked" && (

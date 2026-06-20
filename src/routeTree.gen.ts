@@ -13,6 +13,7 @@ import { Route as ReelsRouteImport } from './routes/reels'
 import { Route as PostReelRouteImport } from './routes/post-reel'
 import { Route as PostRouteImport } from './routes/post'
 import { Route as MyListingsRouteImport } from './routes/my-listings'
+import { Route as MessagesRouteImport } from './routes/messages'
 import { Route as CheckoutRouteImport } from './routes/checkout'
 import { Route as BrandsRouteImport } from './routes/brands'
 import { Route as AuthRouteImport } from './routes/auth'
@@ -39,6 +40,11 @@ const PostRoute = PostRouteImport.update({
 const MyListingsRoute = MyListingsRouteImport.update({
   id: '/my-listings',
   path: '/my-listings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MessagesRoute = MessagesRouteImport.update({
+  id: '/messages',
+  path: '/messages',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CheckoutRoute = CheckoutRouteImport.update({
@@ -83,6 +89,7 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/brands': typeof BrandsRoute
   '/checkout': typeof CheckoutRoute
+  '/messages': typeof MessagesRoute
   '/my-listings': typeof MyListingsRoute
   '/post': typeof PostRoute
   '/post-reel': typeof PostReelRoute
@@ -96,6 +103,7 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/brands': typeof BrandsRoute
   '/checkout': typeof CheckoutRoute
+  '/messages': typeof MessagesRoute
   '/my-listings': typeof MyListingsRoute
   '/post': typeof PostRoute
   '/post-reel': typeof PostReelRoute
@@ -110,6 +118,7 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/brands': typeof BrandsRoute
   '/checkout': typeof CheckoutRoute
+  '/messages': typeof MessagesRoute
   '/my-listings': typeof MyListingsRoute
   '/post': typeof PostRoute
   '/post-reel': typeof PostReelRoute
@@ -125,6 +134,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/brands'
     | '/checkout'
+    | '/messages'
     | '/my-listings'
     | '/post'
     | '/post-reel'
@@ -138,6 +148,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/brands'
     | '/checkout'
+    | '/messages'
     | '/my-listings'
     | '/post'
     | '/post-reel'
@@ -151,6 +162,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/brands'
     | '/checkout'
+    | '/messages'
     | '/my-listings'
     | '/post'
     | '/post-reel'
@@ -165,6 +177,7 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRoute
   BrandsRoute: typeof BrandsRoute
   CheckoutRoute: typeof CheckoutRoute
+  MessagesRoute: typeof MessagesRoute
   MyListingsRoute: typeof MyListingsRoute
   PostRoute: typeof PostRoute
   PostReelRoute: typeof PostReelRoute
@@ -201,6 +214,13 @@ declare module '@tanstack/react-router' {
       path: '/my-listings'
       fullPath: '/my-listings'
       preLoaderRoute: typeof MyListingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/messages': {
+      id: '/messages'
+      path: '/messages'
+      fullPath: '/messages'
+      preLoaderRoute: typeof MessagesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/checkout': {
@@ -261,6 +281,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRoute,
   BrandsRoute: BrandsRoute,
   CheckoutRoute: CheckoutRoute,
+  MessagesRoute: MessagesRoute,
   MyListingsRoute: MyListingsRoute,
   PostRoute: PostRoute,
   PostReelRoute: PostReelRoute,
