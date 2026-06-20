@@ -15,6 +15,7 @@ export function AppShell() {
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const isAuthPage = pathname === "/auth";
+  const unreadMsgs = useUnreadMessages(user?.id);
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
