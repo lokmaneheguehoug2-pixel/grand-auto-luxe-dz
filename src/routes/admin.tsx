@@ -227,29 +227,6 @@ function UsersTab() {
     </div>
   );
 }
-        </thead>
-        <tbody>
-          {data.map((u: any) => (
-            <tr key={u.id} className="border-t border-border">
-              <td className="p-3">
-                {u.first_name} {u.last_name}
-                {u.is_banned && <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-destructive/20 text-destructive uppercase">Banned</span>}
-              </td>
-              <td className="p-3 font-mono text-xs">{u.phone}</td>
-              <td className="p-3"><span className={`px-2 py-0.5 rounded-full text-xs ${u.subscription_status==='active'?'bg-emerald-500/15 text-emerald-400':u.subscription_status==='trial'?'bg-gold-soft text-gold':'bg-destructive/15 text-destructive'}`}>{u.subscription_status}</span></td>
-              <td className="p-3 text-muted-foreground text-xs">{new Date(u.created_at).toLocaleDateString()}</td>
-              <td className="p-3 text-right">
-                <Button variant="ghost" size="sm" onClick={() => toggleBan(u)}>
-                  {u.is_banned ? <><UserCheck className="h-4 w-4 text-emerald-400" /> Unban</> : <><Ban className="h-4 w-4 text-destructive" /> Ban</>}
-                </Button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
 
 function ListingsTab() {
   const qc = useQueryClient();
