@@ -83,8 +83,8 @@ function PostPage() {
         auction_ends_at,
       }).select("id").single();
       if (error) throw error;
-      toast.success("Vehicle listed.");
-      navigate({ to: "/vehicle/$id", params: { id: data.id } });
+      toast.success("تم استلام إعلانك · بانتظار مراجعة الإدارة (Pending review)");
+      navigate({ to: "/my-listings" });
     } catch (e: any) {
       toast.error(e.message ?? "Failed to list vehicle");
     } finally {
