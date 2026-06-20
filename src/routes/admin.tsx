@@ -180,11 +180,53 @@ function UsersTab() {
     toast.success(u.is_banned ? "User reactivated" : "User banned");
     qc.invalidateQueries({ queryKey: ["admin-users"] });
   };
+  const activate = async (u: any, days: number) => {
+    const until = new Date(Date.now() + days * 86400_000).toISOString();
+    const { error } = await supabase.from("profiles").update({ subscription_status: "active", subscription_until: until }).eq("id", u.id);
+    if (error) { toast.error(error.message); return; }
+    await supabase.from("notifications").insert({
+      user_id: u.id,
+      title: "✨ تم تفعيل اشتراكك",
+      body: `حسابك مفعّل لمدة ${days} يوم. يمكنك الآن نشر الإعلانات والريلز بدون قيود.`,
+      kind: "subscription",
+    });
+    toast.success(`Activated · ${days} days`);
+    qc.invalidateQueries({ queryKey: ["admin-users"] });
+  };
   return (
     <div className="premium-card rounded-xl overflow-x-auto">
-      <table className="w-full text-sm min-w-[640px]">
+      <table className="w-full text-sm min-w-[720px]">
         <thead className="bg-charcoal text-xs uppercase tracking-widest text-muted-foreground">
           <tr><th className="text-left p-3">Name</th><th className="text-left p-3">Phone</th><th className="text-left p-3">Status</th><th className="text-left p-3">Joined</th><th></th></tr>
+        </thead>
+        <tbody>
+          {data.map((u: any) => (
+            <tr key={u.id} className="border-t border-border">
+              <td className="p-3">
+                {u.first_name} {u.last_name}
+                {u.is_banned && <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-destructive/20 text-destructive uppercase">Banned</span>}
+              </td>
+              <td className="p-3 font-mono text-xs">{u.phone}</td>
+              <td className="p-3"><span className={`px-2 py-0.5 rounded-full text-xs ${u.subscription_status==='active'?'bg-emerald-500/15 text-emerald-400':u.subscription_status==='trial'?'bg-gold-soft text-gold':'bg-destructive/15 text-destructive'}`}>{u.subscription_status}</span></td>
+              <td className="p-3 text-muted-foreground text-xs">{new Date(u.created_at).toLocaleDateString()}</td>
+              <td className="p-3 text-right whitespace-nowrap">
+                <Button variant="gold" size="sm" className="mr-1" onClick={() => activate(u, 30)} title="Activate 30 days">
+                  <Zap className="h-3.5 w-3.5" /> 30d
+                </Button>
+                <Button variant="gold-outline" size="sm" className="mr-1" onClick={() => activate(u, 365)}>
+                  365d
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => toggleBan(u)}>
+                  {u.is_banned ? <><UserCheck className="h-4 w-4 text-emerald-400" /> Unban</> : <><Ban className="h-4 w-4 text-destructive" /> Ban</>}
+                </Button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
         </thead>
         <tbody>
           {data.map((u: any) => (
