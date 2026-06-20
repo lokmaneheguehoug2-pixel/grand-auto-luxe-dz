@@ -2,10 +2,11 @@ import { Outlet, Link, useRouterState, useNavigate } from "@tanstack/react-route
 import { Toaster } from "@/components/ui/sonner";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
-import { Plus, Shield, LogOut, User2 } from "lucide-react";
+import { Plus, Shield, LogOut, User2, Film } from "lucide-react";
 import logoAsset from "@/assets/granda-logo.png.asset.json";
 import { PaywallGate } from "@/components/PaywallGate";
 import { CompareTray } from "@/components/CompareTray";
+import { NotificationBell } from "@/components/NotificationBell";
 
 export function AppShell() {
   const { user, profile, isAdmin, signOut, access, hoursLeft } = useAuth();
