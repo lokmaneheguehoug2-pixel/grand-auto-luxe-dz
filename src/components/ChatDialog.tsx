@@ -22,13 +22,27 @@ type Msg = {
   created_at: string;
 };
 
-export function ChatDialog({ vehicleId, sellerId, vehicleTitle }: { vehicleId: string; sellerId: string; vehicleTitle: string }) {
+export function ChatDialog({
+  vehicleId,
+  sellerId,
+  vehicleTitle,
+  autoOpen = false,
+  onClose,
+}: {
+  vehicleId: string;
+  sellerId: string;
+  vehicleTitle: string;
+  autoOpen?: boolean;
+  onClose?: () => void;
+}) {
   const { user } = useAuth();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(autoOpen);
   const [messages, setMessages] = useState<Msg[]>([]);
   const [body, setBody] = useState("");
   const [sending, setSending] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => { if (autoOpen) setOpen(true); }, [autoOpen]);
 
   const otherId = sellerId;
 
