@@ -89,6 +89,9 @@ function Home() {
         </div>
       </section>
 
+      {/* GRAND Stories strip */}
+      <StoriesStrip />
+
       {/* Filters */}
       <section className="border-b border-border/60 bg-charcoal/40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4">
