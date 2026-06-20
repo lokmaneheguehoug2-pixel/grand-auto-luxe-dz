@@ -129,11 +129,8 @@ export function ChatDialog({
             <span className="text-gold">Chat ·</span> {vehicleTitle}
           </DialogTitle>
         </DialogHeader>
-        <DialogHeader className="px-5 pt-5">
-          <DialogTitle className="font-display text-lg">
-            <span className="text-gold">Chat ·</span> {vehicleTitle}
-          </DialogTitle>
-        </DialogHeader>
+
+
 
         <div ref={scrollRef} className="px-5 py-4 h-80 overflow-y-auto space-y-2 bg-charcoal/30">
           {messages.length === 0 && (
