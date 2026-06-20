@@ -230,37 +230,79 @@ function UsersTab() {
 
 function ListingsTab() {
   const qc = useQueryClient();
+  const [tab, setTab] = useState<"pending" | "all">("pending");
   const { data = [] } = useQuery({
-    queryKey: ["admin-listings"],
+    queryKey: ["admin-listings", tab],
     queryFn: async () => {
-      const { data } = await supabase.from("vehicles").select("id, brand, model, year, wilaya, created_at, status").order("created_at", { ascending: false });
+      let q = supabase.from("vehicles").select("id, brand, model, year, wilaya, created_at, status, seller_id").order("created_at", { ascending: false });
+      if (tab === "pending") q = q.eq("status", "pending");
+      const { data } = await q;
       return data ?? [];
     },
   });
+  const setStatus = async (v: any, status: "active" | "rejected", notif: { title: string; body: string }) => {
+    const { error } = await supabase.from("vehicles").update({ status }).eq("id", v.id);
+    if (error) { toast.error(error.message); return; }
+    await supabase.from("notifications").insert({
+      user_id: v.seller_id,
+      title: notif.title,
+      body: notif.body,
+      link: `/vehicle/${v.id}`,
+      kind: status === "active" ? "approved" : "rejected",
+    });
+    toast.success(status === "active" ? "تم القبول ونشرها" : "تم الرفض");
+    qc.invalidateQueries({ queryKey: ["admin-listings"] });
+  };
   const del = async (id: string) => {
     if (!confirm("Delete this listing?")) return;
     await supabase.from("vehicles").delete().eq("id", id);
     qc.invalidateQueries({ queryKey: ["admin-listings"] });
     toast.success("Listing removed.");
   };
+
+  const pendingCount = data.filter((v: any) => v.status === "pending").length;
+
   return (
-    <div className="premium-card rounded-xl overflow-x-auto">
-      <table className="w-full text-sm min-w-[640px]">
-        <thead className="bg-charcoal text-xs uppercase tracking-widest text-muted-foreground">
-          <tr><th className="text-left p-3">Vehicle</th><th className="text-left p-3">Wilaya</th><th className="text-left p-3">Status</th><th className="text-left p-3">Date</th><th></th></tr>
-        </thead>
-        <tbody>
-          {data.map((v: any) => (
-            <tr key={v.id} className="border-t border-border">
-              <td className="p-3">{v.brand} {v.model} <span className="text-muted-foreground text-xs">· {v.year}</span></td>
-              <td className="p-3">{v.wilaya}</td>
-              <td className="p-3"><span className="text-xs px-2 py-0.5 rounded-full bg-charcoal border border-border">{v.status}</span></td>
-              <td className="p-3 text-muted-foreground text-xs">{new Date(v.created_at).toLocaleDateString()}</td>
-              <td className="p-3 text-right"><Button variant="ghost" size="sm" onClick={() => del(v.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button></td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="space-y-3">
+      <div className="flex items-center gap-2">
+        <Button size="sm" variant={tab === "pending" ? "gold" : "ghost"} onClick={() => setTab("pending")}>
+          Pending {tab === "pending" && pendingCount > 0 ? `· ${pendingCount}` : ""}
+        </Button>
+        <Button size="sm" variant={tab === "all" ? "gold" : "ghost"} onClick={() => setTab("all")}>All</Button>
+      </div>
+      <div className="premium-card rounded-xl overflow-x-auto">
+        <table className="w-full text-sm min-w-[720px]">
+          <thead className="bg-charcoal text-xs uppercase tracking-widest text-muted-foreground">
+            <tr><th className="text-left p-3">Vehicle</th><th className="text-left p-3">Wilaya</th><th className="text-left p-3">Status</th><th className="text-left p-3">Date</th><th></th></tr>
+          </thead>
+          <tbody>
+            {data.length === 0 && (
+              <tr><td colSpan={5} className="p-8 text-center text-muted-foreground">No listings here.</td></tr>
+            )}
+            {data.map((v: any) => (
+              <tr key={v.id} className="border-t border-border">
+                <td className="p-3">{v.brand} {v.model} <span className="text-muted-foreground text-xs">· {v.year}</span></td>
+                <td className="p-3">{v.wilaya}</td>
+                <td className="p-3"><span className={`text-xs px-2 py-0.5 rounded-full border ${v.status==='pending'?'bg-gold-soft text-gold border-gold/40':v.status==='active'?'bg-emerald-500/10 text-emerald-400 border-emerald-500/30':v.status==='rejected'?'bg-destructive/10 text-destructive border-destructive/40':'bg-charcoal border-border'}`}>{v.status}</span></td>
+                <td className="p-3 text-muted-foreground text-xs">{new Date(v.created_at).toLocaleDateString()}</td>
+                <td className="p-3 text-right whitespace-nowrap">
+                  {v.status === "pending" && (
+                    <>
+                      <Button variant="gold" size="sm" className="mr-1" onClick={() => setStatus(v, "active", { title: "✅ تم قبول إعلانك", body: `${v.brand} ${v.model} ظهر الآن في السوق.` })}>
+                        <Check className="h-3.5 w-3.5" /> Approve
+                      </Button>
+                      <Button variant="ghost" size="sm" className="mr-1" onClick={() => setStatus(v, "rejected", { title: "❌ تم رفض إعلانك", body: `إعلان ${v.brand} ${v.model} لم يستوفِ شروط النشر.` })}>
+                        <X className="h-3.5 w-3.5" /> Reject
+                      </Button>
+                    </>
+                  )}
+                  <Button variant="ghost" size="sm" onClick={() => del(v.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
