@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as ReelsRouteImport } from './routes/reels'
 import { Route as PostReelRouteImport } from './routes/post-reel'
 import { Route as PostRouteImport } from './routes/post'
 import { Route as MyListingsRouteImport } from './routes/my-listings'
@@ -20,6 +21,11 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as VehicleIdRouteImport } from './routes/vehicle.$id'
 import { Route as EditListingIdRouteImport } from './routes/edit-listing.$id'
 
+const ReelsRoute = ReelsRouteImport.update({
+  id: '/reels',
+  path: '/reels',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PostReelRoute = PostReelRouteImport.update({
   id: '/post-reel',
   path: '/post-reel',
@@ -80,6 +86,7 @@ export interface FileRoutesByFullPath {
   '/my-listings': typeof MyListingsRoute
   '/post': typeof PostRoute
   '/post-reel': typeof PostReelRoute
+  '/reels': typeof ReelsRoute
   '/edit-listing/$id': typeof EditListingIdRoute
   '/vehicle/$id': typeof VehicleIdRoute
 }
@@ -92,6 +99,7 @@ export interface FileRoutesByTo {
   '/my-listings': typeof MyListingsRoute
   '/post': typeof PostRoute
   '/post-reel': typeof PostReelRoute
+  '/reels': typeof ReelsRoute
   '/edit-listing/$id': typeof EditListingIdRoute
   '/vehicle/$id': typeof VehicleIdRoute
 }
@@ -105,6 +113,7 @@ export interface FileRoutesById {
   '/my-listings': typeof MyListingsRoute
   '/post': typeof PostRoute
   '/post-reel': typeof PostReelRoute
+  '/reels': typeof ReelsRoute
   '/edit-listing/$id': typeof EditListingIdRoute
   '/vehicle/$id': typeof VehicleIdRoute
 }
@@ -119,6 +128,7 @@ export interface FileRouteTypes {
     | '/my-listings'
     | '/post'
     | '/post-reel'
+    | '/reels'
     | '/edit-listing/$id'
     | '/vehicle/$id'
   fileRoutesByTo: FileRoutesByTo
@@ -131,6 +141,7 @@ export interface FileRouteTypes {
     | '/my-listings'
     | '/post'
     | '/post-reel'
+    | '/reels'
     | '/edit-listing/$id'
     | '/vehicle/$id'
   id:
@@ -143,6 +154,7 @@ export interface FileRouteTypes {
     | '/my-listings'
     | '/post'
     | '/post-reel'
+    | '/reels'
     | '/edit-listing/$id'
     | '/vehicle/$id'
   fileRoutesById: FileRoutesById
@@ -156,12 +168,20 @@ export interface RootRouteChildren {
   MyListingsRoute: typeof MyListingsRoute
   PostRoute: typeof PostRoute
   PostReelRoute: typeof PostReelRoute
+  ReelsRoute: typeof ReelsRoute
   EditListingIdRoute: typeof EditListingIdRoute
   VehicleIdRoute: typeof VehicleIdRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/reels': {
+      id: '/reels'
+      path: '/reels'
+      fullPath: '/reels'
+      preLoaderRoute: typeof ReelsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/post-reel': {
       id: '/post-reel'
       path: '/post-reel'
@@ -244,6 +264,7 @@ const rootRouteChildren: RootRouteChildren = {
   MyListingsRoute: MyListingsRoute,
   PostRoute: PostRoute,
   PostReelRoute: PostReelRoute,
+  ReelsRoute: ReelsRoute,
   EditListingIdRoute: EditListingIdRoute,
   VehicleIdRoute: VehicleIdRoute,
 }
