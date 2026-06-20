@@ -2,10 +2,11 @@ import { Outlet, Link, useRouterState, useNavigate } from "@tanstack/react-route
 import { Toaster } from "@/components/ui/sonner";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
-import { Plus, Shield, LogOut, User2 } from "lucide-react";
+import { Plus, Shield, LogOut, User2, Film } from "lucide-react";
 import logoAsset from "@/assets/granda-logo.png.asset.json";
 import { PaywallGate } from "@/components/PaywallGate";
 import { CompareTray } from "@/components/CompareTray";
+import { NotificationBell } from "@/components/NotificationBell";
 
 export function AppShell() {
   const { user, profile, isAdmin, signOut, access, hoursLeft } = useAuth();
@@ -34,6 +35,9 @@ export function AppShell() {
               <Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex">
                 <Link to="/brands">Brands</Link>
               </Button>
+              <Button asChild variant="ghost" size="sm">
+                <Link to="/reels"><Film className="h-4 w-4" /> <span className="hidden sm:inline">Reels</span></Link>
+              </Button>
               {user && (
                 <Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex">
                   <Link to="/my-listings">My Listings</Link>
@@ -56,6 +60,7 @@ export function AppShell() {
               )}
               {user ? (
                 <>
+                  <NotificationBell />
                   <span className="hidden sm:inline text-sm text-muted-foreground truncate max-w-[120px]">
                     {profile?.first_name ?? <User2 className="h-4 w-4 inline" />}
                   </span>
