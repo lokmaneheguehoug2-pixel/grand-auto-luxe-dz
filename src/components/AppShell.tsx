@@ -101,7 +101,7 @@ export function AppShell() {
         </footer>
       )}
 
-      {user && access === "locked" && !isAdmin && !isAuthPage && pathname !== "/paywall" && pathname !== "/checkout" && <PaywallGate />}
+      {user && access === "locked" && !isAdmin && !isAuthPage && !["/paywall","/checkout","/post","/post-reel"].includes(pathname) && <PaywallGate />}
       {!isAuthPage && <CompareTray />}
       <Toaster theme="dark" />
     </div>
