@@ -18,6 +18,8 @@ export function useAuth() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
+  // tick re-evaluates derived access state every 60s so expiry flips live without a page refresh
+  const [, setTick] = useState(0);
 
   const loadProfile = useCallback(async (uid: string) => {
     const [{ data: p }, { data: roles }] = await Promise.all([
@@ -48,6 +50,24 @@ export function useAuth() {
     return () => sub.subscription.unsubscribe();
   }, [loadProfile]);
 
+  // Realtime: keep profile row + access state in sync with DB changes (admin extends/expires subscription, etc.)
+  useEffect(() => {
+    if (!user) return;
+    const channel = supabase
+      .channel(`profile:${user.id}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "profiles", filter: `id=eq.${user.id}` },
+        () => loadProfile(user.id),
+      )
+      .subscribe();
+    const interval = setInterval(() => setTick((t) => t + 1), 60_000);
+    return () => {
+      supabase.removeChannel(channel);
+      clearInterval(interval);
+    };
+  }, [user, loadProfile]);
+
   const signOut = useCallback(async () => {
     await supabase.auth.signOut();
   }, []);
@@ -58,6 +78,7 @@ export function useAuth() {
   if (profile) {
     if (profile.subscription_status === "active" && profile.subscription_until && new Date(profile.subscription_until) > new Date()) {
       access = "active";
+      hoursLeft = Math.ceil((new Date(profile.subscription_until).getTime() - Date.now()) / (60 * 60 * 1000));
     } else {
       const trialEnds = new Date(new Date(profile.trial_started_at).getTime() + 72 * 60 * 60 * 1000);
       if (trialEnds > new Date()) {

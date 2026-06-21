@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { formatDZD } from "@/lib/format";
-import { Phone, MessageCircle, Gauge, MapPin, Fuel, Cog, Calendar, Gavel, Trophy } from "lucide-react";
+import { Phone, MessageCircle, Gauge, MapPin, Fuel, Cog, Calendar, Gavel, Trophy, Edit3 } from "lucide-react";
 import { useSignedUrl } from "@/hooks/use-signed-url";
 import { Countdown } from "@/components/Countdown";
 import { useState } from "react";
@@ -134,7 +134,15 @@ function VehicleDetail() {
             )}
           </div>
 
-          {showOwnerNumber && v.phone && (
+          {/* Owner-only Edit button: shown stably to the listing owner regardless of subscription status */}
+          {isSeller && (
+            <Button asChild variant="gold" className="h-12 w-full">
+              <Link to="/edit-listing/$id" params={{ id }}>
+                <Edit3 className="h-4 w-4" /> تعديل الإعلان · Edit Listing
+              </Link>
+            </Button>
+          )}
+          {!isSeller && showOwnerNumber && v.phone && (
             <div className="grid grid-cols-2 gap-3">
               <Button asChild variant="gold" className="h-12">
                 <a href={`tel:${normalizeAlgPhone(v.phone)}`}><Phone className="h-4 w-4" /> Call Owner</a>
@@ -147,6 +155,11 @@ function VehicleDetail() {
           {user && !isSeller && access !== "locked" && (
             <ChatDialog vehicleId={id} sellerId={v.seller_id} vehicleTitle={`${v.brand} ${v.model}`} />
           )}
+          {/* Seller mini-profile link with live vehicle counter */}
+          <Link to="/seller/$id" params={{ id: v.seller_id }} className="block premium-card rounded-2xl p-4 hover:gold-border transition-all">
+            <div className="text-[10px] uppercase tracking-widest text-gold mb-1">Seller Profile</div>
+            <div className="text-sm">View seller's other listings →</div>
+          </Link>
 
           <div className="premium-card rounded-2xl p-5 grid grid-cols-2 gap-4 text-sm">
             <Spec icon={<Calendar className="h-4 w-4" />} label="Year" value={v.year} />
