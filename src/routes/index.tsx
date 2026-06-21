@@ -162,6 +162,11 @@ function Home() {
               </SelectContent>
             </Select>
             <Input type="number" placeholder="Year" className="bg-background" value={filters.year} onChange={(e) => setFilters({ ...filters, year: e.target.value })} />
+          </div>
+        </div>
+      </section>
+
+
 
       {/* Feed */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
