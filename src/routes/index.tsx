@@ -36,7 +36,7 @@ import { SoldOverlay } from "@/routes/my-listings";
 import { StoriesStrip } from "@/components/StoriesStrip";
 
 function Home() {
-  const [filters, setFilters] = useState({ q: "", brand: "all", fuel: "all", trans: "all", wilaya: "all", min: "", max: "", year: "", paint: "all", docs: "all" });
+  const [filters, setFilters] = useState({ q: "", brand: "all", fuel: "all", trans: "all", wilaya: "all", min: "", max: "", year: "", paint: "all", docs: "all", sort: "newest" });
 
   const { data: vehicles = [], isLoading } = useQuery({
     queryKey: ["vehicles"],
@@ -53,7 +53,9 @@ function Home() {
   });
 
   const filtered = useMemo(() => {
-    return vehicles.filter((v) => {
+    const priceOf = (v: Vehicle) =>
+      v.price_type === "fixed" ? (v.fixed_price ?? 0) : (v.current_highest_bid ?? v.starting_price ?? 0);
+    const list = vehicles.filter((v) => {
       if (filters.q && !`${v.brand} ${v.model}`.toLowerCase().includes(filters.q.toLowerCase())) return false;
       if (filters.brand !== "all" && v.brand !== filters.brand) return false;
       if (filters.fuel !== "all" && v.fuel_type !== filters.fuel) return false;
@@ -62,11 +64,16 @@ function Home() {
       if (filters.year && v.year !== Number(filters.year)) return false;
       if (filters.paint !== "all" && v.paint_condition !== filters.paint) return false;
       if (filters.docs !== "all" && v.documents_status !== filters.docs) return false;
-      const price = v.price_type === "fixed" ? v.fixed_price : (v.current_highest_bid ?? v.starting_price);
-      if (filters.min && (price ?? 0) < Number(filters.min)) return false;
-      if (filters.max && (price ?? Infinity) > Number(filters.max)) return false;
+      const price = priceOf(v);
+      if (filters.min && price < Number(filters.min)) return false;
+      if (filters.max && price > Number(filters.max)) return false;
       return true;
     });
+    if (filters.sort === "price_asc") list.sort((a, b) => priceOf(a) - priceOf(b));
+    else if (filters.sort === "price_desc") list.sort((a, b) => priceOf(b) - priceOf(a));
+    else if (filters.sort === "year_desc") list.sort((a, b) => b.year - a.year);
+    // "newest" preserves the server's created_at DESC order
+    return list;
   }, [vehicles, filters]);
 
   const reelsVehicles = filtered.filter((v) => v.video_url);
@@ -145,9 +152,21 @@ function Home() {
                 <SelectItem value="other">Autre</SelectItem>
               </SelectContent>
             </Select>
+            <Select value={filters.sort} onValueChange={(v) => setFilters({ ...filters, sort: v })}>
+              <SelectTrigger className="bg-background"><SelectValue placeholder="Trier" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="newest">الأحدث · Newest</SelectItem>
+                <SelectItem value="price_asc">السعر: الأرخص أولاً</SelectItem>
+                <SelectItem value="price_desc">السعر: الأغلى أولاً</SelectItem>
+                <SelectItem value="year_desc">سنة الصنع: الأحدث</SelectItem>
+              </SelectContent>
+            </Select>
+            <Input type="number" placeholder="Year" className="bg-background" value={filters.year} onChange={(e) => setFilters({ ...filters, year: e.target.value })} />
           </div>
         </div>
       </section>
+
+
 
       {/* Feed */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
