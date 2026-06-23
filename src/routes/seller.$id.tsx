@@ -2,8 +2,12 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useSignedUrl } from "@/hooks/use-signed-url";
+import { useAuth } from "@/hooks/use-auth";
 import { formatDZD } from "@/lib/format";
-import { BadgeCheck, Car, MapPin, Gauge } from "lucide-react";
+import { BadgeCheck, Car, MapPin, Gauge, Clock, Crown, AlertTriangle, Tag, Calendar, Settings } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { PremiumPaywallModal } from "@/components/PremiumPaywallModal";
+import { useState, useEffect } from "react";
 
 export const Route = createFileRoute("/seller/$id")({
   head: () => ({ meta: [{ title: "Seller Profile · GRAND Auto Luxe" }] }),
@@ -12,20 +16,21 @@ export const Route = createFileRoute("/seller/$id")({
 
 function SellerProfile() {
   const { id } = Route.useParams();
+  const { user, profile: me, access } = useAuth();
+  const isOwnProfile = user?.id === id;
 
   const { data: profile } = useQuery({
     queryKey: ["seller-profile", id],
     queryFn: async () => {
       const { data } = await supabase
         .from("profiles")
-        .select("id, first_name, last_name, subscription_status, subscription_until")
+        .select("id, first_name, last_name, subscription_status, subscription_until, plan_type, is_showroom, showroom_name, phone")
         .eq("id", id)
         .maybeSingle();
       return data;
     },
   });
 
-  // Live counter — refetches on focus and every 15s so the badge tracks the seller's real listings
   const { data: vehicles = [] } = useQuery({
     queryKey: ["seller-vehicles", id],
     refetchInterval: 15_000,
@@ -40,15 +45,23 @@ function SellerProfile() {
     },
   });
 
-  const verified =
+  const verified = profile?.is_showroom || (
     profile?.subscription_status === "active" &&
     profile?.subscription_until &&
-    new Date(profile.subscription_until) > new Date();
+    new Date(profile.subscription_until) > new Date()
+  );
 
-  const name = profile ? `${profile.first_name ?? ""} ${profile.last_name ?? ""}`.trim() || "Seller" : "Seller";
+  const name = profile
+    ? (profile.showroom_name || `${profile.first_name ?? ""} ${profile.last_name ?? ""}`.trim() || "Seller")
+    : "Seller";
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-10">
+      {/* 3-day trial expiry banner for own profile */}
+      {isOwnProfile && access === "trial" && me && (
+        <TrialExpiryBanner trialStartedAt={me.trial_started_at} />
+      )}
+
       <div className="premium-card rounded-2xl p-6 sm:p-8 relative overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_0%,rgba(212,175,55,0.18),transparent_50%)]" />
         <div className="relative flex flex-col sm:flex-row sm:items-center gap-6">
@@ -65,15 +78,29 @@ function SellerProfile() {
               )}
             </div>
             <div className="text-xs uppercase tracking-widest text-gold/80 mt-1">
-              {verified ? "Verified Premium Seller" : "Standard Seller"}
+              {profile?.plan_type === "showroom" ? "Showroom Plan" : profile?.plan_type === "individual" ? "Individual Plan" : verified ? "Verified Premium Seller" : "Standard Seller"}
             </div>
+            {isOwnProfile && (
+              <div className="mt-3 flex items-center gap-2">
+                <Button variant="ghost" size="sm" asChild>
+                  <Link to="/plans">
+                    <Crown className="h-4 w-4 text-gold" /> Upgrade Plan
+                  </Link>
+                </Button>
+              </div>
+            )}
           </div>
-          <div className="rounded-xl gold-border bg-gold-soft/30 px-5 py-4 text-center min-w-[140px]">
-            <div className="text-[10px] uppercase tracking-widest text-gold/80">Vehicles</div>
-            <div className="font-display text-4xl gold-text mt-1 flex items-center justify-center gap-2">
-              <Car className="h-6 w-6" />
-              {vehicles.length}
+          <div className="flex gap-3">
+            <div className="rounded-xl gold-border bg-gold-soft/30 px-5 py-4 text-center min-w-[120px]">
+              <div className="text-[10px] uppercase tracking-widest text-gold/80">Vehicles</div>
+              <div className="font-display text-3xl gold-text mt-1 flex items-center justify-center gap-2">
+                <Car className="h-5 w-5" />
+                {vehicles.length}
+              </div>
             </div>
+            {isOwnProfile && me?.subscription_until && (
+              <SubscriptionCountdown until={me.subscription_until} status={me.subscription_status} />
+            )}
           </div>
         </div>
       </div>
@@ -86,6 +113,72 @@ function SellerProfile() {
           {vehicles.map((v: any) => <SellerCard key={v.id} v={v} />)}
         </div>
       )}
+    </div>
+  );
+}
+
+function TrialExpiryBanner({ trialStartedAt }: { trialStartedAt: string }) {
+  const [hoursLeft, setHoursLeft] = useState(0);
+  const [showPaywall, setShowPaywall] = useState(false);
+
+  useEffect(() => {
+    const calc = () => {
+      const expiry = new Date(trialStartedAt).getTime() + 72 * 60 * 60 * 1000;
+      const left = Math.max(0, (expiry - Date.now()) / (1000 * 60 * 60));
+      setHoursLeft(left);
+    };
+    calc();
+    const id = setInterval(calc, 60_000);
+    return () => clearInterval(id);
+  }, [trialStartedAt]);
+
+  const daysLeft = Math.ceil(hoursLeft / 24);
+
+  if (hoursLeft > 72) return null;
+
+  return (
+    <div className={`rounded-xl border p-4 mb-6 flex items-center justify-between ${daysLeft <= 1 ? "border-destructive bg-destructive/10" : "border-gold/40 bg-gold-soft/20"}`}>
+      <div className="flex items-center gap-3">
+        <AlertTriangle className={`h-5 w-5 ${daysLeft <= 1 ? "text-destructive" : "text-gold"}`} />
+        <div>
+          <div className="font-medium">
+            {daysLeft <= 1 ? "اخر يوم!" : `تبقى ${Math.floor(hoursLeft)} ساعة على انتهاء التجربة`}
+          </div>
+          <div className="text-xs text-muted-foreground">
+            {daysLeft <= 1 ? "خصص اشتراكك الآن للاستمرار في النشر" : "فعّل اشتراكك للاستمرار في نشر الإعلانات والريلز"}
+          </div>
+        </div>
+      </div>
+      <Button variant="gold" size="sm" onClick={() => setShowPaywall(true)}>
+        <Tag className="h-4 w-4" /> تفعيل الآن
+      </Button>
+      <PremiumPaywallModal open={showPaywall} onOpenChange={setShowPaywall} />
+    </div>
+  );
+}
+
+function SubscriptionCountdown({ until, status }: { until: string; status: string }) {
+  const [daysLeft, setDaysLeft] = useState(0);
+
+  useEffect(() => {
+    const calc = () => {
+      const left = Math.max(0, (new Date(until).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+      setDaysLeft(left);
+    };
+    calc();
+    const id = setInterval(calc, 60_000);
+    return () => clearInterval(id);
+  }, [until]);
+
+  if (status !== "active") return null;
+
+  return (
+    <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-5 py-4 text-center min-w-[120px]">
+      <div className="text-[10px] uppercase tracking-widest text-emerald-400">Subscription</div>
+      <div className="font-display text-2xl text-emerald-400 mt-1 flex items-center justify-center gap-2">
+        <Calendar className="h-5 w-5" />
+        {Math.ceil(daysLeft)}d
+      </div>
     </div>
   );
 }

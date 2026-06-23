@@ -8,6 +8,22 @@ export const WILAYAS = [
 ];
 
 export const BRANDS = [
-  "Audi","BMW","Citroën","Dacia","Fiat","Ford","Hyundai","Kia","Mercedes-Benz","Nissan",
-  "Opel","Peugeot","Renault","Seat","Škoda","Toyota","Volkswagen","Volvo","Chery","Geely","Suzuki","Mitsubishi","Mazda","Honda","Land Rover","Porsche"
+  // European
+  "Audi","BMW","Citroën","Mercedes-Benz","Opel","Peugeot","Renault","Seat","Škoda","Volkswagen","Volvo","Fiat",
+  // French/Korean/Japanese
+  "Dacia","Hyundai","Kia","Nissan","Suzuki","Mitsubishi","Mazda","Honda","Toyota",
+  // Chinese
+  "Chery","Geely",
+  // British/Luxury
+  "Land Rover","Jaguar","Mini"," Rolls-Royce","Bentley","Aston Martin",
+  // German Sports
+  "Porsche",
+  // American Muscle
+  "Ford","Chevrolet","Dodge","GMC","Cadillac","Jeep",
+  // Supercars
+  "Ferrari","Lamborghini","Maserati","McLaren","Bugatti","Koenigsegg",
+  // Electric/Luxury
+  "Tesla","Lucid","Rivian",
+  // Others
+  "Alfa Romeo","Lexus","Cupra","Acura","Infiniti","Genesis","BYD","MG"
 ];

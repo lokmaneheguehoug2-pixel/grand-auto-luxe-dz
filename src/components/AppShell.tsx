@@ -2,11 +2,11 @@ import { Outlet, Link, useRouterState, useNavigate } from "@tanstack/react-route
 import { Toaster } from "@/components/ui/sonner";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
-import { Plus, Shield, LogOut, User2, Film, MessageSquare } from "lucide-react";
-import logoAsset from "@/assets/granda-logo.png.asset.json";
+import { Plus, Shield, LogOut, User2, Film, MessageSquare, Sparkles } from "lucide-react";
 import { PaywallGate } from "@/components/PaywallGate";
 import { CompareTray } from "@/components/CompareTray";
 import { NotificationBell } from "@/components/NotificationBell";
+import { PremiumPaywallModal } from "@/components/PremiumPaywallModal";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -25,7 +25,9 @@ export function AppShell() {
             <Link to="/" className="flex items-center gap-2.5 min-w-0">
               <div className="relative shrink-0">
                 <div className="absolute inset-0 rounded-lg gold-gradient blur-md opacity-70" />
-                <img src={logoAsset.url} alt="GRAND Auto Luxe" className="relative h-11 w-11 rounded-lg object-cover ring-2 ring-gold/70 gold-glow" />
+                <div className="relative h-11 w-11 rounded-lg gold-gradient grid place-items-center ring-2 ring-gold/70 gold-glow">
+                  <span className="font-display text-lg font-bold text-gold-foreground">G</span>
+                </div>
               </div>
               <div className="min-w-0">
                 <div className="font-display text-lg leading-none tracking-wide truncate">
@@ -103,8 +105,50 @@ export function AppShell() {
 
       {user && access === "locked" && !isAdmin && !isAuthPage && !["/paywall","/checkout","/post","/post-reel"].includes(pathname) && <PaywallGate />}
       {!isAuthPage && <CompareTray />}
+      {user && !isAuthPage && !isAdmin && <FloatingPostButton />}
       <Toaster theme="dark" />
     </div>
+  );
+}
+
+function FloatingPostButton() {
+  const { access, profile } = useAuth();
+  const [showPaywall, setShowPaywall] = useState(false);
+  const [checking, setChecking] = useState(false);
+  const navigate = useNavigate();
+
+  const handleClick = async () => {
+    if (access === "locked") {
+      setShowPaywall(true);
+      return;
+    }
+    // Check daily post limit for individual plan
+    setChecking(true);
+    const { data, error } = await supabase.rpc("can_post_vehicle", { p_user_id: profile?.id });
+    setChecking(false);
+    if (error) {
+      console.error(error);
+      return;
+    }
+    if (data?.can_post) {
+      navigate({ to: "/post" });
+    } else {
+      setShowPaywall(true);
+    }
+  };
+
+  return (
+    <>
+      <button
+        onClick={handleClick}
+        disabled={checking}
+        className="fixed bottom-24 right-4 z-50 h-14 w-14 rounded-full gold-gradient shadow-[0_0_30px_rgba(212,175,55,0.5)] grid place-items-center hover:scale-105 transition-transform active:scale-95 gold-glow"
+        aria-label="Create post"
+      >
+        <Sparkles className="h-6 w-6 text-gold-foreground" />
+      </button>
+      <PremiumPaywallModal open={showPaywall} onOpenChange={setShowPaywall} />
+    </>
   );
 }
 
