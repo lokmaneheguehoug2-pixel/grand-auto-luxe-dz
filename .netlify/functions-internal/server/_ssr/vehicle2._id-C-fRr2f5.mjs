@@ -2,9 +2,9 @@ import { r as __toESM } from "../_runtime.mjs";
 import { u as require_react } from "../_libs/@floating-ui/react-dom+[...].mjs";
 import { c as require_jsx_runtime } from "../_libs/@radix-ui/react-arrow+[...].mjs";
 import { n as cn, t as Button } from "./button-CSRoKnxW.mjs";
-import { t as supabase } from "./client-ZItgt3Kh.mjs";
-import { t as useAuth } from "./use-auth-CdkwkgTz.mjs";
-import { n as useSignedUrl } from "./use-signed-url-B6kgIlCe.mjs";
+import { t as supabase } from "./client-Bi6lj-hW.mjs";
+import { t as useAuth } from "./use-auth-BrGT0prV.mjs";
+import { n as useSignedUrl } from "./use-signed-url-7GRrwbbN.mjs";
 import { n as formatCentimes, r as formatDZD } from "./format-DTUn6abU.mjs";
 import { t as Input } from "./input-B9TG3aA4.mjs";
 import { t as Textarea } from "./textarea-DkED4GNe.mjs";
@@ -14,12 +14,12 @@ import { D as PenLine, E as Phone, G as Fuel, M as Mail, O as MessageSquare, P a
 import { n as toast } from "../_libs/sonner.mjs";
 import { g as Link } from "../_libs/@tanstack/react-router+[...].mjs";
 import { a as DialogTitle, i as DialogHeader, n as DialogContent, o as DialogTrigger, r as DialogDescription, t as Dialog } from "./dialog-zroENDAE.mjs";
-import { t as ChatDialog } from "./ChatDialog-MEXhPmtE.mjs";
-import { n as SoldOverlay } from "./my-listings-CGGR6dB_.mjs";
-import { t as Route } from "./vehicle._id-CXzGlwem.mjs";
+import { t as ChatDialog } from "./ChatDialog-CHwHeNBp.mjs";
+import { n as SoldOverlay } from "./my-listings-BgCg75GG.mjs";
+import { t as Route } from "./vehicle._id-Ddg050MR.mjs";
 import { t as Countdown } from "./Countdown-CwiACDsk.mjs";
 import { t as useEmblaCarousel } from "../_libs/embla-carousel-react+[...].mjs";
-//#region node_modules/.nitro/vite/services/ssr/assets/vehicle2._id-D3fddbIf.js
+//#region node_modules/.nitro/vite/services/ssr/assets/vehicle2._id-C-fRr2f5.js
 var import_react = /* @__PURE__ */ __toESM(require_react());
 var import_jsx_runtime = require_jsx_runtime();
 var CarouselContext = import_react.createContext(null);

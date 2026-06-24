@@ -2,15 +2,15 @@ import { r as __toESM } from "../_runtime.mjs";
 import { u as require_react } from "../_libs/@floating-ui/react-dom+[...].mjs";
 import { c as require_jsx_runtime } from "../_libs/@radix-ui/react-arrow+[...].mjs";
 import { t as Button } from "./button-CSRoKnxW.mjs";
-import { t as supabase } from "./client-ZItgt3Kh.mjs";
+import { t as supabase } from "./client-Bi6lj-hW.mjs";
 import { a as phoneToEmail, i as normalizePhone } from "./format-DTUn6abU.mjs";
 import { i as TabsTrigger, n as TabsContent, r as TabsList, t as Tabs } from "./tabs-B5sbP7os.mjs";
 import { t as Input } from "./input-B9TG3aA4.mjs";
 import { t as Label } from "./label-DrCE_Ido.mjs";
-import { P as LoaderCircle, at as CircleAlert, dt as Car, f as Tag } from "../_libs/lucide-react.mjs";
+import { P as LoaderCircle, at as CircleAlert, f as Tag } from "../_libs/lucide-react.mjs";
 import { n as toast } from "../_libs/sonner.mjs";
 import { _ as useNavigate, g as Link } from "../_libs/@tanstack/react-router+[...].mjs";
-//#region node_modules/.nitro/vite/services/ssr/assets/auth-CEwqtfEV.js
+//#region node_modules/.nitro/vite/services/ssr/assets/auth-qr-aHtlr.js
 var import_react = /* @__PURE__ */ __toESM(require_react());
 var import_jsx_runtime = require_jsx_runtime();
 var TRANSLATIONS = {
@@ -88,15 +88,23 @@ function AuthPage() {
 				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Link, {
 					to: "/",
 					className: "relative flex items-center gap-3",
-					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-						className: "h-10 w-10 rounded-lg gold-gradient grid place-items-center",
-						children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Car, { className: "h-5 w-5 text-gold-foreground" })
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
+						src: "/my-logo.png.PNG",
+						alt: "GRANDA Auto Luxe",
+						className: "h-12 w-12 rounded-lg object-contain"
 					}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 						className: "font-display text-xl",
-						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-							className: "gold-text",
-							children: "GRAND"
-						}), " Auto Luxe"]
+						children: [
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+								className: "gold-text",
+								children: "GRAND"
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+								className: "text-gold/80",
+								children: "A"
+							}),
+							" Auto Luxe"
+						]
 					})]
 				}),
 				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {

@@ -2,7 +2,7 @@ import { Outlet, Link, useRouterState, useNavigate } from "@tanstack/react-route
 import { Toaster } from "@/components/ui/sonner";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
-import { Plus, Shield, LogOut, User2, Film, MessageSquare, Sparkles, Calendar } from "lucide-react";
+import { Plus, Shield, LogOut, User as User2, Film, MessageSquare, Sparkles, Calendar } from "lucide-react";
 import { PaywallGate } from "@/components/PaywallGate";
 import { CompareTray } from "@/components/CompareTray";
 import { NotificationBell } from "@/components/NotificationBell";
@@ -24,15 +24,14 @@ export function AppShell() {
         <header className="sticky top-0 z-40 border-b border-border/60 backdrop-blur-xl bg-background/80">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
             <Link to="/" className="flex items-center gap-2.5 min-w-0">
-              <div className="relative shrink-0">
-                <div className="absolute inset-0 rounded-lg gold-gradient blur-md opacity-70" />
-                <div className="relative h-11 w-11 rounded-lg gold-gradient grid place-items-center ring-2 ring-gold/70 gold-glow">
-                  <span className="font-display text-lg font-bold text-gold-foreground">G</span>
-                </div>
-              </div>
+              <img
+                src="/my-logo.png.PNG"
+                alt="GRANDA Auto Luxe"
+                className="h-11 w-11 shrink-0 rounded-lg object-contain"
+              />
               <div className="min-w-0">
                 <div className="font-display text-lg leading-none tracking-wide truncate">
-                  <span className="gold-shine font-bold">GRAND</span> <span className="gold-text">Auto Luxe</span>
+                  <span className="gold-shine font-bold">GRAND</span><span className="gold-text">A</span> <span className="gold-text">Auto Luxe</span>
                 </div>
                 <div className="text-[10px] uppercase tracking-[0.2em] text-gold/70">Algeria · Premium</div>
               </div>

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Car, Loader2, AlertCircle, Tag, Globe, Crown } from "lucide-react";
+import { Loader as Loader2, CircleAlert as AlertCircle, Tag, Globe, Crown } from "lucide-react";
 import { phoneToEmail, normalizePhone } from "@/lib/format";
 import { toast } from "sonner";
 
@@ -89,8 +89,8 @@ function AuthPage() {
       <div className="relative hidden lg:flex flex-col justify-between p-12 bg-charcoal overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(212,175,55,0.25),transparent_50%)]" />
         <Link to="/" className="relative flex items-center gap-3">
-          <div className="h-10 w-10 rounded-lg gold-gradient grid place-items-center"><Car className="h-5 w-5 text-gold-foreground" /></div>
-          <div className="font-display text-xl"><span className="gold-text">GRAND</span> Auto Luxe</div>
+          <img src="/my-logo.png.PNG" alt="GRANDA Auto Luxe" className="h-12 w-12 rounded-lg object-contain" />
+          <div className="font-display text-xl"><span className="gold-text">GRAND</span><span className="text-gold/80">A</span> Auto Luxe</div>
         </Link>
         <div className="relative">
           <div className="text-xs uppercase tracking-[0.3em] text-gold mb-4">{t.membership}</div>

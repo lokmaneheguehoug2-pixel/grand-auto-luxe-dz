@@ -1,8 +1,8 @@
 import { c as require_jsx_runtime } from "../_libs/@radix-ui/react-arrow+[...].mjs";
 import { m as createFileRoute, p as lazyRouteComponent } from "../_libs/@tanstack/react-router+[...].mjs";
-//#region node_modules/.nitro/vite/services/ssr/assets/my-listings-CGGR6dB_.js
+//#region node_modules/.nitro/vite/services/ssr/assets/my-listings-BgCg75GG.js
 var import_jsx_runtime = require_jsx_runtime();
-var $$splitComponentImporter = () => import("./my-listings-BGduVcYX.mjs");
+var $$splitComponentImporter = () => import("./my-listings-QI6IeL8D.mjs");
 var Route = createFileRoute("/my-listings")({
 	head: () => ({ meta: [{ title: "My Listings · GRAND Auto Luxe" }] }),
 	component: lazyRouteComponent($$splitComponentImporter, "component")
