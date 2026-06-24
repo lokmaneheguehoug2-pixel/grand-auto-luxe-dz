@@ -15,6 +15,7 @@ import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious
 import { SoldOverlay } from "@/routes/my-listings";
 import { formatCentimes } from "@/lib/format";
 import { ChatDialog } from "@/components/ChatDialog";
+import { AppointmentBooking } from "@/components/AppointmentBooking";
 
 /** Algerian phone helpers — accept "05XXXXXXXX" or "+213..." and produce dial/whatsapp formats. */
 function normalizeAlgPhone(raw: string): string {
@@ -154,6 +155,14 @@ function VehicleDetail() {
           )}
           {user && !isSeller && access !== "locked" && (
             <ChatDialog vehicleId={id} sellerId={v.seller_id} vehicleTitle={`${v.brand} ${v.model}`} />
+          )}
+          {/* Appointment Booking for non-sellers */}
+          {!isSeller && !v.is_auction && (
+            <AppointmentBooking
+              vehicleId={id}
+              sellerId={v.seller_id}
+              vehicleName={`${v.brand} ${v.model}`}
+            />
           )}
           {/* Seller mini-profile link with live vehicle counter */}
           <Link to="/seller/$id" params={{ id: v.seller_id }} className="block premium-card rounded-2xl p-4 hover:gold-border transition-all">

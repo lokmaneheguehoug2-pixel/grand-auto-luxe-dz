@@ -14,6 +14,7 @@ import { Route as PostReelRouteImport } from './routes/post-reel'
 import { Route as PostRouteImport } from './routes/post'
 import { Route as PlansRouteImport } from './routes/plans'
 import { Route as MyListingsRouteImport } from './routes/my-listings'
+import { Route as MyAppointmentsRouteImport } from './routes/my-appointments'
 import { Route as MessagesRouteImport } from './routes/messages'
 import { Route as CheckoutRouteImport } from './routes/checkout'
 import { Route as BrandsRouteImport } from './routes/brands'
@@ -47,6 +48,11 @@ const PlansRoute = PlansRouteImport.update({
 const MyListingsRoute = MyListingsRouteImport.update({
   id: '/my-listings',
   path: '/my-listings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MyAppointmentsRoute = MyAppointmentsRouteImport.update({
+  id: '/my-appointments',
+  path: '/my-appointments',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MessagesRoute = MessagesRouteImport.update({
@@ -102,6 +108,7 @@ export interface FileRoutesByFullPath {
   '/brands': typeof BrandsRoute
   '/checkout': typeof CheckoutRoute
   '/messages': typeof MessagesRoute
+  '/my-appointments': typeof MyAppointmentsRoute
   '/my-listings': typeof MyListingsRoute
   '/plans': typeof PlansRoute
   '/post': typeof PostRoute
@@ -118,6 +125,7 @@ export interface FileRoutesByTo {
   '/brands': typeof BrandsRoute
   '/checkout': typeof CheckoutRoute
   '/messages': typeof MessagesRoute
+  '/my-appointments': typeof MyAppointmentsRoute
   '/my-listings': typeof MyListingsRoute
   '/plans': typeof PlansRoute
   '/post': typeof PostRoute
@@ -135,6 +143,7 @@ export interface FileRoutesById {
   '/brands': typeof BrandsRoute
   '/checkout': typeof CheckoutRoute
   '/messages': typeof MessagesRoute
+  '/my-appointments': typeof MyAppointmentsRoute
   '/my-listings': typeof MyListingsRoute
   '/plans': typeof PlansRoute
   '/post': typeof PostRoute
@@ -153,6 +162,7 @@ export interface FileRouteTypes {
     | '/brands'
     | '/checkout'
     | '/messages'
+    | '/my-appointments'
     | '/my-listings'
     | '/plans'
     | '/post'
@@ -169,6 +179,7 @@ export interface FileRouteTypes {
     | '/brands'
     | '/checkout'
     | '/messages'
+    | '/my-appointments'
     | '/my-listings'
     | '/plans'
     | '/post'
@@ -185,6 +196,7 @@ export interface FileRouteTypes {
     | '/brands'
     | '/checkout'
     | '/messages'
+    | '/my-appointments'
     | '/my-listings'
     | '/plans'
     | '/post'
@@ -202,6 +214,7 @@ export interface RootRouteChildren {
   BrandsRoute: typeof BrandsRoute
   CheckoutRoute: typeof CheckoutRoute
   MessagesRoute: typeof MessagesRoute
+  MyAppointmentsRoute: typeof MyAppointmentsRoute
   MyListingsRoute: typeof MyListingsRoute
   PlansRoute: typeof PlansRoute
   PostRoute: typeof PostRoute
@@ -247,6 +260,13 @@ declare module '@tanstack/react-router' {
       path: '/my-listings'
       fullPath: '/my-listings'
       preLoaderRoute: typeof MyListingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/my-appointments': {
+      id: '/my-appointments'
+      path: '/my-appointments'
+      fullPath: '/my-appointments'
+      preLoaderRoute: typeof MyAppointmentsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/messages': {
@@ -322,6 +342,7 @@ const rootRouteChildren: RootRouteChildren = {
   BrandsRoute: BrandsRoute,
   CheckoutRoute: CheckoutRoute,
   MessagesRoute: MessagesRoute,
+  MyAppointmentsRoute: MyAppointmentsRoute,
   MyListingsRoute: MyListingsRoute,
   PlansRoute: PlansRoute,
   PostRoute: PostRoute,

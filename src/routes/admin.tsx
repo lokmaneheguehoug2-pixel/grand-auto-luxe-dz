@@ -9,7 +9,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import {
   Shield, Trash2, Check, X, Eye, DollarSign, Send, Ban, UserCheck, Crown, Megaphone, Zap,
-  Tag, AlertTriangle, Ticket, BarChart3, Users, Car, TrendingUp, Clock, RefreshCw
+  Tag, AlertTriangle, Ticket, BarChart3, Users, Car, TrendingUp, Clock, RefreshCw, Settings,
+  Calendar, Phone, Mail, MessageCircle, Instagram, Facebook, Globe
 } from "lucide-react";
 import { useSignedUrl } from "@/hooks/use-signed-url";
 import { toast } from "sonner";
@@ -46,17 +47,21 @@ function AdminPage() {
           <TabsTrigger value="subscriptions" className="data-[state=active]:bg-gold data-[state=active]:text-gold-foreground">Subscriptions</TabsTrigger>
           <TabsTrigger value="users" className="data-[state=active]:bg-gold data-[state=active]:text-gold-foreground">Users</TabsTrigger>
           <TabsTrigger value="listings" className="data-[state=active]:bg-gold data-[state=active]:text-gold-foreground">Listings</TabsTrigger>
+          <TabsTrigger value="appointments" className="data-[state=active]:bg-gold data-[state=active]:text-gold-foreground">Appointments</TabsTrigger>
           <TabsTrigger value="reports" className="data-[state=active]:bg-gold data-[state=active]:text-gold-foreground">Reports</TabsTrigger>
           <TabsTrigger value="promocodes" className="data-[state=active]:bg-gold data-[state=active]:text-gold-foreground">Promo Codes</TabsTrigger>
           <TabsTrigger value="support" className="data-[state=active]:bg-gold data-[state=active]:text-gold-foreground">Support</TabsTrigger>
+          <TabsTrigger value="sitesettings" className="data-[state=active]:bg-gold data-[state=active]:text-gold-foreground">Site Settings</TabsTrigger>
           <TabsTrigger value="broadcast" className="data-[state=active]:bg-gold data-[state=active]:text-gold-foreground">Broadcast</TabsTrigger>
         </TabsList>
         <TabsContent value="subscriptions"><SubscriptionsTab /></TabsContent>
         <TabsContent value="users"><UsersTab /></TabsContent>
         <TabsContent value="listings"><ListingsTab /></TabsContent>
+        <TabsContent value="appointments"><AppointmentsTab /></TabsContent>
         <TabsContent value="reports"><ReportsTab /></TabsContent>
         <TabsContent value="promocodes"><PromoCodesTab /></TabsContent>
         <TabsContent value="support"><SupportTab /></TabsContent>
+        <TabsContent value="sitesettings"><SiteSettingsTab /></TabsContent>
         <TabsContent value="broadcast"><BroadcastTab /></TabsContent>
       </Tabs>
     </div>
@@ -488,6 +493,209 @@ function SupportTab() {
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+function AppointmentsTab() {
+  const qc = useQueryClient();
+  const { data = [] } = useQuery({
+    queryKey: ["admin-appointments"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("appointments")
+        .select(`
+          *,
+          vehicle:vehicles ( id, brand, model, year ),
+          seller:profiles!appointments_seller_id_fkey ( id, first_name, last_name, phone )
+        `)
+        .order("created_at", { ascending: false })
+        .limit(100);
+      return data ?? [];
+    },
+  });
+
+  const updateStatus = async (apt: any, status: string) => {
+    await supabase.from("appointments").update({ status }).eq("id", apt.id);
+    toast.success("Status updated");
+    qc.invalidateQueries({ queryKey: ["admin-appointments"] });
+  };
+
+  return (
+    <div className="premium-card rounded-xl overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead className="bg-charcoal text-xs uppercase tracking-widest text-muted-foreground">
+          <tr>
+            <th className="text-left p-3">Client</th>
+            <th className="text-left p-3">Vehicle</th>
+            <th className="text-left p-3">Seller</th>
+            <th className="text-left p-3">Scheduled</th>
+            <th className="text-left p-3">Status</th>
+            <th className="text-left p-3">Created</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {data.length === 0 && <tr><td colSpan={7} className="p-8 text-center text-muted-foreground">No appointments yet.</td></tr>}
+          {data.map((apt: any) => (
+            <tr key={apt.id} className="border-t border-border">
+              <td className="p-3">
+                <div className="font-medium">{apt.client_name}</div>
+                <div className="text-xs text-muted-foreground flex items-center gap-1">
+                  <Phone className="h-3 w-3" /> {apt.client_phone}
+                </div>
+                {apt.client_email && (
+                  <div className="text-xs text-muted-foreground">{apt.client_email}</div>
+                )}
+              </td>
+              <td className="p-3">
+                <div className="font-medium">{apt.vehicle?.brand} {apt.vehicle?.model}</div>
+                <div className="text-xs text-muted-foreground">{apt.vehicle?.year}</div>
+              </td>
+              <td className="p-3">
+                <div>{apt.seller?.first_name} {apt.seller?.last_name}</div>
+                <div className="text-xs text-muted-foreground">{apt.seller?.phone}</div>
+              </td>
+              <td className="p-3 text-muted-foreground text-xs">
+                {apt.preferred_date ? (
+                  <div>
+                    <div>{new Date(apt.preferred_date).toLocaleDateString()}</div>
+                    {apt.preferred_time && <div>{apt.preferred_time}</div>}
+                  </div>
+                ) : "-"}
+              </td>
+              <td className="p-3">
+                <span className={`px-2 py-0.5 rounded-full text-xs ${
+                  apt.status === 'pending' ? 'bg-gold-soft text-gold' :
+                  apt.status === 'confirmed' ? 'bg-emerald-500/15 text-emerald-400' :
+                  apt.status === 'completed' ? 'bg-blue-500/15 text-blue-400' :
+                  'bg-destructive/15 text-destructive'
+                }`}>
+                  {apt.status}
+                </span>
+              </td>
+              <td className="p-3 text-muted-foreground text-xs">
+                {new Date(apt.created_at).toLocaleDateString()}
+              </td>
+              <td className="p-3 text-right whitespace-nowrap">
+                {apt.status === "pending" && (
+                  <>
+                    <Button variant="ghost" size="sm" onClick={() => updateStatus(apt, "confirmed")}>
+                      <Check className="h-4 w-4" /> Confirm
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => updateStatus(apt, "cancelled")}>
+                      <X className="h-4 w-4" /> Cancel
+                    </Button>
+                  </>
+                )}
+                {apt.status === "confirmed" && (
+                  <Button variant="ghost" size="sm" onClick={() => updateStatus(apt, "completed")}>
+                    <Check className="h-4 w-4" /> Complete
+                  </Button>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function SiteSettingsTab() {
+  const qc = useQueryClient();
+  const { data: settings = [] } = useQuery({
+    queryKey: ["admin-site-settings"],
+    queryFn: async () => {
+      const { data } = await supabase.from("site_settings").select("*");
+      return data ?? [];
+    },
+  });
+
+  const [editing, setEditing] = useState<string | null>(null);
+  const [value, setValue] = useState("");
+
+  const settingsMap = settings.reduce((acc: Record<string, string>, s: any) => {
+    acc[s.setting_key] = s.setting_value;
+    return acc;
+  }, {});
+
+  const updateSetting = async (key: string) => {
+    await supabase.from("site_settings").upsert({ setting_key: key, setting_value: value }, { onConflict: "setting_key" });
+    toast.success("Setting updated");
+    setEditing(null);
+    setValue("");
+    qc.invalidateQueries({ queryKey: ["admin-site-settings"] });
+  };
+
+  const startEdit = (key: string, currentValue: string) => {
+    setEditing(key);
+    setValue(currentValue);
+  };
+
+  const socialSettings = [
+    { key: "whatsapp_number", label: "WhatsApp Number", icon: MessageCircle, placeholder: "+213555000000" },
+    { key: "instagram_url", label: "Instagram URL", icon: Instagram, placeholder: "https://instagram.com/grandautoluxe" },
+    { key: "facebook_url", label: "Facebook URL", icon: Facebook, placeholder: "https://facebook.com/grandautoluxe" },
+    { key: "gmail_address", label: "Contact Email", icon: Mail, placeholder: "contact@grandautoluxe.com" },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <div className="premium-card gold-border rounded-xl p-5">
+        <div className="flex items-center gap-2 text-xs uppercase tracking-widest text-gold mb-4">
+          <Globe className="h-4 w-4" /> Social Media & Contact Links
+        </div>
+        <p className="text-sm text-muted-foreground mb-4">
+          Update these links to change what appears in the website footer. Changes take effect immediately.
+        </p>
+        <div className="grid md:grid-cols-2 gap-4">
+          {socialSettings.map(({ key, label, icon: Icon, placeholder }) => (
+            <div key={key} className="p-4 rounded-lg border border-border bg-charcoal space-y-2">
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <Icon className="h-4 w-4 text-gold" />
+                {label}
+              </div>
+              {editing === key ? (
+                <div className="flex gap-2">
+                  <Input
+                    value={value}
+                    onChange={(e) => setValue(e.target.value)}
+                    placeholder={placeholder}
+                    className="flex-1"
+                  />
+                  <Button variant="gold" size="sm" onClick={() => updateSetting(key)}>Save</Button>
+                  <Button variant="ghost" size="sm" onClick={() => setEditing(null)}>Cancel</Button>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground truncate flex-1">
+                    {settingsMap[key] || <span className="text-gold/60 italic">Not set</span>}
+                  </span>
+                  <Button variant="ghost" size="sm" onClick={() => startEdit(key, settingsMap[key] || "")}>
+                    <Settings className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="premium-card rounded-xl p-5">
+        <div className="flex items-center gap-2 text-xs uppercase tracking-widest text-gold mb-4">
+          <Shield className="h-4 w-4" /> Create Admin User
+        </div>
+        <p className="text-sm text-muted-foreground mb-4">
+          After a user signs up, use this to promote them to Admin. First, find their phone number from the Users tab.
+        </p>
+        <div className="text-sm bg-charcoal p-4 rounded-lg border border-border">
+          <code>SELECT public.setup_admin_user('+213555000000');</code>
+          <p className="text-xs text-muted-foreground mt-2">
+            Run this SQL in Supabase Dashboard SQL Editor with the user's phone number.
+          </p>
+        </div>
+      </div>
     </div>
   );
 }

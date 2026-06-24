@@ -2,11 +2,12 @@ import { Outlet, Link, useRouterState, useNavigate } from "@tanstack/react-route
 import { Toaster } from "@/components/ui/sonner";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
-import { Plus, Shield, LogOut, User2, Film, MessageSquare, Sparkles } from "lucide-react";
+import { Plus, Shield, LogOut, User2, Film, MessageSquare, Sparkles, Calendar } from "lucide-react";
 import { PaywallGate } from "@/components/PaywallGate";
 import { CompareTray } from "@/components/CompareTray";
 import { NotificationBell } from "@/components/NotificationBell";
 import { PremiumPaywallModal } from "@/components/PremiumPaywallModal";
+import { CustomerServiceFooter } from "@/components/CustomerServiceFooter";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -46,6 +47,11 @@ export function AppShell() {
               {user && (
                 <Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex">
                   <Link to="/my-listings">My Listings</Link>
+                </Button>
+              )}
+              {user && (
+                <Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex">
+                  <Link to="/my-appointments"><Calendar className="h-4 w-4" /> <span className="hidden md:inline">Appointments</span></Link>
                 </Button>
               )}
               {user && (
@@ -97,11 +103,7 @@ export function AppShell() {
         <Outlet />
       </main>
 
-      {!isAuthPage && (
-        <footer className="border-t border-border/60 py-8 text-center text-xs text-muted-foreground">
-          © {new Date().getFullYear()} <span className="gold-text font-semibold">GRAND Auto Luxe</span> · Strictly vehicles only · Made in Algeria
-        </footer>
-      )}
+      {!isAuthPage && <CustomerServiceFooter />}
 
       {user && access === "locked" && !isAdmin && !isAuthPage && !["/paywall","/checkout","/post","/post-reel"].includes(pathname) && <PaywallGate />}
       {!isAuthPage && <CompareTray />}

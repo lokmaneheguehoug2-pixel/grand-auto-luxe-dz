@@ -7,10 +7,11 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, type ReactNode, Suspense } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
+import { ErrorBoundary, LoadingFallback } from "@/components/ErrorBoundary";
 
 function NotFoundComponent() {
   return (
@@ -117,7 +118,11 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <AppShell />
+      <ErrorBoundary>
+        <Suspense fallback={<LoadingFallback />}>
+          <AppShell />
+        </Suspense>
+      </ErrorBoundary>
     </QueryClientProvider>
   );
 }
