@@ -1,12 +1,12 @@
 import { c as require_jsx_runtime } from "../_libs/@radix-ui/react-arrow+[...].mjs";
 import { t as Button } from "./button-CSRoKnxW.mjs";
-import { t as supabase } from "./client-Bi6lj-hW.mjs";
-import { t as useAuth } from "./use-auth-BrGT0prV.mjs";
+import { t as supabase } from "./client-5T_ILqww.mjs";
+import { t as useAuth } from "./use-auth-eLhv7lHk.mjs";
 import { r as useQueryClient, t as useQuery } from "../_libs/tanstack__react-query.mjs";
-import { E as Phone, ft as Calendar, n as X, tt as Clock, ut as Check } from "../_libs/lucide-react.mjs";
+import { T as Phone, ft as Calendar, n as X, tt as Clock, ut as Check } from "../_libs/lucide-react.mjs";
 import { n as toast } from "../_libs/sonner.mjs";
 import { g as Link } from "../_libs/@tanstack/react-router+[...].mjs";
-//#region node_modules/.nitro/vite/services/ssr/assets/my-appointments-CuAAAYFk.js
+//#region node_modules/.nitro/vite/services/ssr/assets/my-appointments-D2829Fza.js
 var import_jsx_runtime = require_jsx_runtime();
 function MyAppointmentsPage() {
 	const { user, loading } = useAuth();

@@ -2,24 +2,24 @@ import { r as __toESM } from "../_runtime.mjs";
 import { u as require_react } from "../_libs/@floating-ui/react-dom+[...].mjs";
 import { c as require_jsx_runtime } from "../_libs/@radix-ui/react-arrow+[...].mjs";
 import { n as cn, t as Button } from "./button-CSRoKnxW.mjs";
-import { t as supabase } from "./client-Bi6lj-hW.mjs";
-import { t as useAuth } from "./use-auth-BrGT0prV.mjs";
-import { n as useSignedUrl } from "./use-signed-url-7GRrwbbN.mjs";
+import { t as supabase } from "./client-5T_ILqww.mjs";
+import { t as useAuth } from "./use-auth-eLhv7lHk.mjs";
+import { n as useSignedUrl } from "./use-signed-url-BkLg4u9y.mjs";
 import { n as formatCentimes, r as formatDZD } from "./format-DTUn6abU.mjs";
 import { t as QueryClient } from "../_libs/tanstack__query-core.mjs";
 import { n as QueryClientProvider, t as useQuery } from "../_libs/tanstack__react-query.mjs";
-import { C as RefreshCw, E as Phone, F as Instagram, K as Film, M as Mail, N as LogOut, O as MessageSquare, Q as Crown, R as House, _t as ArrowRight, a as UserRound, b as Scale, d as Trash2, ft as Calendar, h as Shield, k as MessageCircle, l as TriangleAlert, m as Sparkles, mt as Bell, n as X, q as Facebook, w as Plus } from "../_libs/lucide-react.mjs";
+import { C as Plus, D as MessageSquare, F as Instagram, K as Film, M as LogOut, O as MessageCircle, Q as Crown, R as House, S as RefreshCw, T as Phone, _t as ArrowRight, c as TriangleAlert, ft as Calendar, i as User, j as Mail, m as Shield, mt as Bell, n as X, p as Sparkles, q as Facebook, u as Trash2, y as Scale } from "../_libs/lucide-react.mjs";
 import { t as Toaster } from "../_libs/sonner.mjs";
 import { _ as useNavigate, c as HeadContent, d as createRouter, f as Outlet, g as Link, h as createRootRouteWithContext, l as useRouterState, m as createFileRoute, p as lazyRouteComponent, s as Scripts, v as useRouter } from "../_libs/@tanstack/react-router+[...].mjs";
-import { t as Route$12 } from "./edit-listing._id-2-tj2MCZ.mjs";
+import { t as Route$12 } from "./edit-listing._id-DXFp-qz_.mjs";
 import { a as DialogTitle, i as DialogHeader, n as DialogContent, t as Dialog } from "./dialog-zroENDAE.mjs";
 import { t as PremiumPaywallModal } from "./PremiumPaywallModal-rDrgaw0r.mjs";
 import { n as useCompare, t as compareStore } from "./compare-DGn_cp8p.mjs";
-import { t as Route$13 } from "./my-listings-BgCg75GG.mjs";
-import { t as Route$14 } from "./vehicle._id-Ddg050MR.mjs";
-import { t as Route$15 } from "./seller._id-BHXvIequ.mjs";
+import { t as Route$13 } from "./my-listings-YsAaelXU.mjs";
+import { t as Route$14 } from "./vehicle._id-BLvmubTJ.mjs";
+import { t as Route$15 } from "./seller._id--JprZh09.mjs";
 import { i as Trigger, n as Portal, r as Root2, t as Content2 } from "../_libs/radix-ui__react-popover.mjs";
-//#region node_modules/.nitro/vite/services/ssr/assets/router-D66GYeR2.js
+//#region node_modules/.nitro/vite/services/ssr/assets/router-CQo1-DcN.js
 var import_react = /* @__PURE__ */ __toESM(require_react());
 var import_jsx_runtime = require_jsx_runtime();
 var styles_default = "/assets/styles-B1BJASt2.css";
@@ -721,7 +721,7 @@ function AppShell() {
 								/* @__PURE__ */ (0, import_jsx_runtime.jsx)(NotificationBell, {}),
 								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
 									className: "hidden sm:inline text-sm text-muted-foreground truncate max-w-[120px]",
-									children: profile?.first_name ?? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(UserRound, { className: "h-4 w-4 inline" })
+									children: profile?.first_name ?? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(User, { className: "h-4 w-4 inline" })
 								}),
 								/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Button, {
 									variant: "ghost",
@@ -965,34 +965,34 @@ function RootComponent() {
 		}) })
 	});
 }
-var $$splitComponentImporter$10 = () => import("./reels-0yB3meQx.mjs");
+var $$splitComponentImporter$10 = () => import("./reels-B4TzpSrY.mjs");
 var Route$10 = createFileRoute("/reels")({
 	head: () => ({ meta: [{ title: "Reels · GRAND Auto Luxe" }] }),
 	component: lazyRouteComponent($$splitComponentImporter$10, "component")
 });
-var $$splitComponentImporter$9 = () => import("./post-reel-Ja7TBf0C.mjs");
+var $$splitComponentImporter$9 = () => import("./post-reel-k2EsmGJW.mjs");
 var Route$9 = createFileRoute("/post-reel")({
 	head: () => ({ meta: [{ title: "نشر ريلز · GRAND Auto Luxe" }] }),
 	component: lazyRouteComponent($$splitComponentImporter$9, "component")
 });
-var $$splitComponentImporter$8 = () => import("./post-CEgDoQld.mjs");
+var $$splitComponentImporter$8 = () => import("./post-CXmxlHXz.mjs");
 var Route$8 = createFileRoute("/post")({
 	head: () => ({ meta: [{ title: "List your vehicle · GRAND Auto Luxe" }] }),
 	component: lazyRouteComponent($$splitComponentImporter$8, "component")
 });
-var $$splitComponentImporter$7 = () => import("./plans-B_e9PY4K.mjs");
+var $$splitComponentImporter$7 = () => import("./plans-nCQVDlTQ.mjs");
 var Route$7 = createFileRoute("/plans")({ component: lazyRouteComponent($$splitComponentImporter$7, "component") });
-var $$splitComponentImporter$6 = () => import("./my-appointments-CuAAAYFk.mjs");
+var $$splitComponentImporter$6 = () => import("./my-appointments-D2829Fza.mjs");
 var Route$6 = createFileRoute("/my-appointments")({
 	head: () => ({ meta: [{ title: "My Appointments · GRAND Auto Luxe" }] }),
 	component: lazyRouteComponent($$splitComponentImporter$6, "component")
 });
-var $$splitComponentImporter$5 = () => import("./messages-wJWsQeAd.mjs");
+var $$splitComponentImporter$5 = () => import("./messages-D0XPhjtq.mjs");
 var Route$5 = createFileRoute("/messages")({
 	head: () => ({ meta: [{ title: "Messages · GRAND Auto Luxe" }] }),
 	component: lazyRouteComponent($$splitComponentImporter$5, "component")
 });
-var $$splitComponentImporter$4 = () => import("./checkout-DF1-S51x.mjs");
+var $$splitComponentImporter$4 = () => import("./checkout-B9VxUS0f.mjs");
 var Route$4 = createFileRoute("/checkout")({
 	head: () => ({ meta: [{ title: "Activation · GRAND Auto Luxe" }] }),
 	component: lazyRouteComponent($$splitComponentImporter$4, "component")
@@ -1016,17 +1016,17 @@ var Route$3 = createFileRoute("/brands")({
 	] }),
 	component: lazyRouteComponent($$splitComponentImporter$3, "component")
 });
-var $$splitComponentImporter$2 = () => import("./auth-qr-aHtlr.mjs");
+var $$splitComponentImporter$2 = () => import("./auth-CdTYRg4N.mjs");
 var Route$2 = createFileRoute("/auth")({
 	head: () => ({ meta: [{ title: "Sign in · GRAND Auto Luxe" }] }),
 	component: lazyRouteComponent($$splitComponentImporter$2, "component")
 });
-var $$splitComponentImporter$1 = () => import("./admin-DU85NiI0.mjs");
+var $$splitComponentImporter$1 = () => import("./admin-j1RdaSpD.mjs");
 var Route$1 = createFileRoute("/admin")({
 	head: () => ({ meta: [{ title: "Admin · GRAND Auto Luxe" }] }),
 	component: lazyRouteComponent($$splitComponentImporter$1, "component")
 });
-var $$splitComponentImporter = () => import("./routes-BO_lfzh-.mjs");
+var $$splitComponentImporter = () => import("./routes-DJ2oaxZi.mjs");
 var Route = createFileRoute("/")({
 	head: () => ({ meta: [{ title: "GRAND Auto Luxe — Premium Algerian Vehicle Marketplace" }, {
 		name: "description",

@@ -2,7 +2,7 @@ import { r as __toESM } from "../_runtime.mjs";
 import { u as require_react } from "../_libs/@floating-ui/react-dom+[...].mjs";
 import { c as require_jsx_runtime } from "../_libs/@radix-ui/react-arrow+[...].mjs";
 import { t as Button } from "./button-CSRoKnxW.mjs";
-import { $ as Copy, Q as Crown, _t as ArrowRight, m as Sparkles, pt as Building2, t as Zap, ut as Check } from "../_libs/lucide-react.mjs";
+import { $ as Copy, Q as Crown, _t as ArrowRight, p as Sparkles, pt as Building2, t as Zap, ut as Check } from "../_libs/lucide-react.mjs";
 import { n as toast } from "../_libs/sonner.mjs";
 import { g as Link } from "../_libs/@tanstack/react-router+[...].mjs";
 import { n as DialogContent, t as Dialog } from "./dialog-zroENDAE.mjs";

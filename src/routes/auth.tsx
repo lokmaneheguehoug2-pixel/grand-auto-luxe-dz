@@ -140,32 +140,6 @@ function SignIn({ t }: { t: Record<string, string> }) {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true); setErr(null);
-
-    // Check for admin bypass
-    const normalizedPhone = normalizePhone(phone);
-    if ((normalizedPhone === "0781606765" || normalizedPhone === "+213781606765" || normalizedPhone === "213781606765") && password === "Admin2024!") {
-      // Admin bypass - set session manually
-      const adminId = "c5de2ffe-213c-4de8-aaf2-c793ad1a73d5";
-
-      // Try to sign in with the stored credentials
-      const { error } = await supabase.auth.signInWithPassword({
-        email: "0781606765@grandauto.local",
-        password: password
-      });
-
-      if (error) {
-        // If password doesn't work, we need to create a proper session
-        // Fallback: Create or update the user with correct password via signup
-        setLoading(false);
-        setErr("Password setup required. Please try signing up first with this phone number, then contact support to grant admin access.");
-        return;
-      }
-
-      toast.success(t.welcome);
-      navigate({ to: "/" });
-      return;
-    }
-
     const { error } = await supabase.auth.signInWithPassword({ email: phoneToEmail(phone), password });
     setLoading(false);
     if (error) { setErr(t.invalid); return; }

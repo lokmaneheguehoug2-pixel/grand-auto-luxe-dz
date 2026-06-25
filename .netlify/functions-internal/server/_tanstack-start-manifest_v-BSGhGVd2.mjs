@@ -1,4 +1,4 @@
-//#region node_modules/.nitro/vite/services/ssr/assets/_tanstack-start-manifest_v-8E9CsWfv.js
+//#region node_modules/.nitro/vite/services/ssr/assets/_tanstack-start-manifest_v-BSGhGVd2.js
 var tsrStartManifest = () => ({ routes: {
 	__root__: {
 		filePath: "/tmp/cc-agent/68109053/project/src/routes/__root.tsx",
@@ -20,7 +20,7 @@ var tsrStartManifest = () => ({ routes: {
 			"/vehicle/$id"
 		],
 		preloads: [
-			"/assets/index-C6qZlo9n.js",
+			"/assets/index-CaDT7uUc.js",
 			"/assets/button-ClKnnkp9.js",
 			"/assets/dist-2XaAGTBI.js",
 			"/assets/dist-akTxzLL7.js",
@@ -29,15 +29,15 @@ var tsrStartManifest = () => ({ routes: {
 		scripts: [{ attrs: {
 			type: "module",
 			async: !0,
-			src: "/assets/index-C6qZlo9n.js"
+			src: "/assets/index-CaDT7uUc.js"
 		} }]
 	},
 	"/": {
 		filePath: "/tmp/cc-agent/68109053/project/src/routes/index.tsx",
 		children: void 0,
 		preloads: [
-			"/assets/routes-fIVN4mxY.js",
-			"/assets/select-DqaPAoAx.js",
+			"/assets/routes-C0zc5WLq.js",
+			"/assets/select-CXxWMBOH.js",
 			"/assets/tabs-VLwIL_A9.js",
 			"/assets/Countdown-CKyiI2n9.js",
 			"/assets/gauge-EMwPlSk6.js",
@@ -50,7 +50,7 @@ var tsrStartManifest = () => ({ routes: {
 		filePath: "/tmp/cc-agent/68109053/project/src/routes/admin.tsx",
 		children: void 0,
 		preloads: [
-			"/assets/admin-q1lbEqB9.js",
+			"/assets/admin-B_Hgjj6s.js",
 			"/assets/label-BtAAywxZ.js",
 			"/assets/tabs-VLwIL_A9.js",
 			"/assets/car-BkqNilx8.js",
@@ -65,10 +65,9 @@ var tsrStartManifest = () => ({ routes: {
 		filePath: "/tmp/cc-agent/68109053/project/src/routes/auth.tsx",
 		children: void 0,
 		preloads: [
-			"/assets/auth-C7cxerU5.js",
+			"/assets/auth-CbZOzKIl.js",
 			"/assets/label-BtAAywxZ.js",
 			"/assets/tabs-VLwIL_A9.js",
-			"/assets/loader-circle-DkVz3WjV.js",
 			"/assets/tag-BjxIna_N.js",
 			"/assets/input-CT6GJJpE.js"
 		]
@@ -77,8 +76,8 @@ var tsrStartManifest = () => ({ routes: {
 		filePath: "/tmp/cc-agent/68109053/project/src/routes/brands.tsx",
 		children: void 0,
 		preloads: [
-			"/assets/brands-3bZSrvtV.js",
-			"/assets/select-DqaPAoAx.js",
+			"/assets/brands-c9YMT0Be.js",
+			"/assets/select-CXxWMBOH.js",
 			"/assets/map-pin-lcWFHp-0.js",
 			"/assets/wilayas-D97TxmTR.js"
 		]
@@ -87,8 +86,8 @@ var tsrStartManifest = () => ({ routes: {
 		filePath: "/tmp/cc-agent/68109053/project/src/routes/checkout.tsx",
 		children: void 0,
 		preloads: [
-			"/assets/checkout-DvvPJUKG.js",
-			"/assets/select-DqaPAoAx.js",
+			"/assets/checkout-D05HmVnf.js",
+			"/assets/select-CXxWMBOH.js",
 			"/assets/label-BtAAywxZ.js",
 			"/assets/loader-circle-DkVz3WjV.js",
 			"/assets/upload--tObJGod.js",
@@ -98,18 +97,18 @@ var tsrStartManifest = () => ({ routes: {
 	"/messages": {
 		filePath: "/tmp/cc-agent/68109053/project/src/routes/messages.tsx",
 		children: void 0,
-		preloads: ["/assets/messages-CyjrDwO_.js", "/assets/ChatDialog-a7J5MXlo.js"]
+		preloads: ["/assets/messages-qM1zDhYi.js", "/assets/ChatDialog-C_Z3WRZv.js"]
 	},
 	"/my-appointments": {
 		filePath: "/tmp/cc-agent/68109053/project/src/routes/my-appointments.tsx",
 		children: void 0,
-		preloads: ["/assets/my-appointments-BP9gCwSo.js", "/assets/clock-DmnrBTa_.js"]
+		preloads: ["/assets/my-appointments-CRXWslZb.js", "/assets/clock-DmnrBTa_.js"]
 	},
 	"/my-listings": {
 		filePath: "/tmp/cc-agent/68109053/project/src/routes/my-listings.tsx",
 		children: void 0,
 		preloads: [
-			"/assets/my-listings-FRRuB26G.js",
+			"/assets/my-listings-DOCYn4mV.js",
 			"/assets/dist-9jpF33ZU.js",
 			"/assets/dist-FO46QEl7.js",
 			"/assets/circle-CWNNusBb.js",
@@ -120,14 +119,14 @@ var tsrStartManifest = () => ({ routes: {
 	"/plans": {
 		filePath: "/tmp/cc-agent/68109053/project/src/routes/plans.tsx",
 		children: void 0,
-		preloads: ["/assets/plans-mYFkBXCo.js", "/assets/tag-BjxIna_N.js"]
+		preloads: ["/assets/plans-PaClg2cE.js", "/assets/tag-BjxIna_N.js"]
 	},
 	"/post": {
 		filePath: "/tmp/cc-agent/68109053/project/src/routes/post.tsx",
 		children: void 0,
 		preloads: [
-			"/assets/post-rnq1Jhre.js",
-			"/assets/select-DqaPAoAx.js",
+			"/assets/post-COionMNW.js",
+			"/assets/select-CXxWMBOH.js",
 			"/assets/dist-9jpF33ZU.js",
 			"/assets/label-BtAAywxZ.js",
 			"/assets/dist-FO46QEl7.js",
@@ -144,7 +143,7 @@ var tsrStartManifest = () => ({ routes: {
 		filePath: "/tmp/cc-agent/68109053/project/src/routes/post-reel.tsx",
 		children: void 0,
 		preloads: [
-			"/assets/post-reel-UPbZtdeR.js",
+			"/assets/post-reel-CG0wMyoY.js",
 			"/assets/label-BtAAywxZ.js",
 			"/assets/upload--tObJGod.js",
 			"/assets/textarea-XuBpCZzi.js"
@@ -153,14 +152,14 @@ var tsrStartManifest = () => ({ routes: {
 	"/reels": {
 		filePath: "/tmp/cc-agent/68109053/project/src/routes/reels.tsx",
 		children: void 0,
-		preloads: ["/assets/reels-C2qLjwqe.js"]
+		preloads: ["/assets/reels-OL8zs7jS.js"]
 	},
 	"/edit-listing/$id": {
 		filePath: "/tmp/cc-agent/68109053/project/src/routes/edit-listing.$id.tsx",
 		children: void 0,
 		preloads: [
-			"/assets/edit-listing._id-9FJWvwhN.js",
-			"/assets/select-DqaPAoAx.js",
+			"/assets/edit-listing._id-Cvj-1uLS.js",
+			"/assets/select-CXxWMBOH.js",
 			"/assets/label-BtAAywxZ.js",
 			"/assets/arrow-left-Dl3K331b.js",
 			"/assets/loader-circle-DkVz3WjV.js",
@@ -173,7 +172,7 @@ var tsrStartManifest = () => ({ routes: {
 		filePath: "/tmp/cc-agent/68109053/project/src/routes/seller.$id.tsx",
 		children: void 0,
 		preloads: [
-			"/assets/seller._id-G_Q0jioY.js",
+			"/assets/seller._id-xB59RHNY.js",
 			"/assets/car-BkqNilx8.js",
 			"/assets/gauge-EMwPlSk6.js",
 			"/assets/map-pin-lcWFHp-0.js",
@@ -184,7 +183,7 @@ var tsrStartManifest = () => ({ routes: {
 		filePath: "/tmp/cc-agent/68109053/project/src/routes/vehicle.$id.tsx",
 		children: void 0,
 		preloads: [
-			"/assets/vehicle._id-CZEUgYzL.js",
+			"/assets/vehicle._id-CvL_rx9e.js",
 			"/assets/label-BtAAywxZ.js",
 			"/assets/arrow-left-Dl3K331b.js",
 			"/assets/clock-DmnrBTa_.js",
@@ -193,7 +192,7 @@ var tsrStartManifest = () => ({ routes: {
 			"/assets/loader-circle-DkVz3WjV.js",
 			"/assets/map-pin-lcWFHp-0.js",
 			"/assets/pen-line-DadTs-jx.js",
-			"/assets/ChatDialog-a7J5MXlo.js",
+			"/assets/ChatDialog-C_Z3WRZv.js",
 			"/assets/input-CT6GJJpE.js",
 			"/assets/textarea-XuBpCZzi.js"
 		]

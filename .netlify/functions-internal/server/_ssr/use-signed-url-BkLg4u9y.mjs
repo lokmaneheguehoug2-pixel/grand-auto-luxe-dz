@@ -1,7 +1,7 @@
 import { r as __toESM } from "../_runtime.mjs";
 import { u as require_react } from "../_libs/@floating-ui/react-dom+[...].mjs";
-import { t as supabase } from "./client-Bi6lj-hW.mjs";
-//#region node_modules/.nitro/vite/services/ssr/assets/use-signed-url-7GRrwbbN.js
+import { t as supabase } from "./client-5T_ILqww.mjs";
+//#region node_modules/.nitro/vite/services/ssr/assets/use-signed-url-BkLg4u9y.js
 var import_react = /* @__PURE__ */ __toESM(require_react());
 var cache = /* @__PURE__ */ new Map();
 function useSignedUrl(bucket, path, expiresIn = 3600) {

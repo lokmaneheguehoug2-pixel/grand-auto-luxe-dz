@@ -1,7 +1,7 @@
 import { r as __toESM } from "../_runtime.mjs";
 import { u as require_react } from "../_libs/@floating-ui/react-dom+[...].mjs";
-import { t as supabase } from "./client-Bi6lj-hW.mjs";
-//#region node_modules/.nitro/vite/services/ssr/assets/use-auth-BrGT0prV.js
+import { t as supabase } from "./client-5T_ILqww.mjs";
+//#region node_modules/.nitro/vite/services/ssr/assets/use-auth-eLhv7lHk.js
 var import_react = /* @__PURE__ */ __toESM(require_react());
 function useAuth() {
 	const [session, setSession] = (0, import_react.useState)(null);

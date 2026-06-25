@@ -2,13 +2,13 @@ import { r as __toESM } from "../_runtime.mjs";
 import { u as require_react } from "../_libs/@floating-ui/react-dom+[...].mjs";
 import { c as require_jsx_runtime } from "../_libs/@radix-ui/react-arrow+[...].mjs";
 import { t as Button } from "./button-CSRoKnxW.mjs";
-import { t as supabase } from "./client-Bi6lj-hW.mjs";
-import { t as useAuth } from "./use-auth-BrGT0prV.mjs";
-import { Q as Crown, _t as ArrowRight, f as Tag, m as Sparkles, pt as Building2, t as Zap, ut as Check } from "../_libs/lucide-react.mjs";
+import { t as supabase } from "./client-5T_ILqww.mjs";
+import { t as useAuth } from "./use-auth-eLhv7lHk.mjs";
+import { Q as Crown, _t as ArrowRight, d as Tag, p as Sparkles, pt as Building2, t as Zap, ut as Check } from "../_libs/lucide-react.mjs";
 import { n as toast } from "../_libs/sonner.mjs";
 import { g as Link } from "../_libs/@tanstack/react-router+[...].mjs";
 import { t as PremiumPaywallModal } from "./PremiumPaywallModal-rDrgaw0r.mjs";
-//#region node_modules/.nitro/vite/services/ssr/assets/plans-B_e9PY4K.js
+//#region node_modules/.nitro/vite/services/ssr/assets/plans-nCQVDlTQ.js
 var import_react = /* @__PURE__ */ __toESM(require_react());
 var import_jsx_runtime = require_jsx_runtime();
 var PLANS = [{

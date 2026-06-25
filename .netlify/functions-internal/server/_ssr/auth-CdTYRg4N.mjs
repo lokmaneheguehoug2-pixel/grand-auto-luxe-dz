@@ -2,15 +2,15 @@ import { r as __toESM } from "../_runtime.mjs";
 import { u as require_react } from "../_libs/@floating-ui/react-dom+[...].mjs";
 import { c as require_jsx_runtime } from "../_libs/@radix-ui/react-arrow+[...].mjs";
 import { t as Button } from "./button-CSRoKnxW.mjs";
-import { t as supabase } from "./client-Bi6lj-hW.mjs";
+import { t as supabase } from "./client-5T_ILqww.mjs";
 import { a as phoneToEmail, i as normalizePhone } from "./format-DTUn6abU.mjs";
 import { i as TabsTrigger, n as TabsContent, r as TabsList, t as Tabs } from "./tabs-B5sbP7os.mjs";
 import { t as Input } from "./input-B9TG3aA4.mjs";
 import { t as Label } from "./label-DrCE_Ido.mjs";
-import { P as LoaderCircle, at as CircleAlert, f as Tag } from "../_libs/lucide-react.mjs";
+import { N as Loader, at as CircleAlert, d as Tag } from "../_libs/lucide-react.mjs";
 import { n as toast } from "../_libs/sonner.mjs";
 import { _ as useNavigate, g as Link } from "../_libs/@tanstack/react-router+[...].mjs";
-//#region node_modules/.nitro/vite/services/ssr/assets/auth-qr-aHtlr.js
+//#region node_modules/.nitro/vite/services/ssr/assets/auth-CdTYRg4N.js
 var import_react = /* @__PURE__ */ __toESM(require_react());
 var import_jsx_runtime = require_jsx_runtime();
 var TRANSLATIONS = {
@@ -194,21 +194,6 @@ function SignIn({ t }) {
 		e.preventDefault();
 		setLoading(true);
 		setErr(null);
-		const normalizedPhone = normalizePhone(phone);
-		if ((normalizedPhone === "0781606765" || normalizedPhone === "+213781606765" || normalizedPhone === "213781606765") && password === "Admin2024!") {
-			const { error } = await supabase.auth.signInWithPassword({
-				email: "0781606765@grandauto.local",
-				password
-			});
-			if (error) {
-				setLoading(false);
-				setErr("Password setup required. Please try signing up first with this phone number, then contact support to grant admin access.");
-				return;
-			}
-			toast.success(t.welcome);
-			navigate({ to: "/" });
-			return;
-		}
 		const { error } = await supabase.auth.signInWithPassword({
 			email: phoneToEmail(phone),
 			password
@@ -251,7 +236,7 @@ function SignIn({ t }) {
 				className: "w-full h-11",
 				disabled: loading,
 				children: [
-					loading && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(LoaderCircle, { className: "h-4 w-4 animate-spin" }),
+					loading && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Loader, { className: "h-4 w-4 animate-spin" }),
 					" ",
 					t.signin
 				]
@@ -424,7 +409,7 @@ function SignUp({ t }) {
 				className: "w-full h-11",
 				disabled: loading,
 				children: [
-					loading && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(LoaderCircle, { className: "h-4 w-4 animate-spin" }),
+					loading && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Loader, { className: "h-4 w-4 animate-spin" }),
 					" ",
 					t.startTrial
 				]

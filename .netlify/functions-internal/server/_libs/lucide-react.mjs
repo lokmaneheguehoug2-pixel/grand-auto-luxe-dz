@@ -896,6 +896,46 @@ var LoaderCircle = createLucideIcon("loader-circle", [["path", {
 * This source code is licensed under the ISC license.
 * See the LICENSE file in the root directory of this source tree.
 */
+var Loader = createLucideIcon("loader", [
+	["path", {
+		d: "M12 2v4",
+		key: "3427ic"
+	}],
+	["path", {
+		d: "m16.2 7.8 2.9-2.9",
+		key: "r700ao"
+	}],
+	["path", {
+		d: "M18 12h4",
+		key: "wj9ykh"
+	}],
+	["path", {
+		d: "m16.2 16.2 2.9 2.9",
+		key: "1bxg5t"
+	}],
+	["path", {
+		d: "M12 18v4",
+		key: "jadmvz"
+	}],
+	["path", {
+		d: "m4.9 19.1 2.9-2.9",
+		key: "bwix9q"
+	}],
+	["path", {
+		d: "M2 12h4",
+		key: "j09sii"
+	}],
+	["path", {
+		d: "m4.9 4.9 2.9 2.9",
+		key: "giyufr"
+	}]
+]);
+/**
+* @license lucide-react v0.575.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
 var LogOut = createLucideIcon("log-out", [
 	["path", {
 		d: "m16 17 5-5-5-5",
@@ -1372,21 +1412,6 @@ var UserCheck = createLucideIcon("user-check", [
 * This source code is licensed under the ISC license.
 * See the LICENSE file in the root directory of this source tree.
 */
-var UserRound = createLucideIcon("user-round", [["circle", {
-	cx: "12",
-	cy: "8",
-	r: "5",
-	key: "1hypcn"
-}], ["path", {
-	d: "M20 21a8 8 0 0 0-16 0",
-	key: "rfgkzh"
-}]]);
-/**
-* @license lucide-react v0.575.0 - ISC
-*
-* This source code is licensed under the ISC license.
-* See the LICENSE file in the root directory of this source tree.
-*/
 var User = createLucideIcon("user", [["path", {
 	d: "M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2",
 	key: "975kel"
@@ -1446,4 +1471,4 @@ var Zap = createLucideIcon("zap", [["path", {
 	key: "1xq2db"
 }]]);
 //#endregion
-export { Copy as $, Megaphone as A, GripVertical as B, RefreshCw as C, PenLine as D, Phone as E, Instagram as F, Fuel as G, Globe as H, Inbox as I, Eye as J, Film as K, ImagePlus as L, Mail as M, LogOut as N, MessageSquare as O, LoaderCircle as P, Crown as Q, House as R, RotateCcw as S, Play as T, Gavel as U, Grid3x3 as V, Gauge as W, EllipsisVertical as X, ExternalLink as Y, DollarSign as Z, Settings as _, ArrowRight as _t, UserRound as a, CircleAlert as at, Scale as b, Trophy as c, ChevronLeft as ct, Trash2 as d, Car as dt, Cog as et, Tag as f, Calendar as ft, ShieldCheck as g, BadgeCheck as gt, Shield as h, Ban as ht, User as i, CircleCheckBig as it, MapPin as j, MessageCircle as k, TriangleAlert as l, ChevronDown as lt, Sparkles as m, Bell as mt, X as n, Circle as nt, UserCheck as o, ChevronUp as ot, Star as p, Building2 as pt, Facebook as q, Users as r, CircleCheck as rt, Upload as s, ChevronRight as st, Zap as t, Clock as tt, TrendingUp as u, Check as ut, Send as v, ArrowLeft as vt, Plus as w, Save as x, Search as y, Heart as z };
+export { Copy as $, MapPin as A, GripVertical as B, Plus as C, MessageSquare as D, PenLine as E, Instagram as F, Fuel as G, Globe as H, Inbox as I, Eye as J, Film as K, ImagePlus as L, LogOut as M, Loader as N, MessageCircle as O, LoaderCircle as P, Crown as Q, House as R, RefreshCw as S, Phone as T, Gavel as U, Grid3x3 as V, Gauge as W, EllipsisVertical as X, ExternalLink as Y, DollarSign as Z, Send as _, ArrowRight as _t, UserCheck as a, CircleAlert as at, Save as b, TriangleAlert as c, ChevronLeft as ct, Tag as d, Car as dt, Cog as et, Star as f, Calendar as ft, Settings as g, BadgeCheck as gt, ShieldCheck as h, Ban as ht, User as i, CircleCheckBig as it, Mail as j, Megaphone as k, TrendingUp as l, ChevronDown as lt, Shield as m, Bell as mt, X as n, Circle as nt, Upload as o, ChevronUp as ot, Sparkles as p, Building2 as pt, Facebook as q, Users as r, CircleCheck as rt, Trophy as s, ChevronRight as st, Zap as t, Clock as tt, Trash2 as u, Check as ut, Search as v, ArrowLeft as vt, Play as w, RotateCcw as x, Scale as y, Heart as z };
