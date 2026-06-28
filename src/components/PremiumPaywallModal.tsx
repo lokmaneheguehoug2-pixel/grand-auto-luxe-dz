@@ -12,7 +12,7 @@ type Props = {
 };
 
 const PAYMENT_INFO = [
-  { label: "Baridimob / CCP", value: "0079999001234567890" },
+  { label: "Baridimob / CCP", value: "00799999004395806339" },
   { label: "Account holder", value: "HEGUEHOUG LOKMANE CHAOUKI" },
 ];
 

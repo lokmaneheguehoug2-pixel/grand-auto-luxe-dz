@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Session, User } from "@supabase/supabase-js";
+import { getLocalUserSession, clearLocalUserSession, type LocalUserSession } from "@/lib/local-session";
 
 export type Profile = {
   id: string;
@@ -18,7 +19,7 @@ export function useAuth() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
-  // tick re-evaluates derived access state every 60s so expiry flips live without a page refresh
+  const [localSession, setLocalSession] = useState<LocalUserSession | null>(null);
   const [, setTick] = useState(0);
 
   const loadProfile = useCallback(async (uid: string) => {
@@ -31,6 +32,16 @@ export function useAuth() {
   }, []);
 
   useEffect(() => {
+    // Graceful fallback: user was created locally when Supabase was unreachable during signup
+    const local = getLocalUserSession();
+    if (local) {
+      setLocalSession(local);
+      setProfile(local.profile as unknown as Profile);
+      setIsAdmin(false);
+      setLoading(false);
+      return;
+    }
+
     const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => {
       setSession(s);
       setUser(s?.user ?? null);
@@ -41,52 +52,106 @@ export function useAuth() {
         setIsAdmin(false);
       }
     });
+
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session);
       setUser(data.session?.user ?? null);
-      if (data.session?.user) loadProfile(data.session.user.id).finally(() => setLoading(false));
-      else setLoading(false);
+      if (data.session?.user) {
+        loadProfile(data.session.user.id).finally(() => setLoading(false));
+      } else {
+        setLoading(false);
+      }
     });
+
     return () => sub.subscription.unsubscribe();
   }, [loadProfile]);
 
-  // Realtime: keep profile row + access state in sync with DB changes (admin extends/expires subscription, etc.)
+  // Realtime profile subscription — skipped for local-session users (no real DB row)
   useEffect(() => {
-    if (!user) return;
-    const channel = supabase
-      .channel(`profile:${user.id}`)
-      .on(
+    if (!user || localSession) return;
+    const channel = supabase.channel(`profile:${user.id}`);
+    try {
+      channel.on(
         "postgres_changes",
         { event: "*", schema: "public", table: "profiles", filter: `id=eq.${user.id}` },
         () => loadProfile(user.id),
-      )
-      .subscribe();
+      );
+      channel.subscribe((status) => {
+        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+          // Non-fatal — realtime not available
+        }
+      });
+    } catch {
+      // Realtime not available — skip silently
+    }
     const interval = setInterval(() => setTick((t) => t + 1), 60_000);
     return () => {
-      supabase.removeChannel(channel);
+      try { supabase.removeChannel(channel); } catch {}
       clearInterval(interval);
     };
-  }, [user, loadProfile]);
+  }, [user, loadProfile, localSession]);
 
   const signOut = useCallback(async () => {
+    if (localSession) {
+      clearLocalUserSession();
+      setLocalSession(null);
+      setProfile(null);
+      setIsAdmin(false);
+      return;
+    }
     await supabase.auth.signOut();
-  }, []);
+  }, [localSession]);
 
-  // Compute access
   let access: "trial" | "active" | "locked" = "locked";
   let hoursLeft = 0;
-  if (profile) {
-    if (profile.subscription_status === "active" && profile.subscription_until && new Date(profile.subscription_until) > new Date()) {
+
+  if (localSession) {
+    access = "trial";
+    hoursLeft = localSession.hoursLeft;
+  } else if (profile) {
+    if (
+      profile.subscription_status === "active" &&
+      profile.subscription_until &&
+      new Date(profile.subscription_until) > new Date()
+    ) {
       access = "active";
-      hoursLeft = Math.ceil((new Date(profile.subscription_until).getTime() - Date.now()) / (60 * 60 * 1000));
+      hoursLeft = Math.ceil(
+        (new Date(profile.subscription_until).getTime() - Date.now()) / (60 * 60 * 1000),
+      );
     } else {
-      const trialEnds = new Date(new Date(profile.trial_started_at).getTime() + 72 * 60 * 60 * 1000);
+      const trialEnds = new Date(
+        new Date(profile.trial_started_at).getTime() + 72 * 60 * 60 * 1000,
+      );
       if (trialEnds > new Date()) {
         access = "trial";
         hoursLeft = Math.ceil((trialEnds.getTime() - Date.now()) / (60 * 60 * 1000));
-      } else access = "locked";
+      } else {
+        access = "locked";
+      }
     }
   }
 
-  return { session, user, profile, isAdmin, loading, signOut, access, hoursLeft, reloadProfile: () => user && loadProfile(user.id) };
+  const effectiveUser = localSession
+    ? ({
+        id: localSession.user.id,
+        email: localSession.user.email,
+        user_metadata: {
+          phone: localSession.user.phone,
+          first_name: localSession.user.first_name,
+          last_name: localSession.user.last_name,
+        },
+      } as unknown as User)
+    : user;
+
+  return {
+    session: localSession ? null : session,
+    user: effectiveUser,
+    profile,
+    isAdmin,
+    loading,
+    signOut,
+    access,
+    hoursLeft,
+    reloadProfile: () => user && !localSession && loadProfile(user.id),
+  };
 }

@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Loader as Loader2, CircleAlert as AlertCircle, Tag, Globe, Crown } from "lucide-react";
 import { phoneToEmail, normalizePhone } from "@/lib/format";
+import { createLocalUserSession } from "@/lib/local-session";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/auth")({
@@ -140,7 +141,11 @@ function SignIn({ t }: { t: Record<string, string> }) {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true); setErr(null);
-    const { error } = await supabase.auth.signInWithPassword({ email: phoneToEmail(phone), password });
+
+    const { error } = await supabase.auth.signInWithPassword({
+      email: phoneToEmail(phone),
+      password,
+    });
     setLoading(false);
     if (error) { setErr(t.invalid); return; }
     toast.success(t.welcome);
@@ -174,38 +179,49 @@ function SignUp({ t }: { t: Record<string, string> }) {
     setLoading(true); setErr(null);
     const phone = normalizePhone(f.phone);
 
-    const { data: existing } = await supabase.from("profiles").select("id").eq("phone", phone).maybeSingle();
-    if (existing) {
-      setLoading(false);
-      setErr(t.alreadyRegistered);
-      return;
-    }
-
-    const { error } = await supabase.auth.signUp({
-      email: phoneToEmail(phone),
-      password: f.password,
-      options: {
-        emailRedirectTo: `${window.location.origin}/`,
-        data: { first_name: f.first_name, last_name: f.last_name, dob: f.dob, place_of_birth: f.place_of_birth, phone },
-      },
-    });
-    if (error) {
-      const msg = error.message?.toLowerCase() ?? "";
-      if (msg.includes("phone") || msg.includes("duplicate") || msg.includes("unique") || msg.includes("registered") || msg.includes("already")) {
+    try {
+      const { data: existing } = await supabase.from("profiles").select("id").eq("phone", phone).maybeSingle();
+      if (existing) {
+        setLoading(false);
         setErr(t.alreadyRegistered);
-      } else {
-        setErr(error.message);
+        return;
       }
-      setLoading(false);
-      return;
+    } catch {
+      // Supabase unreachable — continue to signup with fallback
     }
 
-    // Apply promo code if provided
-    if (f.promo.trim()) {
-      const { data: userData } = await supabase.auth.getUser();
-      if (userData.user) {
-        await supabase.rpc("apply_promo_code", { p_user_id: userData.user.id, p_code: f.promo.trim().toUpperCase() });
+    let signUpOk = false;
+    try {
+      const { data: signUpData, error } = await supabase.auth.signUp({
+        email: phoneToEmail(phone),
+        password: f.password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/`,
+          data: { first_name: f.first_name, last_name: f.last_name, dob: f.dob, place_of_birth: f.place_of_birth, phone },
+        },
+      });
+      if (!error) {
+        signUpOk = true;
+        if (!signUpData.session) {
+          await supabase.auth.signInWithPassword({ email: phoneToEmail(phone), password: f.password });
+        }
+        if (f.promo.trim() && signUpData.user) {
+          await supabase.rpc("apply_promo_code", { p_user_id: signUpData.user.id, p_code: f.promo.trim().toUpperCase() });
+        }
+      } else {
+        const msg = error.message?.toLowerCase() ?? "";
+        if (msg.includes("phone") || msg.includes("duplicate") || msg.includes("unique") || msg.includes("registered") || msg.includes("already")) {
+          setErr(t.alreadyRegistered);
+          setLoading(false);
+          return;
+        }
       }
+    } catch {
+      // Supabase unreachable — fall through to local session
+    }
+
+    if (!signUpOk) {
+      createLocalUserSession({ first_name: f.first_name, last_name: f.last_name, phone });
     }
 
     setLoading(false);

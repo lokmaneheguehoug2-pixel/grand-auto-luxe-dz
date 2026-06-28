@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { formatDZD } from "@/lib/format";
-import { Phone, MessageCircle, Gauge, MapPin, Fuel, Cog, Calendar, Gavel, Trophy, Edit3 } from "lucide-react";
+import { Phone, MessageCircle, Gauge, MapPin, Fuel, Cog, Calendar, Gavel, Trophy, Edit3, Lock } from "lucide-react";
 import { useSignedUrl } from "@/hooks/use-signed-url";
 import { Countdown } from "@/components/Countdown";
 import { useState } from "react";
@@ -16,6 +16,7 @@ import { SoldOverlay } from "@/routes/my-listings";
 import { formatCentimes } from "@/lib/format";
 import { ChatDialog } from "@/components/ChatDialog";
 import { AppointmentBooking } from "@/components/AppointmentBooking";
+import { PremiumPaywallModal } from "@/components/PremiumPaywallModal";
 
 /** Algerian phone helpers — accept "05XXXXXXXX" or "+213..." and produce dial/whatsapp formats. */
 function normalizeAlgPhone(raw: string): string {
@@ -36,6 +37,7 @@ function VehicleDetail() {
   const { id } = Route.useParams();
   const { user, access } = useAuth();
   const qc = useQueryClient();
+  const [paywallOpen, setPaywallOpen] = useState(false);
   const { data: v } = useQuery({
     queryKey: ["vehicle", id],
     queryFn: async () => {
@@ -66,6 +68,9 @@ function VehicleDetail() {
     : auctionEnded
       ? (isSeller || isWinner)
       : access !== "locked" && !isSeller;
+
+  // Full premium access: logged in AND subscription active (trial counts)
+  const canAccessPremium = !!user && access !== "locked";
 
   const refresh = () => { qc.invalidateQueries({ queryKey: ["vehicle", id] }); qc.invalidateQueries({ queryKey: ["bids", id] }); };
 
@@ -120,9 +125,16 @@ function VehicleDetail() {
                       <ContactWinner vehicleId={id} winnerId={v.current_highest_bidder} />
                     )}
                   </div>
-                ) : (
-                  user && !isSeller && access !== "locked" && (
+                ) : !isSeller && (
+                  canAccessPremium ? (
                     <BidDialog vehicleId={id} currentHighest={v.current_highest_bid ?? v.starting_price} onPlaced={refresh} />
+                  ) : (
+                    <button
+                      onClick={() => setPaywallOpen(true)}
+                      className="w-full mt-4 h-12 rounded-xl gold-gradient flex items-center justify-center gap-2 text-sm font-semibold text-gold-foreground/80 hover:opacity-90 transition-opacity cursor-pointer"
+                    >
+                      <Lock className="h-4 w-4" /> Place a Bid · Premium Only
+                    </button>
                   )
                 )}
               </>
@@ -143,21 +155,34 @@ function VehicleDetail() {
               </Link>
             </Button>
           )}
-          {!isSeller && showOwnerNumber && v.phone && (
-            <div className="grid grid-cols-2 gap-3">
-              <Button asChild variant="gold" className="h-12">
-                <a href={`tel:${normalizeAlgPhone(v.phone)}`}><Phone className="h-4 w-4" /> Call Owner</a>
-              </Button>
-              <Button asChild variant="gold-outline" className="h-12">
-                <a href={`https://wa.me/${toWhatsApp(v.phone)}`} target="_blank" rel="noopener noreferrer"><MessageCircle className="h-4 w-4" /> WhatsApp</a>
-              </Button>
-            </div>
+          {!isSeller && v.phone && (
+            showOwnerNumber ? (
+              <div className="grid grid-cols-2 gap-3">
+                <Button asChild variant="gold" className="h-12">
+                  <a href={`tel:${normalizeAlgPhone(v.phone)}`}><Phone className="h-4 w-4" /> Call Owner</a>
+                </Button>
+                <Button asChild variant="gold-outline" className="h-12">
+                  <a href={`https://wa.me/${toWhatsApp(v.phone)}`} target="_blank" rel="noopener noreferrer"><MessageCircle className="h-4 w-4" /> WhatsApp</a>
+                </Button>
+              </div>
+            ) : (
+              <LockedSellerCard onUnlock={() => setPaywallOpen(true)} />
+            )
           )}
-          {user && !isSeller && access !== "locked" && (
-            <ChatDialog vehicleId={id} sellerId={v.seller_id} vehicleTitle={`${v.brand} ${v.model}`} />
+          {!isSeller && (
+            canAccessPremium ? (
+              <ChatDialog vehicleId={id} sellerId={v.seller_id} vehicleTitle={`${v.brand} ${v.model}`} />
+            ) : (
+              <button
+                onClick={() => setPaywallOpen(true)}
+                className="w-full h-12 rounded-xl border border-gold/30 bg-charcoal flex items-center justify-center gap-2 text-sm text-gold/70 hover:bg-gold-soft hover:text-gold transition-colors cursor-pointer"
+              >
+                <Lock className="h-4 w-4" /> In-app Chat · Premium Members Only
+              </button>
+            )
           )}
-          {/* Appointment Booking for non-sellers */}
-          {!isSeller && !v.is_auction && (
+          {/* Appointment Booking for non-sellers — gated to premium */}
+          {!isSeller && !v.is_auction && canAccessPremium && (
             <AppointmentBooking
               vehicleId={id}
               sellerId={v.seller_id}
@@ -203,6 +228,38 @@ function VehicleDetail() {
           <Link to="/" className="inline-block text-xs text-muted-foreground hover:text-gold">← Back to marketplace</Link>
         </div>
       </div>
+
+      <PremiumPaywallModal open={paywallOpen} onOpenChange={setPaywallOpen} />
+    </div>
+  );
+}
+
+function LockedSellerCard({ onUnlock }: { onUnlock: () => void }) {
+  return (
+    <div className="premium-card rounded-2xl p-4 border border-gold/20 space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="text-[10px] uppercase tracking-widest text-gold">Seller Contact</div>
+        <div className="flex items-center gap-1.5 text-[10px] text-gold/60 uppercase tracking-widest">
+          <Lock className="h-3 w-3" /> Premium
+        </div>
+      </div>
+      <div className="space-y-2">
+        <div className="flex items-center gap-2 select-none">
+          <Phone className="h-4 w-4 text-muted-foreground/40" />
+          <span className="text-xl font-mono tracking-widest blur-sm text-muted-foreground/50 pointer-events-none">05•• •••• ••••</span>
+        </div>
+        <div className="flex items-center gap-2 select-none">
+          <MessageCircle className="h-4 w-4 text-muted-foreground/40" />
+          <span className="text-sm blur-sm text-muted-foreground/50 pointer-events-none">WhatsApp · ••••••••••</span>
+        </div>
+      </div>
+      <button
+        onClick={onUnlock}
+        className="w-full h-10 rounded-xl gold-gradient flex items-center justify-center gap-2 text-sm font-semibold text-gold-foreground hover:opacity-90 transition-opacity cursor-pointer"
+      >
+        <Lock className="h-3.5 w-3.5" />
+        Unlock Seller Info · Subscribe
+      </button>
     </div>
   );
 }

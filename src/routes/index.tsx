@@ -8,10 +8,12 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Search, MapPin, Gauge, Fuel, Cog, Play, Grid3X3, Film, Phone, Scale } from "lucide-react";
+import { Search, MapPin, Gauge, Fuel, Cog, Play, Grid3X3, Film, Phone, Scale, Lock } from "lucide-react";
 import { Countdown } from "@/components/Countdown";
 import { useSignedUrl } from "@/hooks/use-signed-url";
 import { compareStore, useCompare } from "@/lib/compare";
+import { useAuth } from "@/hooks/use-auth";
+import { PremiumPaywallModal } from "@/components/PremiumPaywallModal";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -268,6 +270,9 @@ function ReelsFeed({ vehicles }: { vehicles: Vehicle[] }) {
 function Reel({ v }: { v: Vehicle }) {
   const url = useSignedUrl("vehicle-media", v.video_url);
   const price = v.price_type === "fixed" ? v.fixed_price : (v.current_highest_bid ?? v.starting_price);
+  const { user, access } = useAuth();
+  const canAccessPremium = !!user && access !== "locked";
+  const [paywallOpen, setPaywallOpen] = useState(false);
   return (
     <div className="snap-start h-full min-h-[80vh] relative grid place-items-center bg-black">
       {url && <video src={url} className="absolute inset-0 h-full w-full object-cover" autoPlay loop muted playsInline />}
@@ -282,9 +287,18 @@ function Reel({ v }: { v: Vehicle }) {
         </div>
         <div className="flex gap-2">
           <Button asChild variant="gold" className="flex-1"><Link to="/vehicle/$id" params={{ id: v.id }}>View Details</Link></Button>
-          <Button asChild variant="gold-outline" size="icon"><a href={`tel:${v.phone}`}><Phone className="h-4 w-4" /></a></Button>
+          {canAccessPremium ? (
+            <Button asChild variant="gold-outline" size="icon">
+              <a href={`tel:${v.phone}`}><Phone className="h-4 w-4" /></a>
+            </Button>
+          ) : (
+            <Button variant="gold-outline" size="icon" onClick={() => setPaywallOpen(true)} title="Premium members only">
+              <Lock className="h-4 w-4" />
+            </Button>
+          )}
         </div>
       </div>
+      <PremiumPaywallModal open={paywallOpen} onOpenChange={setPaywallOpen} />
     </div>
   );
 }
