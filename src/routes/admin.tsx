@@ -418,7 +418,7 @@ function PromoCodesTab() {
           </div>
           <div>
             <Label className="text-xs uppercase tracking-widest text-muted-foreground">Days Granted</Label>
-            <Input type="number" value={form.days_granted} onChange={(e) => setForm({ ...form, days_granted: e.target.value })} className="bg-charcoal border-gold/30 mt-1.5" min={1} max={365} />
+            <Input type="number" value={form.days_granted} onChange={(e) => setForm({ ...form, days_granted: Number(e.target.value) || 0 })} className="bg-charcoal border-gold/30 mt-1.5" min={1} max={365} />
           </div>
           <div>
             <Label className="text-xs uppercase tracking-widest text-muted-foreground">Max Uses (optional)</Label>
