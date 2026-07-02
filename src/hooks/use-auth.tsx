@@ -60,6 +60,7 @@ export function useAuth() {
       if (data.session?.user) {
         loadProfile(data.session.user.id).finally(() => setLoading(false));
       } else {
+        setIsAdmin(hasAdminBypass());
         setLoading(false);
       }
     });
