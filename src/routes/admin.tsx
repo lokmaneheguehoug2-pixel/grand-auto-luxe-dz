@@ -388,7 +388,6 @@ function PromoCodesTab() {
       plan_type: form.plan_type,
       days_granted: Number(form.days_granted),
       max_uses: form.max_uses ? Number(form.max_uses) : null,
-      created_by: user.id,
     });
     if (error) { toast.error(error.message); return; }
     toast.success("Promo code created");
