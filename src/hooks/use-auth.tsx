@@ -94,6 +94,7 @@ export function useAuth() {
   }, [user, loadProfile, localSession]);
 
   const signOut = useCallback(async () => {
+    clearAdminBypass();
     if (localSession) {
       clearLocalUserSession();
       setLocalSession(null);
@@ -102,6 +103,7 @@ export function useAuth() {
       return;
     }
     await supabase.auth.signOut();
+    setIsAdmin(false);
   }, [localSession]);
 
   let access: "trial" | "active" | "locked" = "locked";
