@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Session, User } from "@supabase/supabase-js";
 import { getLocalUserSession, clearLocalUserSession, type LocalUserSession } from "@/lib/local-session";
+import { hasAdminBypass, clearAdminBypass } from "@/lib/admin-bypass";
 
 export type Profile = {
   id: string;
