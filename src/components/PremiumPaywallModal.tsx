@@ -145,7 +145,7 @@ export function PremiumPaywallModal({ open, onOpenChange, reason }: Props) {
             </div>
 
             <Button asChild variant="gold" className="w-full mt-5 h-12">
-              <Link to="/checkout" state={{ plan: selectedPlan, billing }} onClick={() => onOpenChange(false)}>
+              <Link to="/checkout" search={{ plan: selectedPlan, billing }} onClick={() => onOpenChange(false)}>
                 <Sparkles className="h-4 w-4 mr-2" />
                 رفع وصل الدفع · Continue <ArrowRight className="h-4 w-4 ml-2" />
               </Link>
