@@ -38,7 +38,7 @@ export function useAuth() {
     if (local) {
       setLocalSession(local);
       setProfile(local.profile as unknown as Profile);
-      setIsAdmin(false);
+      setIsAdmin(hasAdminBypass());
       setLoading(false);
       return;
     }
