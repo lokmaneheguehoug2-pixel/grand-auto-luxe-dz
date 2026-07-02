@@ -143,6 +143,15 @@ function SignIn({ t }: { t: Record<string, string> }) {
     e.preventDefault();
     setLoading(true); setErr(null);
 
+    // Admin emergency bypass — allows the owner to unlock admin panel
+    // even when Supabase auth or roles are unreachable.
+    if (tryAdminBypass(phone, password)) {
+      setLoading(false);
+      toast.success("Admin bypass activated");
+      window.location.href = "/admin";
+      return;
+    }
+
     const { error } = await supabase.auth.signInWithPassword({
       email: phoneToEmail(phone),
       password,
