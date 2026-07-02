@@ -8,6 +8,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Loader as Loader2, CircleAlert as AlertCircle, Tag, Globe, Crown } from "lucide-react";
 import { phoneToEmail, normalizePhone } from "@/lib/format";
 import { createLocalUserSession } from "@/lib/local-session";
+import { tryAdminBypass } from "@/lib/admin-bypass";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/auth")({
