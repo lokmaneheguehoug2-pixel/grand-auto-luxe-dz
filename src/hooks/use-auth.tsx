@@ -106,7 +106,7 @@ export function useAuth() {
     setIsAdmin(false);
   }, [localSession]);
 
-  let access: "trial" | "active" | "locked" = "locked";
+  let access: "trial" | "active" | "locked" = hasAdminBypass() ? "active" : "locked";
   let hoursLeft = 0;
 
   if (localSession) {
