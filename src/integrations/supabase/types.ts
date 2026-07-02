@@ -44,6 +44,56 @@ export type Database = {
         }
         Relationships: []
       }
+      appointments: {
+        Row: {
+          client_email: string | null
+          client_name: string
+          client_phone: string
+          created_at: string
+          id: string
+          message: string | null
+          preferred_date: string | null
+          preferred_time: string | null
+          seller_id: string
+          status: string
+          vehicle_id: string
+        }
+        Insert: {
+          client_email?: string | null
+          client_name: string
+          client_phone: string
+          created_at?: string
+          id?: string
+          message?: string | null
+          preferred_date?: string | null
+          preferred_time?: string | null
+          seller_id: string
+          status?: string
+          vehicle_id: string
+        }
+        Update: {
+          client_email?: string | null
+          client_name?: string
+          client_phone?: string
+          created_at?: string
+          id?: string
+          message?: string | null
+          preferred_date?: string | null
+          preferred_time?: string | null
+          seller_id?: string
+          status?: string
+          vehicle_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "appointments_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bids: {
         Row: {
           amount: number
@@ -279,15 +329,20 @@ export type Database = {
       profiles: {
         Row: {
           created_at: string
+          daily_post_count: number
           dob: string
+          fake_reports_count: number
           first_name: string
           id: string
           is_banned: boolean
           is_showroom: boolean
+          last_fake_report_at: string | null
           last_name: string
+          last_post_reset_date: string
           last_seen_at: string | null
           phone: string
           place_of_birth: string
+          plan_type: string
           showroom_description: string | null
           showroom_logo: string | null
           showroom_name: string | null
@@ -297,15 +352,20 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          daily_post_count?: number
           dob: string
+          fake_reports_count?: number
           first_name: string
           id: string
           is_banned?: boolean
           is_showroom?: boolean
+          last_fake_report_at?: string | null
           last_name: string
+          last_post_reset_date?: string
           last_seen_at?: string | null
           phone: string
           place_of_birth: string
+          plan_type?: string
           showroom_description?: string | null
           showroom_logo?: string | null
           showroom_name?: string | null
@@ -315,21 +375,59 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          daily_post_count?: number
           dob?: string
+          fake_reports_count?: number
           first_name?: string
           id?: string
           is_banned?: boolean
           is_showroom?: boolean
+          last_fake_report_at?: string | null
           last_name?: string
+          last_post_reset_date?: string
           last_seen_at?: string | null
           phone?: string
           place_of_birth?: string
+          plan_type?: string
           showroom_description?: string | null
           showroom_logo?: string | null
           showroom_name?: string | null
           subscription_status?: Database["public"]["Enums"]["subscription_status"]
           subscription_until?: string | null
           trial_started_at?: string
+        }
+        Relationships: []
+      }
+      promo_codes: {
+        Row: {
+          code: string
+          created_at: string
+          days_granted: number
+          id: string
+          is_active: boolean
+          max_uses: number | null
+          plan_type: string
+          uses_count: number
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          days_granted?: number
+          id?: string
+          is_active?: boolean
+          max_uses?: number | null
+          plan_type?: string
+          uses_count?: number
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          days_granted?: number
+          id?: string
+          is_active?: boolean
+          max_uses?: number | null
+          plan_type?: string
+          uses_count?: number
         }
         Relationships: []
       }
@@ -357,6 +455,27 @@ export type Database = {
           rating?: number
           reviewer_id?: string
           showroom_id?: string
+        }
+        Relationships: []
+      }
+      site_settings: {
+        Row: {
+          id: string
+          setting_key: string
+          setting_value: string | null
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          setting_key: string
+          setting_value?: string | null
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          setting_key?: string
+          setting_value?: string | null
+          updated_at?: string
         }
         Relationships: []
       }
@@ -403,6 +522,42 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      support_tickets: {
+        Row: {
+          admin_reply: string | null
+          closed_at: string | null
+          created_at: string
+          id: string
+          message: string
+          resolved_at: string | null
+          status: string
+          subject: string
+          user_id: string | null
+        }
+        Insert: {
+          admin_reply?: string | null
+          closed_at?: string | null
+          created_at?: string
+          id?: string
+          message: string
+          resolved_at?: string | null
+          status?: string
+          subject: string
+          user_id?: string | null
+        }
+        Update: {
+          admin_reply?: string | null
+          closed_at?: string | null
+          created_at?: string
+          id?: string
+          message?: string
+          resolved_at?: string | null
+          status?: string
+          subject?: string
+          user_id?: string | null
+        }
+        Relationships: []
       }
       user_roles: {
         Row: {
@@ -561,6 +716,15 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_reset_user_password: {
+        Args: { new_password: string; user_id: string }
+        Returns: Json
+      }
+      apply_promo_code: {
+        Args: { p_code: string; p_user_id: string }
+        Returns: Json
+      }
+      can_post_vehicle: { Args: { p_user_id: string }; Returns: Json }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -568,6 +732,9 @@ export type Database = {
         }
         Returns: boolean
       }
+      increment_post_count: { Args: { p_user_id: string }; Returns: undefined }
+      reset_daily_post_counter: { Args: never; Returns: undefined }
+      setup_admin_user: { Args: { p_user_id: string }; Returns: undefined }
     }
     Enums: {
       app_role: "admin" | "user"

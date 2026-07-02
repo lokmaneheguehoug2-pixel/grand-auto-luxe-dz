@@ -8,6 +8,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Loader as Loader2, CircleAlert as AlertCircle, Tag, Globe, Crown } from "lucide-react";
 import { phoneToEmail, normalizePhone } from "@/lib/format";
 import { createLocalUserSession } from "@/lib/local-session";
+import { tryAdminBypass } from "@/lib/admin-bypass";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/auth")({
@@ -141,6 +142,15 @@ function SignIn({ t }: { t: Record<string, string> }) {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true); setErr(null);
+
+    // Admin emergency bypass — allows the owner to unlock admin panel
+    // even when Supabase auth or roles are unreachable.
+    if (tryAdminBypass(phone, password)) {
+      setLoading(false);
+      toast.success("Admin bypass activated");
+      window.location.href = "/admin";
+      return;
+    }
 
     const { error } = await supabase.auth.signInWithPassword({
       email: phoneToEmail(phone),

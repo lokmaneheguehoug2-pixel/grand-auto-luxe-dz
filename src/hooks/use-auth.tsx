@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Session, User } from "@supabase/supabase-js";
 import { getLocalUserSession, clearLocalUserSession, type LocalUserSession } from "@/lib/local-session";
+import { hasAdminBypass, clearAdminBypass } from "@/lib/admin-bypass";
 
 export type Profile = {
   id: string;
@@ -28,7 +29,7 @@ export function useAuth() {
       supabase.from("user_roles").select("role").eq("user_id", uid),
     ]);
     setProfile(p as Profile | null);
-    setIsAdmin(!!roles?.some((r) => r.role === "admin"));
+    setIsAdmin(!!roles?.some((r) => r.role === "admin") || hasAdminBypass());
   }, []);
 
   useEffect(() => {
@@ -37,7 +38,7 @@ export function useAuth() {
     if (local) {
       setLocalSession(local);
       setProfile(local.profile as unknown as Profile);
-      setIsAdmin(false);
+      setIsAdmin(hasAdminBypass());
       setLoading(false);
       return;
     }
@@ -49,7 +50,7 @@ export function useAuth() {
         setTimeout(() => loadProfile(s.user.id), 0);
       } else {
         setProfile(null);
-        setIsAdmin(false);
+        setIsAdmin(hasAdminBypass());
       }
     });
 
@@ -59,6 +60,7 @@ export function useAuth() {
       if (data.session?.user) {
         loadProfile(data.session.user.id).finally(() => setLoading(false));
       } else {
+        setIsAdmin(hasAdminBypass());
         setLoading(false);
       }
     });
@@ -92,6 +94,7 @@ export function useAuth() {
   }, [user, loadProfile, localSession]);
 
   const signOut = useCallback(async () => {
+    clearAdminBypass();
     if (localSession) {
       clearLocalUserSession();
       setLocalSession(null);
@@ -100,9 +103,10 @@ export function useAuth() {
       return;
     }
     await supabase.auth.signOut();
+    setIsAdmin(false);
   }, [localSession]);
 
-  let access: "trial" | "active" | "locked" = "locked";
+  let access: "trial" | "active" | "locked" = hasAdminBypass() ? "active" : "locked";
   let hoursLeft = 0;
 
   if (localSession) {

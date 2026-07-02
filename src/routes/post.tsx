@@ -77,8 +77,9 @@ function PostPage() {
   React.useEffect(() => {
     if (!user || access === "locked") return;
     supabase.rpc("can_post_vehicle", { p_user_id: user.id }).then(({ data }) => {
-      setCanPost(data);
-      if (!data?.can_post) setShowPaywall(true);
+      const result = data as { can_post: boolean; reason?: string } | null;
+      setCanPost(result);
+      if (!result?.can_post) setShowPaywall(true);
     });
   }, [user, access]);
 

@@ -125,13 +125,15 @@ function FloatingPostButton() {
     }
     // Check daily post limit for individual plan
     setChecking(true);
-    const { data, error } = await supabase.rpc("can_post_vehicle", { p_user_id: profile?.id });
+    if (!profile?.id) { setChecking(false); return; }
+    const { data, error } = await supabase.rpc("can_post_vehicle", { p_user_id: profile.id });
     setChecking(false);
     if (error) {
       console.error(error);
       return;
     }
-    if (data?.can_post) {
+    const result = data as { can_post?: boolean } | null;
+    if (result?.can_post) {
       navigate({ to: "/post" });
     } else {
       setShowPaywall(true);

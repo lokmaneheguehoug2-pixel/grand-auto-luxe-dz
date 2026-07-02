@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import {
   Shield, Trash2, Check, X, Eye, DollarSign, Send, Ban, UserCheck, Crown, Megaphone, Zap,
   Tag, AlertTriangle, Ticket, BarChart3, Users, Car, TrendingUp, Clock, RefreshCw, Settings,
-  Calendar, Phone, Mail, MessageCircle, Instagram, Facebook, Globe
+  Calendar, Phone, Mail, MessageCircle, Instagram, Facebook, Globe, BadgeCheck
 } from "lucide-react";
 import { useSignedUrl } from "@/hooks/use-signed-url";
 import { toast } from "sonner";
@@ -388,7 +388,6 @@ function PromoCodesTab() {
       plan_type: form.plan_type,
       days_granted: Number(form.days_granted),
       max_uses: form.max_uses ? Number(form.max_uses) : null,
-      created_by: user.id,
     });
     if (error) { toast.error(error.message); return; }
     toast.success("Promo code created");
@@ -419,7 +418,7 @@ function PromoCodesTab() {
           </div>
           <div>
             <Label className="text-xs uppercase tracking-widest text-muted-foreground">Days Granted</Label>
-            <Input type="number" value={form.days_granted} onChange={(e) => setForm({ ...form, days_granted: e.target.value })} className="bg-charcoal border-gold/30 mt-1.5" min={1} max={365} />
+            <Input type="number" value={form.days_granted} onChange={(e) => setForm({ ...form, days_granted: Number(e.target.value) || 0 })} className="bg-charcoal border-gold/30 mt-1.5" min={1} max={365} />
           </div>
           <div>
             <Label className="text-xs uppercase tracking-widest text-muted-foreground">Max Uses (optional)</Label>

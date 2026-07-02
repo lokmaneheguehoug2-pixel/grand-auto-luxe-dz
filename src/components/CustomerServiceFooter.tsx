@@ -28,7 +28,7 @@ export function CustomerServiceFooter() {
         if (!error && data) {
           const settingsMap: Record<string, string> = {};
           data.forEach((item) => {
-            settingsMap[item.setting_key] = item.setting_value;
+            settingsMap[item.setting_key] = item.setting_value ?? "";
           });
           setSettings({
             whatsapp_number: settingsMap.whatsapp_number || "",
