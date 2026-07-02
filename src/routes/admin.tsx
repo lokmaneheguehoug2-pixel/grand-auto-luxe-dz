@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import {
   Shield, Trash2, Check, X, Eye, DollarSign, Send, Ban, UserCheck, Crown, Megaphone, Zap,
   Tag, AlertTriangle, Ticket, BarChart3, Users, Car, TrendingUp, Clock, RefreshCw, Settings,
-  Calendar, Phone, Mail, MessageCircle, Instagram, Facebook, Globe
+  Calendar, Phone, Mail, MessageCircle, Instagram, Facebook, Globe, BadgeCheck
 } from "lucide-react";
 import { useSignedUrl } from "@/hooks/use-signed-url";
 import { toast } from "sonner";
