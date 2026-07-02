@@ -50,7 +50,7 @@ export function useAuth() {
         setTimeout(() => loadProfile(s.user.id), 0);
       } else {
         setProfile(null);
-        setIsAdmin(false);
+        setIsAdmin(hasAdminBypass());
       }
     });
 
