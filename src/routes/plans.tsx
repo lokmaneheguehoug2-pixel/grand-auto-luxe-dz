@@ -84,11 +84,12 @@ function PlansPage() {
         p_code: promoCode.trim().toUpperCase(),
       });
       if (error) throw error;
-      if (data?.success) {
-        toast.success(`تم تفعيل ${data.days_granted} أيام مجانية!`);
+      const result = data as { success?: boolean; days_granted?: number; error?: string } | null;
+      if (result?.success) {
+        toast.success(`تم تفعيل ${result.days_granted} أيام مجانية!`);
         setPromoCode("");
       } else {
-        toast.error(data?.error || "كود غير صالح");
+        toast.error(result?.error || "كود غير صالح");
       }
     } catch (e: any) {
       toast.error(e.message || "خطأ في تطبيق الكود");
