@@ -1,0 +1,7 @@
+[build]
+  command = "npm run build && echo '/* /.netlify/functions/server 200' > dist/_redirects"
+  publish = "dist"
+  functions = ".netlify/functions-internal"
+
+[functions]
+  node_bundler = "esbuild"
