@@ -1,50 +1,94 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
-import { collection, getDocs, doc, getDoc, query, where, orderBy } from "firebase/firestore";
-import { db } from "@/lib/firebase";
-import { useSignedUrl } from "@/hooks/use-signed-url";
 import { useAuth } from "@/hooks/use-auth";
 import { formatDZD } from "@/lib/format";
-import { BadgeCheck, Car, MapPin, Gauge, Clock, Crown, AlertTriangle, Tag, Calendar, Settings } from "lucide-react";
+import { BadgeCheck, Car, MapPin, Gauge, Clock, Crown, AlertTriangle, Tag, Calendar, Instagram, Phone, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PremiumPaywallModal } from "@/components/PremiumPaywallModal";
 import { useState, useEffect } from "react";
+import { realtimeDb } from "@/lib/firebase";
+import { ref, get } from "firebase/database";
 
 export const Route = createFileRoute("/seller/$id")({
   head: () => ({ meta: [{ title: "Seller Profile · GRAND Auto Luxe" }] }),
   component: SellerProfile,
 });
 
+type SellerProfile = {
+  id: string;
+  phone: string;
+  first_name: string;
+  last_name: string;
+  showroom_name?: string;
+  subscription_status: string;
+  subscription_until?: string;
+  is_showroom?: boolean;
+  plan_type?: string;
+  instagram?: string;
+};
+
+type Vehicle = {
+  id: string;
+  brand: string;
+  model: string;
+  year: number;
+  wilaya: string;
+  mileage: number;
+  photos?: string[];
+  price_type: "fixed" | "auction";
+  fixed_price?: number;
+  current_highest_bid?: number;
+  starting_price?: number;
+  status: string;
+  created_at?: string;
+};
+
 function SellerProfile() {
   const { id } = Route.useParams();
   const { user, profile: me, access } = useAuth();
   const isOwnProfile = user?.id === id;
 
-  const { data: profile } = useQuery({
-    queryKey: ["seller-profile", id],
-    queryFn: async () => {
-      const docRef = doc(db, "profiles", id);
-      const docSnap = await getDoc(docRef);
-      if (!docSnap.exists()) return null;
-      const data = docSnap.data();
-      return { id: docSnap.id, ...data };
-    },
-  });
+  const [profile, setProfile] = useState<SellerProfile | null>(null);
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const { data: vehicles = [] } = useQuery({
-    queryKey: ["seller-vehicles", id],
-    refetchInterval: 15_000,
-    queryFn: async () => {
-      const q = query(
-        collection(db, "vehicles"),
-        where("seller_id", "==", id),
-        where("status", "==", "active"),
-        orderBy("created_at", "desc")
-      );
-      const snapshot = await getDocs(q);
-      return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-    },
-  });
+  useEffect(() => {
+    async function load() {
+      setLoading(true);
+      try {
+        const profileSnap = await get(ref(realtimeDb, `users/${id}`));
+        if (profileSnap.exists()) {
+          const data = profileSnap.val();
+          setProfile({
+            id,
+            phone: data.phone || id,
+            first_name: data.first_name || "",
+            last_name: data.last_name || "",
+            showroom_name: data.showroom_name,
+            subscription_status: data.subscription_status || "trial",
+            subscription_until: data.subscription_until,
+            is_showroom: data.subscription_tier === "dealer",
+            plan_type: data.subscription_tier === "dealer" ? "showroom" : "individual",
+            instagram: data.instagram,
+          });
+        }
+
+        const vehiclesSnap = await get(ref(realtimeDb, "vehicles"));
+        if (vehiclesSnap.exists()) {
+          const allVehicles = vehiclesSnap.val() as Record<string, Vehicle>;
+          const sellerVehicles = Object.entries(allVehicles)
+            .filter(([_, v]) => v.sellerId === id || v.sellerPhone === id)
+            .filter(([_, v]) => v.status === "active")
+            .map(([vid, v]) => ({ ...v, id: vid }))
+            .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+          setVehicles(sellerVehicles);
+        }
+      } catch (err) {
+        console.error("Error loading seller profile:", err);
+      }
+      setLoading(false);
+    }
+    load();
+  }, [id]);
 
   const verified = profile?.is_showroom || (
     profile?.subscription_status === "active" &&
@@ -56,12 +100,26 @@ function SellerProfile() {
     ? (profile.showroom_name || `${profile.first_name ?? ""} ${profile.last_name ?? ""}`.trim() || "Seller")
     : "Seller";
 
+  const getInstagramUrl = (username: string) => {
+    if (!username) return null;
+    const clean = username.replace("@", "").trim();
+    if (clean.startsWith("http")) return clean;
+    return `https://instagram.com/${clean}`;
+  };
+
+  const instagramUrl = profile?.instagram ? getInstagramUrl(profile.instagram) : null;
+
+  if (loading) return <div className="max-w-6xl mx-auto px-6 py-20 text-center text-muted-foreground">Loading...</div>;
+  if (!profile) return (
+    <div className="max-w-6xl mx-auto px-6 py-20 text-center">
+      <h1 className="font-display text-2xl gold-text">Seller not found</h1>
+      <Button asChild variant="gold" className="mt-4"><Link to="/">Back</Link></Button>
+    </div>
+  );
+
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-10">
-      {/* 3-day trial expiry banner for own profile */}
-      {isOwnProfile && access === "trial" && me && (
-        <TrialExpiryBanner trialStartedAt={me.trial_started_at} />
-      )}
+      {isOwnProfile && access === "trial" && me && <TrialExpiryBanner trialStartedAt={me.trial_started_at} />}
 
       <div className="premium-card rounded-2xl p-6 sm:p-8 relative overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_0%,rgba(212,175,55,0.18),transparent_50%)]" />
@@ -72,22 +130,33 @@ function SellerProfile() {
           <div className="flex-1">
             <div className="flex items-center gap-2">
               <h1 className="font-display text-3xl">{name}</h1>
-              {verified && (
-                <span title="Verified Showroom" className="inline-flex items-center gap-1 text-gold">
-                  <BadgeCheck className="h-6 w-6" />
-                </span>
-              )}
+              {verified && <span title="Verified" className="text-gold"><BadgeCheck className="h-6 w-6" /></span>}
             </div>
             <div className="text-xs uppercase tracking-widest text-gold/80 mt-1">
-              {profile?.plan_type === "showroom" ? "Showroom Plan" : profile?.plan_type === "individual" ? "Individual Plan" : verified ? "Verified Premium Seller" : "Standard Seller"}
+              {profile?.plan_type === "showroom" ? "Showroom" : "Individual"}
             </div>
+
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              {instagramUrl && (
+                <a href={instagramUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-sm text-pink-500 hover:text-pink-400">
+                  <Instagram className="h-4 w-4" /><span>{profile.instagram}</span>
+                </a>
+              )}
+              {profile.phone && (
+                <a href={`tel:${profile.phone}`} className="inline-flex items-center gap-1.5 text-sm text-gold hover:text-gold/80">
+                  <Phone className="h-4 w-4" /><span>{profile.phone}</span>
+                </a>
+              )}
+              {profile.phone && (
+                <a href={`https://wa.me/${profile.phone.replace(/\D/g, "")}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-sm text-green-500 hover:text-green-400">
+                  <MessageCircle className="h-4 w-4" /><span>WhatsApp</span>
+                </a>
+              )}
+            </div>
+
             {isOwnProfile && (
-              <div className="mt-3 flex items-center gap-2">
-                <Button variant="ghost" size="sm" asChild>
-                  <Link to="/plans">
-                    <Crown className="h-4 w-4 text-gold" /> Upgrade Plan
-                  </Link>
-                </Button>
+              <div className="mt-3">
+                <Button variant="ghost" size="sm" asChild><Link to="/plans"><Crown className="h-4 w-4 text-gold" /> Upgrade</Link></Button>
               </div>
             )}
           </div>
@@ -95,8 +164,7 @@ function SellerProfile() {
             <div className="rounded-xl gold-border bg-gold-soft/30 px-5 py-4 text-center min-w-[120px]">
               <div className="text-[10px] uppercase tracking-widest text-gold/80">Vehicles</div>
               <div className="font-display text-3xl gold-text mt-1 flex items-center justify-center gap-2">
-                <Car className="h-5 w-5" />
-                {vehicles.length}
+                <Car className="h-5 w-5" />{vehicles.length}
               </div>
             </div>
             {isOwnProfile && me?.subscription_until && (
@@ -108,10 +176,10 @@ function SellerProfile() {
 
       <h2 className="font-display text-2xl mt-10 mb-4">Active Listings</h2>
       {vehicles.length === 0 ? (
-        <div className="text-center text-muted-foreground py-16">No active vehicles yet.</div>
+        <div className="text-center text-muted-foreground py-16">No listings yet.</div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          {vehicles.map((v: any) => <SellerCard key={v.id} v={v} />)}
+          {vehicles.map((v) => <SellerCard key={v.id} v={v} />)}
         </div>
       )}
     </div>
@@ -125,8 +193,7 @@ function TrialExpiryBanner({ trialStartedAt }: { trialStartedAt: string }) {
   useEffect(() => {
     const calc = () => {
       const expiry = new Date(trialStartedAt).getTime() + 72 * 60 * 60 * 1000;
-      const left = Math.max(0, (expiry - Date.now()) / (1000 * 60 * 60));
-      setHoursLeft(left);
+      setHoursLeft(Math.max(0, (expiry - Date.now()) / (1000 * 60 * 60)));
     };
     calc();
     const id = setInterval(calc, 60_000);
@@ -134,7 +201,6 @@ function TrialExpiryBanner({ trialStartedAt }: { trialStartedAt: string }) {
   }, [trialStartedAt]);
 
   const daysLeft = Math.ceil(hoursLeft / 24);
-
   if (hoursLeft > 72) return null;
 
   return (
@@ -142,17 +208,11 @@ function TrialExpiryBanner({ trialStartedAt }: { trialStartedAt: string }) {
       <div className="flex items-center gap-3">
         <AlertTriangle className={`h-5 w-5 ${daysLeft <= 1 ? "text-destructive" : "text-gold"}`} />
         <div>
-          <div className="font-medium">
-            {daysLeft <= 1 ? "اخر يوم!" : `تبقى ${Math.floor(hoursLeft)} ساعة على انتهاء التجربة`}
-          </div>
-          <div className="text-xs text-muted-foreground">
-            {daysLeft <= 1 ? "خصص اشتراكك الآن للاستمرار في النشر" : "فعّل اشتراكك للاستمرار في نشر الإعلانات والريلز"}
-          </div>
+          <div className="font-medium">{daysLeft <= 1 ? "Last day!" : `${Math.floor(hoursLeft)}h left`}</div>
+          <div className="text-xs text-muted-foreground">Upgrade to continue posting</div>
         </div>
       </div>
-      <Button variant="gold" size="sm" onClick={() => setShowPaywall(true)}>
-        <Tag className="h-4 w-4" /> تفعيل الآن
-      </Button>
+      <Button variant="gold" size="sm" onClick={() => setShowPaywall(true)}><Tag className="h-4 w-4" /></Button>
       <PremiumPaywallModal open={showPaywall} onOpenChange={setShowPaywall} />
     </div>
   );
@@ -162,10 +222,7 @@ function SubscriptionCountdown({ until, status }: { until: string; status: strin
   const [daysLeft, setDaysLeft] = useState(0);
 
   useEffect(() => {
-    const calc = () => {
-      const left = Math.max(0, (new Date(until).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-      setDaysLeft(left);
-    };
+    const calc = () => setDaysLeft(Math.max(0, (new Date(until).getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
     calc();
     const id = setInterval(calc, 60_000);
     return () => clearInterval(id);
@@ -177,15 +234,14 @@ function SubscriptionCountdown({ until, status }: { until: string; status: strin
     <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-5 py-4 text-center min-w-[120px]">
       <div className="text-[10px] uppercase tracking-widest text-emerald-400">Subscription</div>
       <div className="font-display text-2xl text-emerald-400 mt-1 flex items-center justify-center gap-2">
-        <Calendar className="h-5 w-5" />
-        {Math.ceil(daysLeft)}d
+        <Calendar className="h-5 w-5" />{Math.ceil(daysLeft)}d
       </div>
     </div>
   );
 }
 
-function SellerCard({ v }: { v: any }) {
-  const cover = useSignedUrl("vehicle-media", v.photos?.[0]);
+function SellerCard({ v }: { v: Vehicle }) {
+  const cover = v.photos?.[0];
   const price = v.price_type === "fixed" ? v.fixed_price : (v.current_highest_bid ?? v.starting_price);
   return (
     <Link to="/vehicle/$id" params={{ id: v.id }} className="group premium-card rounded-xl overflow-hidden hover:gold-border transition-all">
@@ -201,7 +257,7 @@ function SellerCard({ v }: { v: any }) {
           <span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{v.wilaya}</span>
           <span className="flex items-center gap-1"><Gauge className="h-3 w-3" />{v.mileage?.toLocaleString()} km</span>
         </div>
-        <div className="gold-text font-display text-xl font-bold mt-2">{formatDZD(price)}</div>
+        <div className="gold-text font-display text-xl font-bold mt-2">{formatDZD(price ?? 0)}</div>
       </div>
     </Link>
   );
