@@ -4,7 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { formatDZD } from "@/lib/format";
-import { Phone, MessageCircle, Gauge, MapPin, Fuel, Cog, Calendar, Gavel, Trophy, CreditCard as Edit3 } from "lucide-react";
+import { Flag } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
 import { Countdown } from "@/components/Countdown";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
@@ -43,7 +44,7 @@ type Vehicle = {
   phone: string;
   sellerPhone: string;
   sellerId: string;
-  images: string[]; // Cloudinary URLs
+  images: string[];
   video_url: string | null;
   price_type: "fixed" | "auction";
   fixed_price: number | null;
@@ -59,6 +60,7 @@ type Vehicle = {
 type Bid = {
   id: string;
   bidderId: string;
+  bidderName: string;
   amount: number;
   createdAt: string;
 };
@@ -67,345 +69,280 @@ function VehicleDetail() {
   const { id } = Route.useParams();
   const auth = useAuth();
   const user = auth?.user;
-  const access = auth?.access ?? "locked";
-
-  const [vehicle, setVehicle] = useState<Vehicle | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [v, setV] = useState<Vehicle | null>(null);
   const [bids, setBids] = useState<Bid[]>([]);
-  const [paywallOpen, setPaywallOpen] = useState(false);
   const [bidAmount, setBidAmount] = useState("");
+  const [paywallOpen, setPaywallOpen] = useState(false);
+  const [showReportDialog, setShowReportDialog] = useState(false);
+  const [reportReason, setReportReason] = useState("");
+  const [reporting, setReporting] = useState(false);
 
   useEffect(() => {
     const vehicleRef = ref(realtimeDb, `vehicles/${id}`);
-
-    const handleVehicle = (snapshot: { val: () => Vehicle | null }) => {
+    const handleSnapshot = (snapshot: { val: () => (Vehicle & { [key: string]: any }) | null }) => {
       const data = snapshot.val();
-      if (data) {
-        setVehicle({ ...data, id });
-      } else {
-        setVehicle(null);
-      }
-      setLoading(false);
+      if (data) setV({ ...data, id });
+      else setV(null);
     };
-
-    onValue(vehicleRef, handleVehicle);
+    onValue(vehicleRef, handleSnapshot);
     return () => off(vehicleRef);
   }, [id]);
 
   useEffect(() => {
+    if (!v || v.price_type !== "auction") return;
     const bidsRef = ref(realtimeDb, `bids/${id}`);
-
     const handleBids = (snapshot: { val: () => Record<string, Bid> | null }) => {
       const data = snapshot.val();
       if (data) {
-        const bidsList = Object.values(data).sort((a, b) => b.amount - a.amount);
-        setBids(bidsList);
+        const list = Object.values(data).sort((a, b) => b.amount - a.amount);
+        setBids(list);
       } else {
         setBids([]);
       }
     };
-
     onValue(bidsRef, handleBids);
     return () => off(bidsRef);
-  }, [id]);
+  }, [id, v?.price_type]);
 
-  if (loading) {
-    return <div className="max-w-5xl mx-auto px-6 py-20 text-center text-muted-foreground">Loading…</div>;
-  }
-
-  if (!vehicle) {
+  if (!v) {
     return (
-      <div className="max-w-5xl mx-auto px-6 py-20 text-center">
-        <h1 className="font-display text-2xl gold-text">Vehicle not found</h1>
-        <Button asChild variant="gold" className="mt-4">
-          <Link to="/">Back to Home</Link>
-        </Button>
+      <div className="py-24 text-center">
+        <p className="text-muted-foreground">Loading vehicle...</p>
       </div>
     );
   }
 
-  const v = vehicle;
-  const isAuction = v.price_type === "auction";
-  const auctionEnded = isAuction && v.auction_ends_at && new Date(v.auction_ends_at) <= new Date();
-  const price = isAuction ? (v.current_highest_bid ?? v.starting_price) : v.fixed_price;
   const isSeller = user?.id === v.sellerId;
   const isWinner = user?.id === v.current_highest_bidder;
 
-  const showOwnerNumber = !isAuction
-    ? access !== "locked"
-    : auctionEnded
-      ? (isSeller || isWinner)
-      : access !== "locked" && !isSeller;
-
-  const canAccessPremium = !!user && access !== "locked";
-
-  const placeBid = async () => {
-    if (!user) {
-      toast.error("Sign in to bid");
-      return;
-    }
+  const handleBid = async () => {
+    if (!user) { toast.error("Please sign in to bid"); return; }
     const amount = Number(bidAmount);
-    if (!amount || amount <= 0) {
-      toast.error("Enter a valid bid amount");
-      return;
-    }
-    if (v.current_highest_bid && amount <= v.current_highest_bid) {
-      toast.error(`Bid must be higher than ${formatDZD(v.current_highest_bid)}`);
-      return;
-    }
+    if (!amount || amount <= 0) { toast.error("Enter a valid amount"); return; }
+    const minBid = (v.current_highest_bid ?? v.starting_price ?? 0) + 1000;
+    if (amount < minBid) { toast.error(`Minimum bid is ${formatDZD(minBid)}`); return; }
 
     try {
       const bidRef = push(ref(realtimeDb, `bids/${id}`));
-      await set(bidRef, {
-        id: bidRef.key,
+      const bid: Bid = {
+        id: bidRef.key!,
         bidderId: user.id,
+        bidderName: auth?.profile?.first_name || user.phone,
         amount,
         createdAt: new Date().toISOString(),
-      });
-
-      // Update vehicle with new highest bid
+      };
+      await set(bidRef, bid);
       await set(ref(realtimeDb, `vehicles/${id}/current_highest_bid`), amount);
       await set(ref(realtimeDb, `vehicles/${id}/current_highest_bidder`), user.id);
-
       setBidAmount("");
-      toast.success("Bid placed successfully");
+      toast.success("Bid placed!");
     } catch (err) {
       toast.error("Failed to place bid");
     }
   };
 
+  const handleReport = async () => {
+    if (!reportReason.trim()) { toast.error("Please describe the issue"); return; }
+    setReporting(true);
+    try {
+      const reportRef = push(ref(realtimeDb, "reports"));
+      await set(reportRef, {
+        id: reportRef.key,
+        contentType: "vehicle",
+        contentId: v.id,
+        contentTitle: `${v.brand} ${v.model} (${v.year})`,
+        reporterId: user?.id || "anonymous",
+        reporterPhone: user?.phone || "anonymous",
+        reason: reportReason.trim(),
+        status: "pending",
+        createdAt: new Date().toISOString(),
+      });
+      toast.success("Report submitted. Admin will review it.");
+      setShowReportDialog(false);
+      setReportReason("");
+    } catch (err) {
+      toast.error("Failed to submit report");
+    } finally {
+      setReporting(false);
+    }
+  };
+
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
-      <div className="grid lg:grid-cols-[1.4fr_1fr] gap-8">
-        <div className="space-y-3">
-          {/* Images Carousel (Cloudinary URLs) */}
-          {v.images && v.images.length > 0 && (
-            <div className="relative">
-              <Carousel className="w-full">
-                <CarouselContent>
-                  {v.images.map((url, i) => (
-                    <CarouselItem key={i}>
-                      <img
-                        src={url}
-                        alt={`${v.brand} ${v.model} - Photo ${i + 1}`}
-                        className="w-full aspect-[4/3] object-cover rounded-lg"
-                        loading="lazy"
-                      />
-                    </CarouselItem>
-                  ))}
-                </CarouselContent>
-                {v.images.length > 1 && (
-                  <>
-                    <CarouselPrevious className="left-3 bg-black/70 border-gold/40 text-gold hover:bg-black/90" />
-                    <CarouselNext className="right-3 bg-black/70 border-gold/40 text-gold hover:bg-black/90" />
-                  </>
-                )}
-              </Carousel>
-            </div>
-          )}
-
-          {/* Video */}
-          {v.video_url && (
-            <video
-              src={v.video_url}
-              controls
-              className="w-full rounded-lg"
-            />
-          )}
-
-          {/* Vehicle Info */}
-          <div className="premium-card rounded-xl p-5 border border-gold/20">
-            <div className="flex flex-wrap gap-4 text-sm mb-4">
-              <div className="flex items-center gap-1.5 text-muted-foreground">
-                <Gauge className="h-4 w-4" /> {v.mileage?.toLocaleString() ?? "N/A"} km
-              </div>
-              <div className="flex items-center gap-1.5 text-muted-foreground">
-                <Fuel className="h-4 w-4" /> {v.fuel_type || "N/A"}
-              </div>
-              <div className="flex items-center gap-1.5 text-muted-foreground">
-                <Cog className="h-4 w-4" /> {v.transmission || "N/A"}
-              </div>
-              <div className="flex items-center gap-1.5 text-muted-foreground">
-                <MapPin className="h-4 w-4" /> {v.wilaya || "N/A"}
-              </div>
-              <div className="flex items-center gap-1.5 text-muted-foreground">
-                <Calendar className="h-4 w-4" /> {v.year || "N/A"}
-              </div>
-            </div>
-
-            {v.description && (
-              <p className="text-sm text-muted-foreground whitespace-pre-wrap mb-4">
-                {v.description}
-              </p>
+    <div className="pb-20">
+      {/* Gallery */}
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 pt-6">
+        {v.images && v.images.length > 0 ? (
+          <Carousel className="w-full">
+            <CarouselContent>
+              {v.images.map((url, i) => (
+                <CarouselItem key={i}>
+                  <img src={url} alt={`${v.brand} ${v.model} ${i + 1}`} className="w-full aspect-[4/3] object-cover rounded-xl" />
+                </CarouselItem>
+              ))}
+            </CarouselContent>
+            {v.images.length > 1 && (
+              <>
+                <CarouselPrevious className="left-2 bg-black/70 border-gold/40 text-gold hover:bg-black/90" />
+                <CarouselNext className="right-2 bg-black/70 border-gold/40 text-gold hover:bg-black/90" />
+              </>
             )}
+          </Carousel>
+        ) : (
+          <div className="w-full aspect-[4/3] bg-charcoal rounded-xl grid place-items-center">
+            <img src="/my-logo.png.PNG" alt="No image" className="h-24 w-24 opacity-30" />
+          </div>
+        )}
+      </div>
 
-            {v.engine_type && (
-              <div className="text-xs text-muted-foreground">
-                <span className="font-medium">Engine:</span> {v.engine_type}
-              </div>
-            )}
+      {/* Details */}
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6">
+        <div className="flex items-start justify-between gap-4 mb-4">
+          <div>
+            <h1 className="font-display text-2xl sm:text-3xl">{v.brand} {v.model}</h1>
+            <div className="text-sm text-muted-foreground mt-1">{v.year} · {v.wilaya}</div>
+          </div>
+          <div className="text-right">
+            {v.price_type === "fixed" && v.fixed_price ? (
+              <div className="text-2xl gold-text font-display">{formatDZD(v.fixed_price)}</div>
+            ) : v.price_type === "auction" ? (
+              <div className="text-2xl gold-text font-display">{formatDZD(v.current_highest_bid || v.starting_price || 0)}</div>
+            ) : null}
+            {v.price_type === "auction" && <div className="text-xs text-muted-foreground uppercase tracking-widest">Current bid</div>}
+            {v.price_type === "fixed" && <div className="text-xs text-muted-foreground uppercase tracking-widest">Price</div>}
           </div>
         </div>
 
-        <div className="space-y-4">
-          {/* Header */}
-          <div>
-            <div className="text-xs text-gold uppercase tracking-widest mb-1">
-              {isAuction ? "Live Auction" : "For Sale"}
+        {v.status === "sold" && (
+          <div className="mb-4 p-3 rounded-lg bg-blue-500/10 border border-blue-500/30 text-blue-400 text-sm font-medium">
+            This vehicle has been sold.
+          </div>
+        )}
+
+        {/* Specs */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+          <Spec icon={Calendar} label="Year" value={String(v.year)} />
+          <Spec icon={Gauge} label="Mileage" value={`${v.mileage?.toLocaleString() || 0} km`} />
+          <Spec icon={Fuel} label="Fuel" value={v.fuel_type || "—"} />
+          <Spec icon={Cog} label="Transmission" value={v.transmission || "—"} />
+        </div>
+
+        {v.description && (
+          <div className="mb-6">
+            <h3 className="text-sm font-semibold text-gold mb-2">Description</h3>
+            <p className="text-sm text-muted-foreground whitespace-pre-wrap">{v.description}</p>
+          </div>
+        )}
+
+        {v.video_url && (
+          <div className="mb-6">
+            <h3 className="text-sm font-semibold text-gold mb-2">Video</h3>
+            <video src={v.video_url} controls className="w-full rounded-xl max-h-[400px]" />
+          </div>
+        )}
+
+        {/* Auction */}
+        {v.price_type === "auction" && v.auction_ends_at && v.status !== "sold" && (
+          <div className="mb-6 premium-card rounded-xl p-4 border border-gold/20">
+            <div className="flex items-center gap-2 mb-3">
+              <Gavel className="h-5 w-5 text-gold" />
+              <h3 className="font-display text-lg">Live Auction</h3>
             </div>
-            <h1 className="font-display text-3xl gold-text">
-              {v.brand} {v.model}
-            </h1>
-            <div className="text-muted-foreground text-sm">{v.year}</div>
-          </div>
-
-          {/* Price */}
-          <div className="premium-card rounded-xl p-5 border border-gold/20">
-            {isAuction ? (
-              <div>
-                <div className="text-xs text-muted-foreground mb-1">Current Bid</div>
-                <div className="font-display text-3xl gold-shine">
-                  {formatDZD(v.current_highest_bid || v.starting_price || 0)}
-                </div>
-                {v.auction_ends_at && (
-                  <div className="mt-3">
-                    <Countdown endsAt={v.auction_ends_at} />
-                  </div>
-                )}
-
-                {/* Bid Form */}
-                {access !== "locked" && !auctionEnded && (
-                  <div className="mt-4 flex gap-2">
-                    <Input
-                      type="number"
-                      value={bidAmount}
-                      onChange={(e) => setBidAmount(e.target.value)}
-                      placeholder="Your bid (DZD)"
-                      className="bg-charcoal"
-                    />
-                    <Button variant="gold" onClick={placeBid}>
-                      <Gavel className="h-4 w-4 mr-1" /> Bid
-                    </Button>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div>
-                <div className="text-xs text-muted-foreground mb-1">Price</div>
-                <div className="font-display text-3xl gold-shine">
-                  {formatDZD(v.fixed_price || 0)}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Bids List */}
-          {isAuction && bids.length > 0 && (
-            <div className="premium-card rounded-xl p-4 border border-gold/20">
-              <h3 className="font-medium text-sm mb-2">Recent Bids</h3>
-              <div className="space-y-2">
-                {bids.slice(0, 5).map((bid, i) => (
-                  <div key={bid.id} className="flex justify-between text-sm">
-                    <span className={i === 0 ? "text-gold font-medium" : "text-muted-foreground"}>
-                      {bid.bidderId === user?.id ? "You" : `Bidder ${bid.bidderId.slice(0, 6)}...`}
-                    </span>
-                    <span className={i === 0 ? "text-gold font-medium" : ""}>
-                      {formatDZD(bid.amount)}
-                    </span>
+            <Countdown endsAt={v.auction_ends_at} />
+            {isWinner && <div className="mt-2 text-sm text-green-400 flex items-center gap-1"><Trophy className="h-4 w-4" /> You are the highest bidder!</div>}
+            {bids.length > 0 && (
+              <div className="mt-3 space-y-1">
+                <div className="text-xs uppercase tracking-widest text-muted-foreground mb-1">Bid History</div>
+                {bids.slice(0, 5).map((b) => (
+                  <div key={b.id} className="text-sm flex justify-between">
+                    <span>{b.bidderName}</span>
+                    <span className="text-gold">{formatDZD(b.amount)}</span>
                   </div>
                 ))}
               </div>
-            </div>
-          )}
+            )}
+            {!isSeller && user && (
+              <div className="mt-4 flex gap-2">
+                <Input type="number" value={bidAmount} onChange={(e) => setBidAmount(e.target.value)} placeholder={`Min: ${formatDZD((v.current_highest_bid ?? v.starting_price ?? 0) + 1000)}`} className="bg-charcoal" />
+                <Button variant="gold" onClick={handleBid}>Place Bid</Button>
+              </div>
+            )}
+            {!user && <p className="text-sm text-muted-foreground mt-3">Sign in to place a bid.</p>}
+          </div>
+        )}
 
-          {/* Owner Contact */}
-          {showOwnerNumber && v.phone && (
-            <div className="flex gap-2">
-              <Button asChild variant="gold" className="flex-1">
-                <a href={`tel:${normalizeAlgPhone(v.phone)}`}>
-                  <Phone className="h-4 w-4 mr-2" /> Call Owner
-                </a>
+        {/* Owner Contact */}
+        <div className="mb-6 premium-card rounded-xl p-4 border border-gold/20">
+          <h3 className="text-sm font-semibold text-gold mb-3">Contact Owner</h3>
+          <div className="flex gap-2 flex-wrap">
+            <a href={`tel:${normalizeAlgPhone(v.phone)}`}>
+              <Button variant="outline" size="sm">
+                <Phone className="h-4 w-4 mr-2" /> Call
               </Button>
-              <Button asChild variant="outline" className="flex-1 border-gold/50 text-gold hover:bg-gold/10">
-                <a href={`https://wa.me/${toWhatsApp(v.phone)}`} target="_blank" rel="noopener noreferrer">
-                  <MessageCircle className="h-4 w-4 mr-2" /> WhatsApp
-                </a>
+            </a>
+            <a href={`https://wa.me/${toWhatsApp(v.phone)}`} target="_blank" rel="noopener noreferrer">
+              <Button variant="outline" size="sm">
+                <MessageCircle className="h-4 w-4 mr-2" /> WhatsApp
               </Button>
-            </div>
-          )}
-
-          {/* Chat */}
-          {user && !isSeller && canAccessPremium && (
-            <ChatDialog
-              recipientId={v.sellerId}
-              recipientPhone={v.sellerPhone}
-              vehicleId={v.id}
-              vehicleName={`${v.brand} ${v.model}`}
-            />
-          )}
-          {user && !isSeller && !canAccessPremium && (
-            <Button
-              variant="outline"
-              className="h-12 w-full border-gold/50 text-gold hover:bg-gold/10"
-              onClick={() => setPaywallOpen(true)}
-            >
-              <MessageCircle className="h-4 w-4 mr-2" /> Activate to Chat with Seller
-            </Button>
-          )}
-
-          {/* Appointment */}
-          {user && canAccessPremium && !isSeller && (
-            <AppointmentBooking
-              vehicleId={v.id}
-              sellerId={v.sellerId}
-              sellerPhone={v.sellerPhone}
-              vehicleName={`${v.brand} ${v.model}`}
-            />
-          )}
-
-          {/* Edit (owner only) */}
-          {isSeller && (
-            <div className="flex gap-2">
-              <Button asChild variant="outline" className="flex-1 border-gold/50 text-gold hover:bg-gold/10">
-                <Link to="/edit-listing/$id" params={{ id: v.id }}>
-                  <Edit3 className="h-4 w-4 mr-2" /> Edit
-                </Link>
-              </Button>
-              <Button
-                variant={v.status === "sold" ? "gold" : "outline"}
-                className="flex-1"
-                onClick={async () => {
-                  const newStatus = v.status === "sold" ? "active" : "sold";
-                  try {
-                    const { ref, update } = await import("firebase/database");
-                    await update(ref(realtimeDb, `vehicles/${v.id}`), { status: newStatus });
-                    toast.success(newStatus === "sold" ? "Marked as sold" : "Marked as available");
-                    window.location.reload();
-                  } catch (e) {
-                    toast.error("Failed to update status");
-                  }
-                }}
-              >
-                {v.status === "sold" ? "Mark Available" : "Mark Sold"}
-              </Button>
-            </div>
-          )}
-
-          {/* Premium Paywall */}
-          {!canAccessPremium && (
-            <div className="text-center py-4">
-              <p className="text-xs text-muted-foreground mb-2">
-                Subscribe to see owner contact details
-              </p>
-              <Button variant="gold" size="sm" onClick={() => setPaywallOpen(true)}>
-                Upgrade Now
-              </Button>
-            </div>
-          )}
+            </a>
+            {user && !isSeller && (
+              <ChatDialog recipientId={v.sellerId} recipientPhone={v.sellerPhone} />
+            )}
+          </div>
         </div>
+
+        {/* Appointments */}
+        {user && !isSeller && (
+          <AppointmentBooking
+            vehicleId={v.id}
+            vehicleTitle={`${v.brand} ${v.model} (${v.year})`}
+            sellerId={v.sellerId}
+            sellerPhone={v.sellerPhone}
+          />
+        )}
       </div>
 
       <PremiumPaywallModal open={paywallOpen} onOpenChange={setPaywallOpen} />
+
+      {/* Report Button */}
+      {!isSeller && (
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 pb-8">
+          <Button variant="outline" size="sm" onClick={() => setShowReportDialog(true)} className="text-muted-foreground hover:text-destructive border-border/60">
+            <Flag className="h-4 w-4 mr-2" /> تبليغ (Report)
+          </Button>
+        </div>
+      )}
+
+      {/* Report Dialog */}
+      <Dialog open={showReportDialog} onOpenChange={setShowReportDialog}>
+        <DialogContent className="max-w-md bg-background border-gold/40">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive"><Flag className="h-5 w-5" /> Report Listing</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">Describe why you're reporting this listing. Admin will review it.</p>
+          <Textarea
+            value={reportReason}
+            onChange={(e) => setReportReason(e.target.value)}
+            placeholder="e.g. fake photos, scam, misleading info..."
+            className="bg-charcoal min-h-[80px]"
+          />
+          <div className="flex gap-2">
+            <Button variant="destructive" onClick={handleReport} disabled={reporting}>
+              {reporting ? "Submitting..." : "Submit Report"}
+            </Button>
+            <Button variant="ghost" onClick={() => setShowReportDialog(false)}>Cancel</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function Spec({ icon: Icon, label, value }: { icon: React.ElementType; label: string; value: string }) {
+  return (
+    <div className="premium-card rounded-lg p-3 border border-gold/10">
+      <Icon className="h-4 w-4 text-gold mb-1" />
+      <div className="text-xs text-muted-foreground uppercase tracking-widest">{label}</div>
+      <div className="text-sm font-medium mt-0.5">{value}</div>
     </div>
   );
 }
