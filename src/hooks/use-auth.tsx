@@ -2,6 +2,8 @@ import { useEffect, useState, useCallback } from "react";
 import { ref, get, set, onValue, off } from "firebase/database";
 import { realtimeDb } from "@/lib/firebase";
 
+const isBrowser = typeof window !== "undefined" && typeof window.document !== "undefined";
+
 // Admin credentials - ONLY these work for admin access
 const ADMIN_PHONES = ["0781606765", "781606765"];
 const ADMIN_PASSWORD = "LOK12MANE";
@@ -63,10 +65,12 @@ function buildAdminProfile(phone: string): UserProfile {
 }
 
 function saveSession(phone: string) {
+  if (!isBrowser) return;
   localStorage.setItem(SESSION_KEY, JSON.stringify({ phone, ts: Date.now() }));
 }
 
 function readSessionPhone(): string | null {
+  if (!isBrowser) return null;
   try {
     const raw = localStorage.getItem(SESSION_KEY);
     if (!raw) return null;
@@ -79,11 +83,13 @@ function readSessionPhone(): string | null {
 }
 
 function clearSession() {
+  if (!isBrowser) return;
   localStorage.removeItem(SESSION_KEY);
 }
 
 // Synchronously check admin bypass from localStorage (prevents flash)
 function checkAdminBypassSync(): { isAdmin: boolean; phone: string } | null {
+  if (!isBrowser) return null;
   try {
     const stored = localStorage.getItem(ADMIN_BYPASS_KEY);
     if (stored) {
@@ -108,7 +114,7 @@ export function useAuth() {
     adminBypass ? buildAdminProfile(adminBypass.phone) : null
   );
   const [isAdmin, setIsAdmin] = useState(adminBypass?.isAdmin ?? false);
-  const [loading, setLoading] = useState(!adminBypass);
+  const [loading, setLoading] = useState(true);
 
   // Restore session on mount
   useEffect(() => {
@@ -129,7 +135,7 @@ export function useAuth() {
 
       // 2) Regular user session via Realtime Database
       const sessionPhone = readSessionPhone();
-      if (sessionPhone) {
+      if (sessionPhone && realtimeDb) {
         try {
           const snap = await get(ref(realtimeDb, "users/" + sessionPhone));
           if (snap.exists()) {
@@ -308,7 +314,7 @@ export function useAuth() {
   }, []);
 
   const signOut = useCallback(async () => {
-    localStorage.removeItem(ADMIN_BYPASS_KEY);
+    if (isBrowser) localStorage.removeItem(ADMIN_BYPASS_KEY);
     clearSession();
     setUser(null);
     setProfile(null);
