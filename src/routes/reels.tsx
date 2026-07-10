@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState, useCallback } from "react";
-import { onValue, ref, off, update, get, runTransaction, remove, set } from "firebase/database";
+import { onValue, ref, off, update, get, runTransaction, remove, set, push } from "firebase/database";
 import { realtimeDb } from "@/lib/firebase";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Film, Plus, Heart, ExternalLink, Eye, Pencil, Trash2 } from "lucide-react";
+import { Film, Plus, Heart, ExternalLink, Eye, Pencil, Trash2, Flag } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/reels")({
@@ -138,15 +138,16 @@ function ReelCard({ reel, currentUserId, isAdmin, onRefresh }: { reel: Reel; cur
   const viewedRef = useRef(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showReportDialog, setShowReportDialog] = useState(false);
+  const [reportReason, setReportReason] = useState("");
+  const [reporting, setReporting] = useState(false);
   const [editCaption, setEditCaption] = useState(reel.caption || "");
   const [editVehicleId, setEditVehicleId] = useState(reel.vehicleId || "");
   const [saving, setSaving] = useState(false);
 
-  // Check if current user is the owner
   const isOwner = currentUserId && (reel.authorId === currentUserId || reel.authorPhone === currentUserId);
   const canEdit = isOwner || isAdmin;
 
-  // Increment view count once when the reel scrolls into view
   useEffect(() => {
     const video = videoRef.current;
     const container = containerRef.current;
@@ -179,7 +180,6 @@ function ReelCard({ reel, currentUserId, isAdmin, onRefresh }: { reel: Reel; cur
     return () => observer.disconnect();
   }, [reel.id]);
 
-  // Check if user already liked this reel
   useEffect(() => {
     if (!currentUserId) return;
     get(ref(realtimeDb, `reels/${reel.id}/likedBy/${currentUserId}`)).then((snap) => {
@@ -215,6 +215,31 @@ function ReelCard({ reel, currentUserId, isAdmin, onRefresh }: { reel: Reel; cur
       console.error("Failed to update likes:", e);
       setLiked(!newLiked);
       setLikes(newLiked ? likes : likes + 1);
+    }
+  };
+
+  const handleReport = async () => {
+    if (!reportReason.trim()) { toast.error("Please describe the issue"); return; }
+    setReporting(true);
+    try {
+      const reportRef = push(ref(realtimeDb, "reports"));
+      await set(reportRef, {
+        id: reportRef.key,
+        contentType: "reel",
+        contentId: reel.id,
+        contentTitle: reel.caption || "Reel",
+        reporterId: currentUserId || "anonymous",
+        reason: reportReason.trim(),
+        status: "pending",
+        createdAt: new Date().toISOString(),
+      });
+      toast.success("Report submitted. Admin will review it.");
+      setShowReportDialog(false);
+      setReportReason("");
+    } catch (err) {
+      toast.error("Failed to submit report");
+    } finally {
+      setReporting(false);
     }
   };
 
@@ -308,6 +333,12 @@ function ReelCard({ reel, currentUserId, isAdmin, onRefresh }: { reel: Reel; cur
                 <ExternalLink className="h-6 w-6 text-gold hover:text-gold/80" />
               </Link>
             )}
+            {!isOwner && (
+              <button onClick={(e) => { e.stopPropagation(); setShowReportDialog(true); }} className="flex flex-col items-center gap-1">
+                <Flag className="h-6 w-6 text-white/70 hover:text-red-500 transition-colors" />
+                <span className="text-xs text-white/70">تبليغ</span>
+              </button>
+            )}
             {canEdit && (
               <>
                 <button onClick={(e) => { e.stopPropagation(); setShowEditDialog(true); }} className="flex flex-col items-center gap-1">
@@ -353,9 +384,7 @@ function ReelCard({ reel, currentUserId, isAdmin, onRefresh }: { reel: Reel; cur
               <Button variant="gold" onClick={handleEdit} disabled={saving}>
                 {saving ? "جاري الحفظ..." : "حفظ التغييرات"}
               </Button>
-              <Button variant="ghost" onClick={() => setShowEditDialog(false)}>
-                إلغاء
-              </Button>
+              <Button variant="ghost" onClick={() => setShowEditDialog(false)}>إلغاء</Button>
             </div>
           </div>
         </DialogContent>
@@ -372,9 +401,31 @@ function ReelCard({ reel, currentUserId, isAdmin, onRefresh }: { reel: Reel; cur
             <Button variant="destructive" onClick={handleDelete} disabled={saving}>
               {saving ? "جاري الحذف..." : "حذف"}
             </Button>
-            <Button variant="ghost" onClick={() => setShowDeleteDialog(false)}>
-              إلغاء
+            <Button variant="ghost" onClick={() => setShowDeleteDialog(false)}>إلغاء</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Report Dialog */}
+      <Dialog open={showReportDialog} onOpenChange={setShowReportDialog}>
+        <DialogContent className="max-w-md bg-background border-gold/40">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <Flag className="h-5 w-5" /> تبليغ عن محتوى / Report
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">صف سبب التبليغ. سيقوم المسؤول بمراجعته.</p>
+          <Textarea
+            value={reportReason}
+            onChange={(e) => setReportReason(e.target.value)}
+            placeholder="e.g. inappropriate content, spam, scam..."
+            className="bg-charcoal min-h-[80px]"
+          />
+          <div className="flex gap-2">
+            <Button variant="destructive" onClick={handleReport} disabled={reporting}>
+              {reporting ? "Submitting..." : "Submit Report"}
             </Button>
+            <Button variant="ghost" onClick={() => setShowReportDialog(false)}>Cancel</Button>
           </div>
         </DialogContent>
       </Dialog>
