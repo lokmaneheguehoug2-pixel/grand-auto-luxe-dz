@@ -4,6 +4,8 @@ import { getFirestore, type Firestore } from "firebase/firestore";
 import { getStorage, type FirebaseStorage } from "firebase/storage";
 import { getDatabase, type Database } from "firebase/database";
 
+const isBrowser = typeof window !== "undefined" && typeof window.document !== "undefined";
+
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "demo-api-key",
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "demo.firebaseapp.com",
@@ -35,6 +37,7 @@ function getApp(): FirebaseApp {
 }
 
 function safeInit<T>(fn: () => T): T | null {
+  if (!isBrowser) return null;
   try {
     return fn();
   } catch (e) {
