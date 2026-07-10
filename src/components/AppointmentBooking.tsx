@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { realtimeDb } from "@/lib/firebase";
 import { ref, push, set, get } from "firebase/database";
 import { toast } from "sonner";
+import { fetchPlatformSettings } from "@/lib/supabase";
 
 interface AppointmentBookingProps {
   vehicleId: string;
@@ -33,6 +34,9 @@ export function AppointmentBooking({ vehicleId, sellerId, sellerPhone, vehicleNa
   useEffect(() => {
     get(ref(realtimeDb, "site_settings/appointment_email")).then((snap) => {
       if (snap.exists()) setAdminEmail(snap.val());
+    }).catch(() => {});
+    fetchPlatformSettings().then((data) => {
+      if (data?.appointment_email) setAdminEmail(data.appointment_email);
     }).catch(() => {});
   }, []);
 

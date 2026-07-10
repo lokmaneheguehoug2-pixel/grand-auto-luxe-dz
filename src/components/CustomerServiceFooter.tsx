@@ -1,41 +1,57 @@
 import { useEffect, useState } from "react";
-import { Instagram, Facebook, Mail, MessageCircle, Phone } from "lucide-react";
+import { Instagram, Facebook, Mail, MessageCircle, Phone, Music2 } from "lucide-react";
 import { realtimeDb } from "@/lib/firebase";
 import { ref, onValue, off } from "firebase/database";
+import { fetchPlatformSettings } from "@/lib/supabase";
 
 interface SiteSettings {
   whatsapp_number: string;
-  instagram_url: string;
+  support_phone: string;
   facebook_url: string;
+  instagram_url: string;
   tiktok_url: string;
-  gmail_address: string;
+  baridi_mob_number: string;
   appointment_email: string;
+  gmail_address: string;
 }
 
 export function CustomerServiceFooter() {
   const [settings, setSettings] = useState<SiteSettings>({
     whatsapp_number: "",
-    instagram_url: "",
+    support_phone: "",
     facebook_url: "",
+    instagram_url: "",
     tiktok_url: "",
-    gmail_address: "",
+    baridi_mob_number: "",
     appointment_email: "",
+    gmail_address: "",
   });
 
   useEffect(() => {
     const settingsRef = ref(realtimeDb, "site_settings");
+    let supaLoaded = false;
     const handle = (snapshot: { val: () => Record<string, string> | null }) => {
       const data = snapshot.val() || {};
-      setSettings({
-        whatsapp_number: data.whatsapp_number || "",
-        instagram_url: data.instagram_url || "",
-        facebook_url: data.facebook_url || "",
-        tiktok_url: data.tiktok_url || "",
-        gmail_address: data.gmail_address || "",
-        appointment_email: data.appointment_email || "",
-      });
+      if (Object.keys(data).length > 0) {
+        setSettings({
+          whatsapp_number: data.whatsapp_number || "",
+          support_phone: data.support_phone || "",
+          facebook_url: data.facebook_url || "",
+          instagram_url: data.instagram_url || "",
+          tiktok_url: data.tiktok_url || "",
+          baridi_mob_number: data.baridi_mob_number || "",
+          appointment_email: data.appointment_email || "",
+          gmail_address: data.gmail_address || "",
+        });
+      }
     };
     onValue(settingsRef, handle);
+    fetchPlatformSettings().then((supaData) => {
+      if (supaData && !supaLoaded) {
+        supaLoaded = true;
+        setSettings(prev => ({ ...prev, ...supaData }));
+      }
+    }).catch(() => {});
     return () => off(settingsRef);
   }, []);
 
@@ -89,7 +105,7 @@ export function CustomerServiceFooter() {
           {/* Customer Service & Social Media */}
           <div className="space-y-4">
             <h3 className="font-semibold text-sm uppercase tracking-wider">Customer Service</h3>
-            <div className="flex gap-3">
+            <div className="flex flex-wrap gap-3">
               {settings.whatsapp_number && (
                 <a
                   href={whatsappLink}
@@ -123,6 +139,17 @@ export function CustomerServiceFooter() {
                   <Facebook className="h-5 w-5 text-blue-600 group-hover:scale-110 transition-transform" />
                 </a>
               )}
+              {settings.tiktok_url && (
+                <a
+                  href={settings.tiktok_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="h-10 w-10 rounded-full bg-gray-600/10 hover:bg-gray-600/20 flex items-center justify-center transition-colors group"
+                  title="TikTok"
+                >
+                  <Music2 className="h-5 w-5 text-gray-800 dark:text-gray-200 group-hover:scale-110 transition-transform" />
+                </a>
+              )}
               {settings.gmail_address && (
                 <a
                   href={`mailto:${settings.gmail_address}`}
@@ -133,18 +160,32 @@ export function CustomerServiceFooter() {
                 </a>
               )}
             </div>
-            {settings.whatsapp_number && (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Phone className="h-4 w-4" />
-                <span>{settings.whatsapp_number}</span>
-              </div>
-            )}
-            {settings.gmail_address && (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Mail className="h-4 w-4" />
-                <span>{settings.gmail_address}</span>
-              </div>
-            )}
+            <div className="space-y-1.5">
+              {settings.support_phone && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Phone className="h-4 w-4 text-gold/70" />
+                  <a href={`tel:${settings.support_phone}`} className="hover:text-gold transition-colors">{settings.support_phone}</a>
+                </div>
+              )}
+              {settings.whatsapp_number && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <MessageCircle className="h-4 w-4 text-green-600/70" />
+                  <a href={whatsappLink} target="_blank" rel="noopener noreferrer" className="hover:text-green-600 transition-colors">{settings.whatsapp_number}</a>
+                </div>
+              )}
+              {settings.gmail_address && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Mail className="h-4 w-4 text-red-600/70" />
+                  <a href={`mailto:${settings.gmail_address}`} className="hover:text-red-600 transition-colors">{settings.gmail_address}</a>
+                </div>
+              )}
+              {settings.baridi_mob_number && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <span className="text-xs font-medium text-gold/70">CCP:</span>
+                  <span>{settings.baridi_mob_number}</span>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 

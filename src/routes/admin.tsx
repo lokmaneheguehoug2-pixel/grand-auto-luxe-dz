@@ -12,6 +12,7 @@ import { useState, useEffect, useCallback } from "react";
 import { formatDZD } from "@/lib/format";
 import { ref, onValue, set, off, get, push, remove } from "firebase/database";
 import { realtimeDb } from "@/lib/firebase";
+import { savePlatformSettings, fetchPlatformSettings } from "@/lib/supabase";
 
 export const Route = createFileRoute("/admin")({
   head: () => ({ meta: [{ title: "Admin · GRAND Auto Luxe" }] }),
@@ -75,6 +76,7 @@ type SiteSettings = {
   tiktok_url: string;
   baridi_mob_number: string;
   appointment_email: string;
+  gmail_address: string;
 };
 
 function AdminPage() {
@@ -500,7 +502,7 @@ function PromoCodesTab() {
   };
 
   const toggleActive = async (promo: PromoCode) => {
-    try { await set(ref(realtimeDb, `promo_codes/${promo.id}/is_active`), !promo.is_active); setPromoCodes(promoCodes.map((p) => p.id === promo.id ? { ...p, is_active: !p.is_active } : p)); toast.success("Updated"); } catch { toast.error("Failed"); }
+    try { await set(ref(realtimeDb, `promo_codes/${promo.id}/is_active`), !promo.is_active); setPromoCodes(promoCodes.map((p) => p.id === promo.id ? { ...p, is_active: !promo.is_active } : p)); toast.success("Updated"); } catch { toast.error("Failed"); }
   };
 
   if (loading) return <div className="py-10 text-center text-muted-foreground">Loading...</div>;
@@ -598,7 +600,7 @@ function BroadcastTab() {
 }
 
 function SettingsTab() {
-  const [settings, setSettings] = useState<SiteSettings>({ whatsapp_number: "", support_phone: "", facebook_url: "", instagram_url: "", tiktok_url: "", baridi_mob_number: "", appointment_email: "" });
+  const [settings, setSettings] = useState<SiteSettings>({ whatsapp_number: "", support_phone: "", facebook_url: "", instagram_url: "", tiktok_url: "", baridi_mob_number: "", appointment_email: "", gmail_address: "" });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -606,28 +608,62 @@ function SettingsTab() {
     const settingsRef = ref(realtimeDb, "site_settings");
     const handleSnapshot = (snapshot: { val: () => SiteSettings | null }) => {
       const data = snapshot.val();
-      if (data) setSettings(data);
+      if (data) setSettings(prev => ({ ...prev, ...data }));
       setLoading(false);
     };
     onValue(settingsRef, handleSnapshot);
+    fetchPlatformSettings().then((supaData) => {
+      if (supaData) setSettings(prev => ({ ...prev, ...supaData }));
+    }).catch(() => {});
     return () => off(settingsRef);
   }, []);
 
   const saveSettings = async () => {
     setSaving(true);
-    try { await set(ref(realtimeDb, "site_settings"), settings); toast.success("Saved"); } catch { toast.error("Failed"); }
+    try {
+      await set(ref(realtimeDb, "site_settings"), settings);
+      await savePlatformSettings(settings);
+      toast.success("Settings saved to Firebase and Supabase");
+    } catch {
+      toast.error("Failed to save settings");
+    }
     setSaving(false);
   };
 
   if (loading) return <div className="py-10 text-center text-muted-foreground">Loading...</div>;
 
+  const fields: { key: keyof SiteSettings; label: string; placeholder: string; type?: string }[] = [
+    { key: "whatsapp_number", label: "WhatsApp Number", placeholder: "213XXXXXXXXX" },
+    { key: "support_phone", label: "Support Phone", placeholder: "0XXXXXXXXX" },
+    { key: "facebook_url", label: "Facebook URL", placeholder: "https://facebook.com/..." },
+    { key: "instagram_url", label: "Instagram URL", placeholder: "https://instagram.com/..." },
+    { key: "tiktok_url", label: "TikTok URL", placeholder: "https://tiktok.com/@..." },
+    { key: "baridi_mob_number", label: "Baridi Mob (CCP) Number", placeholder: "CCP / Baridi Mob number" },
+    { key: "gmail_address", label: "Contact Email (Gmail)", placeholder: "contact@gmail.com", type: "email" },
+    { key: "appointment_email", label: "Appointment Notification Email", placeholder: "appointments@...", type: "email" },
+  ];
+
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Input value={settings.whatsapp_number} onChange={(e) => setSettings({ ...settings, whatsapp_number: e.target.value })} placeholder="WhatsApp" className="bg-charcoal" />
-        <Input value={settings.instagram_url} onChange={(e) => setSettings({ ...settings, instagram_url: e.target.value })} placeholder="Instagram URL" className="bg-charcoal" />
+    <div className="space-y-6">
+      <div>
+        <h3 className="text-sm font-semibold text-gold mb-1">Customer Service Contact Channels</h3>
+        <p className="text-xs text-muted-foreground mb-4">Configure all contact channels displayed in the footer and across the platform.</p>
       </div>
-      <Button variant="gold" onClick={saveSettings} disabled={saving}>{saving ? "Saving..." : "Save"}</Button>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {fields.map((f) => (
+          <div key={f.key} className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">{f.label}</label>
+            <Input
+              value={settings[f.key] || ""}
+              onChange={(e) => setSettings({ ...settings, [f.key]: e.target.value })}
+              placeholder={f.placeholder}
+              type={f.type || "text"}
+              className="bg-charcoal"
+            />
+          </div>
+        ))}
+      </div>
+      <Button variant="gold" onClick={saveSettings} disabled={saving}>{saving ? "Saving..." : "Save Settings"}</Button>
     </div>
   );
 }
