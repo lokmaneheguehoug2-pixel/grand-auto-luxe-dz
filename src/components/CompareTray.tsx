@@ -1,7 +1,7 @@
 import { compareStore, useCompare } from "@/lib/compare";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { formatDZD, formatCentimes } from "@/lib/format";
+import { formatDZD } from "@/lib/format";
 import { Scale, X, Trash2, ToggleLeft, ToggleRight } from "lucide-react";
 import { useState, useEffect } from "react";
 import { realtimeDb } from "@/lib/firebase";
@@ -20,6 +20,7 @@ type Vehicle = {
   paint_condition?: string;
   documents_status?: string;
   photos?: string[];
+  images?: string[];
   price_type: "fixed" | "auction";
   fixed_price?: number;
   current_highest_bid?: number;
@@ -44,13 +45,13 @@ export function CompareTray() {
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-6xl bg-background border-gold/40">
-          <DialogHeader>
-            <DialogTitle className="font-display text-2xl gold-text flex items-center gap-2">
+        <DialogContent className="max-w-5xl bg-background border-gold/40 p-0 overflow-hidden">
+          <DialogHeader className="px-5 pt-5 pb-3 border-b border-border/60">
+            <DialogTitle className="font-display text-xl gold-text flex items-center gap-2">
               <Scale className="h-5 w-5 text-gold" /> Luxury Compare
             </DialogTitle>
           </DialogHeader>
-          <CompareGrid ids={ids} />
+          <CompareTable ids={ids} />
         </DialogContent>
       </Dialog>
     </>
@@ -58,17 +59,22 @@ export function CompareTray() {
 }
 
 const ROWS: Array<{ label: string; key: keyof Vehicle; format?: (v: unknown) => string }> = [
-  { label: "Price", key: "fixed_price", format: (v) => v ? formatDZD(v as number) : "—" },
   { label: "Year", key: "year", format: (v) => v ? String(v) : "—" },
   { label: "Mileage", key: "mileage", format: (v) => v ? `${Number(v).toLocaleString()} km` : "—" },
-  { label: "Fuel", key: "fuel_type" },
-  { label: "Transmission", key: "transmission" },
-  { label: "Engine", key: "engine_type" },
-  { label: "Wilaya", key: "wilaya" },
-  { label: "Condition", key: "paint_condition" },
+  { label: "Fuel", key: "fuel_type", format: (v) => v ? String(v) : "—" },
+  { label: "Transmission", key: "transmission", format: (v) => v ? String(v) : "—" },
+  { label: "Engine", key: "engine_type", format: (v) => v ? String(v) : "—" },
+  { label: "Wilaya", key: "wilaya", format: (v) => v ? String(v) : "—" },
+  { label: "Condition", key: "paint_condition", format: (v) => v ? String(v) : "—" },
 ];
 
-function CompareGrid({ ids }: { ids: string[] }) {
+function priceOf(v: Vehicle): number {
+  return v.price_type === "fixed"
+    ? (v.fixed_price ?? 0)
+    : (v.current_highest_bid ?? v.starting_price ?? 0);
+}
+
+function CompareTable({ ids }: { ids: string[] }) {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -76,10 +82,10 @@ function CompareGrid({ ids }: { ids: string[] }) {
 
   useEffect(() => {
     async function load() {
+      if (!realtimeDb) { setLoading(false); setError("Database unavailable"); return; }
       setLoading(true);
       setError(null);
       const loaded: Vehicle[] = [];
-
       try {
         for (const id of ids) {
           const snap = await get(ref(realtimeDb, `vehicles/${id}`));
@@ -98,6 +104,7 @@ function CompareGrid({ ids }: { ids: string[] }) {
               paint_condition: data.paint_condition,
               documents_status: data.documents_status,
               photos: data.photos || [],
+              images: data.images || [],
               price_type: data.price_type || "fixed",
               fixed_price: data.fixed_price,
               current_highest_bid: data.current_highest_bid,
@@ -115,72 +122,99 @@ function CompareGrid({ ids }: { ids: string[] }) {
     load();
   }, [ids]);
 
-  if (loading) return <div className="py-10 text-center text-muted-foreground text-sm">Loading…</div>;
+  if (loading) return <div className="py-10 text-center text-muted-foreground text-sm">Loading comparison…</div>;
   if (error) return <div className="py-10 text-center text-destructive text-sm">{error}</div>;
   if (vehicles.length === 0) return <div className="py-10 text-center text-muted-foreground text-sm">No vehicles found.</div>;
 
-  // Find which rows differ
-  const differingRows = highlight ? ROWS.filter((row) => {
-    const values = vehicles.map((v) => {
-      let val = v[row.key];
-      if (row.key === "fixed_price") {
-        val = v.price_type === "fixed" ? v.fixed_price : (v.current_highest_bid ?? v.starting_price);
-      }
-      return row.format ? row.format(val) : String(val ?? "—");
-    });
-    return new Set(values).size > 1;
-  }) : [];
+  const differingLabels = highlight ? new Set(
+    ROWS.filter((row) => {
+      const values = vehicles.map((v) => {
+        const val = v[row.key];
+        return row.format ? row.format(val) : String(val ?? "—");
+      });
+      return new Set(values).size > 1;
+    }).map((r) => r.label)
+  ) : new Set<string>();
+
+  const priceValues = vehicles.map((v) => priceOf(v));
+  const priceDiffers = highlight && new Set(priceValues).size > 1;
+  const maxPrice = Math.max(...priceValues);
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-end gap-2">
-        <span className="text-xs text-muted-foreground">Highlight Differences</span>
+    <div className="overflow-x-auto">
+      <div className="flex items-center justify-end gap-2 px-5 py-2 border-b border-border/40">
+        <span className="text-xs text-muted-foreground">Highlight differences</span>
         <button onClick={() => setHighlight(!highlight)} className="text-gold">
           {highlight ? <ToggleRight className="h-6 w-6" /> : <ToggleLeft className="h-6 w-6" />}
         </button>
       </div>
 
-      <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(${Math.min(vehicles.length, 4)}, 1fr)` }}>
-        {vehicles.map((v) => <CompareCol key={v.id} v={v} differingRows={differingRows} />)}
-      </div>
-    </div>
-  );
-}
-
-function CompareCol({ v, differingRows }: { v: Vehicle; differingRows: typeof ROWS }) {
-  const cover = v.photos?.[0];
-  const price = v.price_type === "fixed" ? v.fixed_price : (v.current_highest_bid ?? v.starting_price);
-
-  return (
-    <div className="premium-card rounded-xl overflow-hidden border border-gold/30">
-      <div className="relative aspect-[4/3] bg-charcoal">
-        {cover && <img src={cover} className="h-full w-full object-cover" alt="" />}
-        <Button variant="ghost" size="icon" className="absolute top-2 right-2 h-7 w-7 bg-black/70 hover:bg-black"
-          onClick={() => compareStore.remove(v.id)}>
-          <X className="h-3.5 w-3.5 text-gold" />
-        </Button>
-      </div>
-      <div className="p-4">
-        <div className="font-display text-lg">{v.brand} {v.model}</div>
-        <div className="gold-text font-display text-xl mt-1">{formatDZD(price ?? 0)}</div>
-        <div className="text-[10px] text-gold/60">{formatCentimes(price ?? 0)}</div>
-        <div className="mt-4 space-y-1.5 text-sm">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-border/60">
+            <th className="w-32 sticky left-0 bg-background z-10 px-3 py-2 text-left text-xs uppercase tracking-widest text-muted-foreground font-medium">
+              Vehicle
+            </th>
+            {vehicles.map((v) => (
+              <th key={v.id} className="px-3 py-2 align-bottom min-w-[160px]">
+                <div className="relative">
+                  <div className="aspect-[4/3] rounded-lg overflow-hidden bg-charcoal mb-2 relative">
+                    {(v.photos?.[0] || v.images?.[0]) && (
+                      <img src={v.photos?.[0] || v.images?.[0]} className="h-full w-full object-cover" alt={`${v.brand} ${v.model}`} />
+                    )}
+                    <button
+                      onClick={() => compareStore.remove(v.id)}
+                      className="absolute top-1.5 right-1.5 h-6 w-6 rounded-full bg-black/70 hover:bg-black grid place-items-center transition"
+                    >
+                      <X className="h-3 w-3 text-gold" />
+                    </button>
+                  </div>
+                  <div className="font-display text-sm leading-tight">{v.brand} {v.model}</div>
+                  <div className="text-xs text-muted-foreground mt-0.5">{v.year}</div>
+                </div>
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {/* Price row */}
+          <tr className={`border-b border-border/40 ${priceDiffers ? "bg-gold/10" : ""}`}>
+            <td className="px-3 py-2.5 text-xs uppercase tracking-widest text-muted-foreground font-medium sticky left-0 bg-background z-10">
+              Price
+            </td>
+            {vehicles.map((v) => {
+              const p = priceOf(v);
+              const isBest = highlight && priceDiffers && p === maxPrice && p > 0;
+              return (
+                <td key={v.id} className={`px-3 py-2.5 ${isBest ? "text-gold font-display font-bold" : "font-medium"}`}>
+                  {p ? formatDZD(p) : "—"}
+                  {isBest && <span className="text-[10px] text-gold/70 ml-1">★ Best</span>}
+                </td>
+              );
+            })}
+          </tr>
+          {/* Data rows */}
           {ROWS.map((r) => {
-            let val = v[r.key];
-            if (r.key === "fixed_price") {
-              val = v.price_type === "fixed" ? v.fixed_price : (v.current_highest_bid ?? v.starting_price);
-            }
-            const formatted = r.format ? r.format(val) : String(val ?? "—");
-            const isDiff = differingRows.some((d) => d.label === r.label);
+            const isDiff = differingLabels.has(r.label);
             return (
-              <div key={r.label} className={`flex justify-between border-b pb-1 ${isDiff ? "border-gold bg-gold/10 px-2 py-0.5 -mx-2 rounded" : "border-border/40"}`}>
-                <span className="text-muted-foreground text-xs uppercase tracking-widest">{r.label}</span>
-                <span className="font-medium">{formatted}</span>
-              </div>
+              <tr key={r.label} className={`border-b border-border/40 ${isDiff ? "bg-gold/10" : ""}`}>
+                <td className="px-3 py-2.5 text-xs uppercase tracking-widest text-muted-foreground font-medium sticky left-0 bg-background z-10">
+                  {r.label}
+                </td>
+                {vehicles.map((v) => {
+                  const val = v[r.key];
+                  const formatted = r.format ? r.format(val) : String(val ?? "—");
+                  return (
+                    <td key={v.id} className="px-3 py-2.5">
+                      {formatted}
+                    </td>
+                  );
+                })}
+              </tr>
             );
           })}
-        </div>
-      </div>
+        </tbody>
+      </table>
     </div>
   );
 }
