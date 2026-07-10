@@ -87,6 +87,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "twitter:card", content: "summary_large_image" },
     ],
     links: [
+      { rel: "icon", href: "/my-logo.png.PNG", type: "image/png" },
+      { rel: "shortcut icon", href: "/my-logo.png.PNG", type: "image/png" },
+      { rel: "apple-touch-icon", href: "/my-logo.png.PNG" },
       { rel: "stylesheet", href: appCss },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
@@ -128,4 +131,3 @@ function RootComponent() {
 }
 
 import { AppShell } from "@/components/AppShell";
-

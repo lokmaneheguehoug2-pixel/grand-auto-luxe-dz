@@ -4,30 +4,35 @@ import { getFirestore, type Firestore } from "firebase/firestore";
 import { getStorage, type FirebaseStorage } from "firebase/storage";
 import { getDatabase, type Database } from "firebase/database";
 
-const isBrowser = typeof window !== "undefined" && typeof window.document !== "undefined";
+const isBrowser =
+  typeof window !== "undefined" && typeof window.document !== "undefined";
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "demo-api-key",
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "demo.firebaseapp.com",
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "demo-project",
   storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "demo.appspot.com",
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "0000000000",
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:0000000000:web:000000000000000000",
-  databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL || "https://demo-default-rtdb.firebaseio.com",
+  messagingSenderId:
+    import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "0000000000",
+  appId:
+    import.meta.env.VITE_FIREBASE_APP_ID ||
+    "1:0000000000:web:000000000000000000",
+  databaseURL:
+    import.meta.env.VITE_FIREBASE_DATABASE_URL ||
+    "https://demo-default-rtdb.firebaseio.com",
 };
 
 let _app: FirebaseApp | null = null;
-let _auth: Auth | null = null;
-let _db: Firestore | null = null;
-let _realtimeDb: Database | null = null;
-let _storage: FirebaseStorage | null = null;
 
 function getApp(): FirebaseApp {
   if (_app) return _app;
   try {
     _app = initializeApp(firebaseConfig);
   } catch (e) {
-    if (e instanceof Error && /already exists|duplicate-app/i.test(e.message)) {
+    if (
+      e instanceof Error &&
+      /already exists|duplicate-app/i.test(e.message)
+    ) {
       _app = initializeApp(firebaseConfig, "secondary");
     } else {
       throw e;
