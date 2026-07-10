@@ -14,6 +14,7 @@ import { realtimeDb } from "@/lib/firebase";
 
 // Synchronous admin check - prevents flash
 function checkAdminSync(): boolean {
+  if (typeof window === "undefined") return false;
   try {
     const stored = localStorage.getItem("gal:admin:bypass");
     if (stored) {
@@ -180,7 +181,6 @@ function useUnreadMessages(userId?: string) {
       return;
     }
 
-    // Listen to messages from Firebase Realtime Database
     const messagesRef = ref(realtimeDb, "messages");
 
     const handleSnapshot = (snapshot: { val: () => Record<string, { recipientId: string; readAt: string | null }> | null }) => {
