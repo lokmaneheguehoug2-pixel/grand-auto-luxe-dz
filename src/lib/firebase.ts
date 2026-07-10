@@ -1,43 +1,64 @@
-import { initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
-import { getStorage } from "firebase/storage";
-import { getDatabase } from "firebase/database";
+import { initializeApp, type FirebaseApp } from "firebase/app";
+import { getAuth, type Auth } from "firebase/auth";
+import { getFirestore, type Firestore } from "firebase/firestore";
+import { getStorage, type FirebaseStorage } from "firebase/storage";
+import { getDatabase, type Database } from "firebase/database";
 
-// Firebase configuration from environment variables
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
-  databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL,
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "demo-api-key",
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "demo.firebaseapp.com",
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "demo-project",
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "demo.appspot.com",
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "0000000000",
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:0000000000:web:000000000000000000",
+  databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL || "https://demo-default-rtdb.firebaseio.com",
 };
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
+let _app: FirebaseApp | null = null;
+let _auth: Auth | null = null;
+let _db: Firestore | null = null;
+let _realtimeDb: Database | null = null;
+let _storage: FirebaseStorage | null = null;
 
-// Export services
-export const auth = getAuth(app);
-export const db = getFirestore(app);
-export const realtimeDb = getDatabase(app);
-export const storage = getStorage(app);
+function getApp(): FirebaseApp {
+  if (_app) return _app;
+  try {
+    _app = initializeApp(firebaseConfig);
+  } catch (e) {
+    if (e instanceof Error && /already exists|duplicate-app/i.test(e.message)) {
+      _app = initializeApp(firebaseConfig, "secondary");
+    } else {
+      throw e;
+    }
+  }
+  return _app;
+}
 
-// Admin phone numbers (normalized to national format)
+function safeInit<T>(fn: () => T): T | null {
+  try {
+    return fn();
+  } catch (e) {
+    console.warn("Firebase service init failed:", e);
+    return null;
+  }
+}
+
+export const auth = safeInit(() => getAuth(getApp()));
+export const db = safeInit(() => getFirestore(getApp()));
+export const realtimeDb = safeInit(() => getDatabase(getApp()));
+export const storage = safeInit(() => getStorage(getApp()));
+
 export const ADMIN_PHONES = ["0781606765", "781606765"];
 
-// Helper: normalize Algerian phone to national format (0XXXXXXXXX)
 export function normalizePhone(raw: unknown): string {
   if (!raw) return "";
-  let digits = String(raw).replace(/\s|-/g, "");
+  let digits = String(raw ?? "").replace(/\s|-/g, "");
   if (digits.startsWith("+213")) digits = "0" + digits.slice(4);
   else if (digits.startsWith("213")) digits = "0" + digits.slice(3);
   else if (!digits.startsWith("0")) digits = "0" + digits;
   return digits;
 }
 
-// Helper: convert phone to email-like format for Firebase auth
 export function phoneToEmail(phone: string): string {
   return `${normalizePhone(phone).replace(/[^0-9]/g, "")}@grandauto.dz`;
 }

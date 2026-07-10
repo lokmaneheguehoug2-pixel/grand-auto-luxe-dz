@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { db, storage } from "@/lib/firebase";
+import { db } from "@/lib/firebase";
 import { collection, getDocs, query, orderBy, limit, where } from "firebase/firestore";
-import { ref, getBytes } from "firebase/storage";
 import { signUrl } from "@/hooks/use-signed-url";
 import { Plus, Film } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
@@ -22,6 +21,7 @@ export function StoriesStrip() {
   useEffect(() => {
     let mounted = true;
     const load = async () => {
+      if (!db) return;
       try {
         const q = query(collection(db, "stories"), orderBy("created_at", "desc"), limit(12));
         const snap = await getDocs(q);
