@@ -6,7 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Shield, Check, X, Eye, DollarSign, Ban, UserCheck, Crown, Users, Car, Clock, RefreshCw, Key, ChartBar as BarChart3, Activity, Tag, Megaphone, Settings, Copy, Trash2, Plus, Send, Receipt, Mail, UserX } from "lucide-react";
+import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
+import { Shield, Check, X, Eye, DollarSign, Ban, UserCheck, Crown, Users, Car, Clock, RefreshCw, Key, ChartBar as BarChart3, Activity, Tag, Megaphone, Settings, Copy, Trash2, Plus, Send, Receipt, Mail, UserX, Film, Play, Gauge, Fuel, Cog, MapPin, Calendar, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { useState, useEffect, useCallback } from "react";
 import { formatDZD } from "@/lib/format";
@@ -37,15 +38,40 @@ type FirebaseUser = {
 type FirebaseVehicle = {
   id: string;
   sellerId: string;
+  sellerPhone?: string;
   brand: string;
   model: string;
   year: number;
+  mileage?: number;
+  fuel_type?: string;
+  transmission?: string;
+  engine_type?: string;
   status: "pending" | "active" | "sold" | "rejected";
   price_type: "fixed" | "auction";
   fixed_price: number | null;
   starting_price: number | null;
+  current_highest_bid?: number | null;
+  auction_ends_at?: string | null;
   wilaya: string;
+  phone?: string;
+  images?: string[];
+  video_url?: string | null;
+  description?: string;
   created_at: string;
+};
+
+type FirebaseReel = {
+  id: string;
+  authorId: string;
+  authorPhone: string;
+  videoUrl: string;
+  caption: string | null;
+  vehicleId: string | null;
+  status?: "pending" | "active" | "rejected";
+  likesCount?: number;
+  viewsCount?: number;
+  createdAt: string;
+  author?: { first_name: string; last_name: string; phone: string } | null;
 };
 
 type PromoCode = {
@@ -124,6 +150,9 @@ function AdminPage() {
           <TabsTrigger value="listings" className="data-[state=active]:bg-gold data-[state=active]:text-gold-foreground">
             <Car className="h-4 w-4 mr-1" /> Listings
           </TabsTrigger>
+          <TabsTrigger value="reels" className="data-[state=active]:bg-gold data-[state=active]:text-gold-foreground">
+            <Film className="h-4 w-4 mr-1" /> Reels
+          </TabsTrigger>
           <TabsTrigger value="promos" className="data-[state=active]:bg-gold data-[state=active]:text-gold-foreground">
             <Tag className="h-4 w-4 mr-1" /> Promo Codes
           </TabsTrigger>
@@ -143,6 +172,7 @@ function AdminPage() {
 
         <TabsContent value="users"><UsersManagementTab /></TabsContent>
         <TabsContent value="listings"><ListingsTab /></TabsContent>
+        <TabsContent value="reels"><ReelsModerationTab /></TabsContent>
         <TabsContent value="promos"><PromoCodesTab /></TabsContent>
         <TabsContent value="broadcast"><BroadcastTab /></TabsContent>
         <TabsContent value="receipts"><ReceiptsTab /></TabsContent>
@@ -390,6 +420,8 @@ function ListingsTab() {
   const [vehicles, setVehicles] = useState<FirebaseVehicle[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [reviewVehicle, setReviewVehicle] = useState<FirebaseVehicle | null>(null);
+  const [deleteVehicle, setDeleteVehicle] = useState<FirebaseVehicle | null>(null);
 
   useEffect(() => {
     const vehiclesRef = ref(realtimeDb, "vehicles");
@@ -413,8 +445,21 @@ function ListingsTab() {
       await set(ref(realtimeDb, `vehicles/${vehicle.id}/status`), status);
       setVehicles(vehicles.map((v) => v.id === vehicle.id ? { ...v, status } : v));
       toast.success(`Vehicle ${status}`);
+      if (reviewVehicle?.id === vehicle.id) setReviewVehicle({ ...reviewVehicle, status });
     } catch (err) {
       toast.error("Failed to update vehicle");
+    }
+  };
+
+  const deleteVehiclePermanent = async (vehicle: FirebaseVehicle) => {
+    try {
+      await remove(ref(realtimeDb, `vehicles/${vehicle.id}`));
+      setVehicles(vehicles.filter((v) => v.id !== vehicle.id));
+      setDeleteVehicle(null);
+      if (reviewVehicle?.id === vehicle.id) setReviewVehicle(null);
+      toast.success("Vehicle deleted permanently");
+    } catch (err) {
+      toast.error("Failed to delete vehicle");
     }
   };
 
@@ -424,29 +469,302 @@ function ListingsTab() {
 
   return (
     <div className="space-y-4">
-      <div className="flex gap-1">
+      <div className="flex gap-1 flex-wrap">
         {["all", "pending", "active", "sold", "rejected"].map((s) => (
-          <Button key={s} variant={statusFilter === s ? "gold" : "outline"} size="sm" onClick={() => setStatusFilter(s)}>{s}</Button>
+          <Button key={s} variant={statusFilter === s ? "gold" : "outline"} size="sm" onClick={() => setStatusFilter(s)} className="capitalize">
+            {s} {s === "pending" ? `(${vehicles.filter(v => v.status === "pending").length})` : ""}
+          </Button>
         ))}
       </div>
       <div className="space-y-3">
         {filteredVehicles.map((v) => (
           <div key={v.id} className="premium-card rounded-xl p-4 border border-gold/20 flex items-center gap-4">
-            <div className="flex-1">
-              <div className="font-medium">{v.brand} {v.model} ({v.year})</div>
-              <div className="text-xs text-muted-foreground">{v.wilaya}</div>
+            <div className="flex-1 min-w-0">
+              <div className="font-medium truncate">{v.brand} {v.model} ({v.year})</div>
+              <div className="text-xs text-muted-foreground">{v.wilaya} · Seller: {v.sellerId?.slice(0, 8)}...</div>
+              <div className="text-xs flex items-center gap-2 mt-1 flex-wrap">
+                <Badge variant="outline" className={`
+                  ${v.status === "active" ? "border-green-500 text-green-400" : ""}
+                  ${v.status === "pending" ? "border-yellow-500 text-yellow-400" : ""}
+                  ${v.status === "sold" ? "border-blue-500 text-blue-400" : ""}
+                  ${v.status === "rejected" ? "border-red-500 text-red-400" : ""}
+                `}>
+                  {v.status}
+                </Badge>
+                <span className="text-muted-foreground">
+                  {v.price_type === "fixed" && v.fixed_price ? formatDZD(v.fixed_price) :
+                   v.price_type === "auction" && v.starting_price ? `Start: ${formatDZD(v.starting_price)}` : ""}
+                </span>
+                {(v.images?.length ?? 0) > 0 && (
+                  <span className="text-muted-foreground flex items-center gap-1"><Eye className="h-3 w-3" /> {v.images!.length} photos</span>
+                )}
+                {v.video_url && <span className="text-muted-foreground flex items-center gap-1"><Play className="h-3 w-3" /> Video</span>}
+              </div>
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 shrink-0">
+              <Button variant="outline" size="sm" onClick={() => setReviewVehicle(v)} title="Review details"><Eye className="h-4 w-4" /></Button>
               {v.status === "pending" && (
                 <>
-                  <Button variant="gold" size="sm" onClick={() => updateVehicleStatus(v, "active")}><Check className="h-4 w-4" /></Button>
-                  <Button variant="destructive" size="sm" onClick={() => updateVehicleStatus(v, "rejected")}><X className="h-4 w-4" /></Button>
+                  <Button variant="gold" size="sm" onClick={() => updateVehicleStatus(v, "active")} title="Approve"><Check className="h-4 w-4" /></Button>
+                  <Button variant="destructive" size="sm" onClick={() => updateVehicleStatus(v, "rejected")} title="Reject"><X className="h-4 w-4" /></Button>
                 </>
               )}
+              {v.status === "active" && (
+                <Button variant="outline" size="sm" onClick={() => updateVehicleStatus(v, "sold")} title="Mark Sold"><DollarSign className="h-4 w-4" /></Button>
+              )}
+              <Button variant="destructive" size="sm" onClick={() => setDeleteVehicle(v)} title="Delete permanently"><Trash2 className="h-4 w-4" /></Button>
             </div>
           </div>
         ))}
       </div>
+
+      {reviewVehicle && (
+        <Dialog open={!!reviewVehicle} onOpenChange={(open) => { if (!open) setReviewVehicle(null); }}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-background border-gold/40">
+            <DialogHeader>
+              <DialogTitle className="gold-text flex items-center gap-2"><Car className="h-5 w-5" /> Review Listing</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              {(reviewVehicle.images?.length ?? 0) > 0 && (
+                <div>
+                  <div className="text-xs uppercase tracking-widest text-muted-foreground mb-2 flex items-center gap-1"><Eye className="h-3 w-3" /> Photos ({reviewVehicle.images!.length})</div>
+                  <Carousel className="w-full">
+                    <CarouselContent>
+                      {reviewVehicle.images!.map((url, i) => (
+                        <CarouselItem key={i}>
+                          <img src={url} alt={`${reviewVehicle.brand} ${reviewVehicle.model} - Photo ${i + 1}`} className="w-full aspect-[4/3] object-cover rounded-lg" />
+                        </CarouselItem>
+                      ))}
+                    </CarouselContent>
+                    {reviewVehicle.images!.length > 1 && (
+                      <>
+                        <CarouselPrevious className="left-2 bg-black/70 border-gold/40 text-gold hover:bg-black/90" />
+                        <CarouselNext className="right-2 bg-black/70 border-gold/40 text-gold hover:bg-black/90" />
+                      </>
+                    )}
+                  </Carousel>
+                </div>
+              )}
+              {reviewVehicle.video_url && (
+                <div>
+                  <div className="text-xs uppercase tracking-widest text-muted-foreground mb-2 flex items-center gap-1"><Play className="h-3 w-3" /> Video</div>
+                  <video src={reviewVehicle.video_url} controls className="w-full rounded-lg max-h-[400px] object-contain bg-black" />
+                </div>
+              )}
+              <div className="premium-card rounded-xl p-4 border border-gold/20 space-y-3">
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className={`
+                    ${reviewVehicle.status === "active" ? "border-green-500 text-green-400" : ""}
+                    ${reviewVehicle.status === "pending" ? "border-yellow-500 text-yellow-400" : ""}
+                    ${reviewVehicle.status === "sold" ? "border-blue-500 text-blue-400" : ""}
+                    ${reviewVehicle.status === "rejected" ? "border-red-500 text-red-400" : ""}
+                  `}>
+                    {reviewVehicle.status}
+                  </Badge>
+                  <span className="text-xs text-muted-foreground">Listed {new Date(reviewVehicle.created_at).toLocaleString()}</span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
+                  <div><span className="text-muted-foreground">Brand:</span> {reviewVehicle.brand}</div>
+                  <div><span className="text-muted-foreground">Model:</span> {reviewVehicle.model}</div>
+                  <div><span className="text-muted-foreground">Year:</span> {reviewVehicle.year}</div>
+                  {reviewVehicle.mileage != null && <div className="flex items-center gap-1"><Gauge className="h-3 w-3 text-muted-foreground" /> <span className="text-muted-foreground">Mileage:</span> {reviewVehicle.mileage.toLocaleString()} km</div>}
+                  {reviewVehicle.fuel_type && <div className="flex items-center gap-1"><Fuel className="h-3 w-3 text-muted-foreground" /> <span className="text-muted-foreground">Fuel:</span> {reviewVehicle.fuel_type}</div>}
+                  {reviewVehicle.transmission && <div className="flex items-center gap-1"><Cog className="h-3 w-3 text-muted-foreground" /> <span className="text-muted-foreground">Transmission:</span> {reviewVehicle.transmission}</div>}
+                  <div className="flex items-center gap-1"><MapPin className="h-3 w-3 text-muted-foreground" /> <span className="text-muted-foreground">Wilaya:</span> {reviewVehicle.wilaya}</div>
+                  {reviewVehicle.engine_type && <div><span className="text-muted-foreground">Engine:</span> {reviewVehicle.engine_type}</div>}
+                  <div><span className="text-muted-foreground">Seller ID:</span> {reviewVehicle.sellerId?.slice(0, 12)}...</div>
+                  {reviewVehicle.sellerPhone && <div><span className="text-muted-foreground">Seller Phone:</span> {reviewVehicle.sellerPhone}</div>}
+                  {reviewVehicle.phone && <div><span className="text-muted-foreground">Contact:</span> {reviewVehicle.phone}</div>}
+                </div>
+                <div className="border-t border-border/60 pt-3">
+                  <div className="text-xs uppercase tracking-widest text-muted-foreground mb-1">Pricing</div>
+                  {reviewVehicle.price_type === "fixed" ? (
+                    <div className="text-lg gold-text font-display">{formatDZD(reviewVehicle.fixed_price)}</div>
+                  ) : (
+                    <div className="space-y-1">
+                      <div className="text-sm"><span className="text-muted-foreground">Starting:</span> {formatDZD(reviewVehicle.starting_price)}</div>
+                      {reviewVehicle.current_highest_bid != null && <div className="text-sm"><span className="text-muted-foreground">Current bid:</span> {formatDZD(reviewVehicle.current_highest_bid)}</div>}
+                      {reviewVehicle.auction_ends_at && <div className="text-sm"><span className="text-muted-foreground">Auction ends:</span> {new Date(reviewVehicle.auction_ends_at).toLocaleString()}</div>}
+                    </div>
+                  )}
+                </div>
+                {reviewVehicle.description && (
+                  <div className="border-t border-border/60 pt-3">
+                    <div className="text-xs uppercase tracking-widest text-muted-foreground mb-1 flex items-center gap-1"><FileText className="h-3 w-3" /> Description</div>
+                    <p className="text-sm text-muted-foreground whitespace-pre-wrap">{reviewVehicle.description}</p>
+                  </div>
+                )}
+              </div>
+              <div className="flex gap-2 flex-wrap">
+                {reviewVehicle.status === "pending" && (
+                  <>
+                    <Button variant="gold" onClick={() => updateVehicleStatus(reviewVehicle, "active")}><Check className="h-4 w-4 mr-1" /> Approve</Button>
+                    <Button variant="destructive" onClick={() => updateVehicleStatus(reviewVehicle, "rejected")}><X className="h-4 w-4 mr-1" /> Reject</Button>
+                  </>
+                )}
+                {reviewVehicle.status === "active" && (
+                  <Button variant="outline" onClick={() => updateVehicleStatus(reviewVehicle, "sold")}><DollarSign className="h-4 w-4 mr-1" /> Mark Sold</Button>
+                )}
+                <Button variant="destructive" onClick={() => setDeleteVehicle(reviewVehicle)}><Trash2 className="h-4 w-4 mr-1" /> Delete Permanently</Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {deleteVehicle && (
+        <Dialog open={!!deleteVehicle} onOpenChange={(open) => { if (!open) setDeleteVehicle(null); }}>
+          <DialogContent className="max-w-sm bg-background border-red-500/40">
+            <DialogHeader>
+              <DialogTitle className="text-red-500">Delete Listing Permanently</DialogTitle>
+            </DialogHeader>
+            <p className="text-sm text-muted-foreground">
+              Are you sure you want to permanently delete <strong>{deleteVehicle.brand} {deleteVehicle.model} ({deleteVehicle.year})</strong>? This action cannot be undone.
+            </p>
+            <div className="flex gap-2 mt-4">
+              <Button variant="destructive" onClick={() => deleteVehiclePermanent(deleteVehicle)}><Trash2 className="h-4 w-4 mr-1" /> Delete</Button>
+              <Button variant="ghost" onClick={() => setDeleteVehicle(null)}>Cancel</Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+    </div>
+  );
+}
+
+function ReelsModerationTab() {
+  const [reels, setReels] = useState<FirebaseReel[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [reviewReel, setReviewReel] = useState<FirebaseReel | null>(null);
+  const [deleteReel, setDeleteReel] = useState<FirebaseReel | null>(null);
+
+  useEffect(() => {
+    const reelsRef = ref(realtimeDb, "reels");
+    const handleSnapshot = async (snapshot: { val: () => Record<string, any> | null }) => {
+      const data = snapshot.val();
+      if (!data) { setReels([]); setLoading(false); return; }
+      const reelList: FirebaseReel[] = Object.entries(data).map(([id, v]) => ({
+        id, authorId: v.authorId || "", authorPhone: v.authorPhone || "", videoUrl: v.videoUrl || "",
+        caption: v.caption || null, vehicleId: v.vehicleId || null, status: v.status || "active",
+        likesCount: Number(v.likesCount) || 0, viewsCount: Number(v.viewsCount) || 0,
+        createdAt: v.createdAt || new Date().toISOString(),
+      }));
+      reelList.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      const authorPhones = Array.from(new Set(reelList.map((r) => r.authorPhone).filter(Boolean)));
+      const profileSnaps = await Promise.all(authorPhones.map((phone) => get(ref(realtimeDb, `users/${phone}`)).catch(() => null)));
+      const profileMap = new Map<string, any>();
+      authorPhones.forEach((phone, i) => { if (profileSnaps[i]?.exists()) profileMap.set(phone, profileSnaps[i].val()); });
+      setReels(reelList.map((r) => ({ ...r, author: profileMap.get(r.authorPhone) || null })));
+      setLoading(false);
+    };
+    onValue(reelsRef, handleSnapshot);
+    return () => off(reelsRef);
+  }, []);
+
+  const updateReelStatus = async (reel: FirebaseReel, status: "active" | "rejected") => {
+    try {
+      await set(ref(realtimeDb, `reels/${reel.id}/status`), status);
+      setReels(reels.map((r) => r.id === reel.id ? { ...r, status } : r));
+      toast.success(`Reel ${status}`);
+      if (reviewReel?.id === reel.id) setReviewReel({ ...reviewReel, status });
+    } catch (err) { toast.error("Failed to update reel"); }
+  };
+
+  const deleteReelPermanent = async (reel: FirebaseReel) => {
+    try {
+      await remove(ref(realtimeDb, `reels/${reel.id}`));
+      setReels(reels.filter((r) => r.id !== reel.id));
+      setDeleteReel(null);
+      if (reviewReel?.id === reel.id) setReviewReel(null);
+      toast.success("Reel deleted permanently");
+    } catch (err) { toast.error("Failed to delete reel"); }
+  };
+
+  if (loading) return <div className="py-10 text-center text-muted-foreground">Loading reels...</div>;
+
+  return (
+    <div className="space-y-4">
+      <span className="text-sm text-muted-foreground">{reels.length} reels</span>
+      <div className="space-y-3">
+        {reels.map((r) => (
+          <div key={r.id} className="premium-card rounded-xl p-4 border border-gold/20 flex items-center gap-4">
+            <div className="flex-1 min-w-0">
+              <div className="font-medium truncate">{r.author?.first_name || "Unknown"} {r.author?.last_name || ""}</div>
+              <div className="text-xs text-muted-foreground">{r.authorPhone || "No phone"} · {new Date(r.createdAt).toLocaleDateString()}</div>
+              <div className="text-xs flex items-center gap-2 mt-1 flex-wrap">
+                {r.caption && <span className="text-muted-foreground truncate max-w-xs">"{r.caption}"</span>}
+                <span className="text-muted-foreground">Likes: {r.likesCount || 0}</span>
+                <span className="text-muted-foreground">Views: {r.viewsCount || 0}</span>
+              </div>
+            </div>
+            <div className="flex gap-2 shrink-0">
+              <Button variant="outline" size="sm" onClick={() => setReviewReel(r)} title="Review & play video"><Eye className="h-4 w-4" /></Button>
+              {r.status === "pending" && (
+                <>
+                  <Button variant="gold" size="sm" onClick={() => updateReelStatus(r, "active")} title="Approve"><Check className="h-4 w-4" /></Button>
+                  <Button variant="destructive" size="sm" onClick={() => updateReelStatus(r, "rejected")} title="Reject"><X className="h-4 w-4" /></Button>
+                </>
+              )}
+              <Button variant="destructive" size="sm" onClick={() => setDeleteReel(r)} title="Delete permanently"><Trash2 className="h-4 w-4" /></Button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {reviewReel && (
+        <Dialog open={!!reviewReel} onOpenChange={(open) => { if (!open) setReviewReel(null); }}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-background border-gold/40">
+            <DialogHeader>
+              <DialogTitle className="gold-text flex items-center gap-2"><Film className="h-5 w-5" /> Review Reel</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              {reviewReel.videoUrl && (
+                <div>
+                  <div className="text-xs uppercase tracking-widest text-muted-foreground mb-2 flex items-center gap-1"><Play className="h-3 w-3" /> Video</div>
+                  <video src={reviewReel.videoUrl} controls className="w-full rounded-lg max-h-[500px] object-contain bg-black" />
+                </div>
+              )}
+              <div className="premium-card rounded-xl p-4 border border-gold/20 space-y-2 text-sm">
+                <div><span className="text-muted-foreground">Author:</span> {reviewReel.author?.first_name || "Unknown"} {reviewReel.author?.last_name || ""}</div>
+                <div><span className="text-muted-foreground">Phone:</span> {reviewReel.authorPhone || "N/A"}</div>
+                <div><span className="text-muted-foreground">Created:</span> {new Date(reviewReel.createdAt).toLocaleString()}</div>
+                <div><span className="text-muted-foreground">Likes:</span> {reviewReel.likesCount || 0} · <span className="text-muted-foreground">Views:</span> {reviewReel.viewsCount || 0}</div>
+                {reviewReel.vehicleId && <div><span className="text-muted-foreground">Linked vehicle:</span> {reviewReel.vehicleId}</div>}
+                {reviewReel.caption && (
+                  <div className="border-t border-border/60 pt-2">
+                    <div className="text-xs uppercase tracking-widest text-muted-foreground mb-1">Caption</div>
+                    <p className="text-muted-foreground whitespace-pre-wrap">{reviewReel.caption}</p>
+                  </div>
+                )}
+              </div>
+              <div className="flex gap-2 flex-wrap">
+                {reviewReel.status === "pending" && (
+                  <>
+                    <Button variant="gold" onClick={() => updateReelStatus(reviewReel, "active")}><Check className="h-4 w-4 mr-1" /> Approve</Button>
+                    <Button variant="destructive" onClick={() => updateReelStatus(reviewReel, "rejected")}><X className="h-4 w-4 mr-1" /> Reject</Button>
+                  </>
+                )}
+                <Button variant="destructive" onClick={() => setDeleteReel(reviewReel)}><Trash2 className="h-4 w-4 mr-1" /> Delete Permanently</Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {deleteReel && (
+        <Dialog open={!!deleteReel} onOpenChange={(open) => { if (!open) setDeleteReel(null); }}>
+          <DialogContent className="max-w-sm bg-background border-red-500/40">
+            <DialogHeader>
+              <DialogTitle className="text-red-500">Delete Reel Permanently</DialogTitle>
+            </DialogHeader>
+            <p className="text-sm text-muted-foreground">Are you sure you want to permanently delete this reel? This action cannot be undone.</p>
+            <div className="flex gap-2 mt-4">
+              <Button variant="destructive" onClick={() => deleteReelPermanent(deleteReel)}><Trash2 className="h-4 w-4 mr-1" /> Delete</Button>
+              <Button variant="ghost" onClick={() => setDeleteReel(null)}>Cancel</Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }
@@ -664,6 +982,63 @@ function SettingsTab() {
         ))}
       </div>
       <Button variant="gold" onClick={saveSettings} disabled={saving}>{saving ? "Saving..." : "Save Settings"}</Button>
+
+      <WeeklyReminderSection />
+    </div>
+  );
+}
+
+function WeeklyReminderSection() {
+  const [sending, setSending] = useState(false);
+  const [result, setResult] = useState<{ remindersSent: number; message: string } | null>(null);
+
+  const sendReminders = async () => {
+    setSending(true);
+    setResult(null);
+    try {
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const response = await fetch(`${supabaseUrl}/functions/v1/weekly-unsold-reminder`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      const data = await response.json();
+      if (response.ok) {
+        setResult({ remindersSent: data.remindersSent || 0, message: data.message || "Reminders sent" });
+        toast.success(`${data.remindersSent || 0} reminder(s) sent to owners of unsold listings`);
+      } else {
+        throw new Error(data.error || "Failed to send reminders");
+      }
+    } catch (err) {
+      toast.error("Failed to send reminders");
+      console.error(err);
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <div className="premium-card rounded-xl p-4 border border-gold/20">
+      <h3 className="font-medium mb-3 flex items-center gap-2">
+        <Clock className="h-5 w-5 text-gold" />
+        Automated Weekly Reminder — Unsold Listings
+      </h3>
+      <p className="text-sm text-muted-foreground mb-3">
+        Sends a notification to owners of unsold (active) listings older than 7 days:
+        "Is your vehicle still available? Please update your listing status or mark it as sold."
+      </p>
+      <div className="flex items-center gap-3">
+        <Button variant="gold" onClick={sendReminders} disabled={sending}>
+          {sending ? (
+            <><RefreshCw className="h-4 w-4 mr-2 animate-spin" /> Sending reminders...</>
+          ) : (
+            <><Send className="h-4 w-4 mr-2" /> Send Reminders Now</>
+          )}
+        </Button>
+        {result && <span className="text-sm text-green-400">{result.remindersSent} reminder(s) sent successfully</span>}
+      </div>
+      <p className="text-xs text-muted-foreground mt-2">
+        This runs automatically every 7 days via a scheduled edge function. Use the button above to trigger it manually.
+      </p>
     </div>
   );
 }
