@@ -1,9 +1,33 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const isBrowser =
+  typeof window !== "undefined" && typeof window.document !== "undefined";
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+function createSafeClient(): SupabaseClient | null {
+  const url = import.meta.env.VITE_SUPABASE_URL;
+  const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
+  if (!url || !key) {
+    if (isBrowser) {
+      console.warn("[supabase] Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY");
+    }
+    return null;
+  }
+  try {
+    return createClient(url, key);
+  } catch (e) {
+    console.warn("[supabase] Failed to create client:", e);
+    return null;
+  }
+}
+
+let _client: SupabaseClient | null | undefined;
+
+export function getSupabase(): SupabaseClient | null {
+  if (_client === undefined) {
+    _client = createSafeClient();
+  }
+  return _client;
+}
 
 export type PlatformSettings = {
   id?: string;
@@ -19,7 +43,9 @@ export type PlatformSettings = {
 };
 
 export async function fetchPlatformSettings(): Promise<PlatformSettings | null> {
-  const { data, error } = await supabase
+  const client = getSupabase();
+  if (!client) return null;
+  const { data, error } = await client
     .from("platform_settings")
     .select("*")
     .limit(1)
@@ -33,8 +59,12 @@ export async function fetchPlatformSettings(): Promise<PlatformSettings | null> 
   return data as PlatformSettings | null;
 }
 
-export async function savePlatformSettings(settings: Omit<PlatformSettings, "id" | "updated_at">): Promise<boolean> {
-  const { error } = await supabase
+export async function savePlatformSettings(
+  settings: Omit<PlatformSettings, "id" | "updated_at">
+): Promise<boolean> {
+  const client = getSupabase();
+  if (!client) return false;
+  const { error } = await client
     .from("platform_settings")
     .update({
       whatsapp_number: settings.whatsapp_number || null,

@@ -12,7 +12,6 @@ import { useEffect, useState, useMemo } from "react";
 import { ref, onValue, off } from "firebase/database";
 import { realtimeDb } from "@/lib/firebase";
 
-// Synchronous admin check - prevents flash
 function checkAdminSync(): boolean {
   if (typeof window === "undefined") return false;
   try {
@@ -32,7 +31,6 @@ export function AppShell() {
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
 
-  // Use auth state but also check localStorage synchronously for stable admin visibility
   const isAdminStable = useMemo(() => {
     if (auth?.isAdmin) return true;
     return checkAdminSync();
@@ -176,7 +174,7 @@ function useUnreadMessages(userId?: string) {
   const [count, setCount] = useState(0);
 
   useEffect(() => {
-    if (!userId) {
+    if (!userId || !realtimeDb) {
       setCount(0);
       return;
     }

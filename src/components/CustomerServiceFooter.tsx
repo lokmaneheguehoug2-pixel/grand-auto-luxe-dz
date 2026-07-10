@@ -15,21 +15,29 @@ interface SiteSettings {
   gmail_address: string;
 }
 
+const EMPTY_SETTINGS: SiteSettings = {
+  whatsapp_number: "",
+  support_phone: "",
+  facebook_url: "",
+  instagram_url: "",
+  tiktok_url: "",
+  baridi_mob_number: "",
+  appointment_email: "",
+  gmail_address: "",
+};
+
 export function CustomerServiceFooter() {
-  const [settings, setSettings] = useState<SiteSettings>({
-    whatsapp_number: "",
-    support_phone: "",
-    facebook_url: "",
-    instagram_url: "",
-    tiktok_url: "",
-    baridi_mob_number: "",
-    appointment_email: "",
-    gmail_address: "",
-  });
+  const [settings, setSettings] = useState<SiteSettings>(EMPTY_SETTINGS);
 
   useEffect(() => {
+    fetchPlatformSettings()
+      .then((supaData) => {
+        if (supaData) setSettings((prev) => ({ ...prev, ...supaData }));
+      })
+      .catch(() => {});
+
+    if (!realtimeDb) return;
     const settingsRef = ref(realtimeDb, "site_settings");
-    let supaLoaded = false;
     const handle = (snapshot: { val: () => Record<string, string> | null }) => {
       const data = snapshot.val() || {};
       if (Object.keys(data).length > 0) {
@@ -46,12 +54,6 @@ export function CustomerServiceFooter() {
       }
     };
     onValue(settingsRef, handle);
-    fetchPlatformSettings().then((supaData) => {
-      if (supaData && !supaLoaded) {
-        supaLoaded = true;
-        setSettings(prev => ({ ...prev, ...supaData }));
-      }
-    }).catch(() => {});
     return () => off(settingsRef);
   }, []);
 
@@ -63,7 +65,6 @@ export function CustomerServiceFooter() {
     <footer className="border-t border-border/60 bg-charcoal/40 py-8 mt-auto">
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          {/* Brand Section — full logo matching header */}
           <div className="space-y-4">
             <div className="flex items-center gap-2.5">
               <img
@@ -83,79 +84,46 @@ export function CustomerServiceFooter() {
             </p>
           </div>
 
-          {/* Quick Links */}
           <div className="space-y-4">
             <h3 className="font-semibold text-sm uppercase tracking-wider">Quick Links</h3>
             <nav className="flex flex-col gap-2 text-sm">
-              <a href="/brands" className="text-muted-foreground hover:text-gold transition-colors">
-                Browse Brands
-              </a>
-              <a href="/plans" className="text-muted-foreground hover:text-gold transition-colors">
-                Subscription Plans
-              </a>
-              <a href="/auth" className="text-muted-foreground hover:text-gold transition-colors">
-                Sign In / Register
-              </a>
-              <a href="/reels" className="text-muted-foreground hover:text-gold transition-colors">
-                Reels
-              </a>
+              <a href="/brands" className="text-muted-foreground hover:text-gold transition-colors">Browse Brands</a>
+              <a href="/plans" className="text-muted-foreground hover:text-gold transition-colors">Subscription Plans</a>
+              <a href="/auth" className="text-muted-foreground hover:text-gold transition-colors">Sign In / Register</a>
+              <a href="/reels" className="text-muted-foreground hover:text-gold transition-colors">Reels</a>
             </nav>
           </div>
 
-          {/* Customer Service & Social Media */}
           <div className="space-y-4">
             <h3 className="font-semibold text-sm uppercase tracking-wider">Customer Service</h3>
             <div className="flex flex-wrap gap-3">
               {settings.whatsapp_number && (
-                <a
-                  href={whatsappLink}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="h-10 w-10 rounded-full bg-green-600/10 hover:bg-green-600/20 flex items-center justify-center transition-colors group"
-                  title="WhatsApp"
-                >
+                <a href={whatsappLink} target="_blank" rel="noopener noreferrer"
+                  className="h-10 w-10 rounded-full bg-green-600/10 hover:bg-green-600/20 flex items-center justify-center transition-colors group" title="WhatsApp">
                   <MessageCircle className="h-5 w-5 text-green-600 group-hover:scale-110 transition-transform" />
                 </a>
               )}
               {settings.instagram_url && (
-                <a
-                  href={settings.instagram_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="h-10 w-10 rounded-full bg-pink-600/10 hover:bg-pink-600/20 flex items-center justify-center transition-colors group"
-                  title="Instagram"
-                >
+                <a href={settings.instagram_url} target="_blank" rel="noopener noreferrer"
+                  className="h-10 w-10 rounded-full bg-pink-600/10 hover:bg-pink-600/20 flex items-center justify-center transition-colors group" title="Instagram">
                   <Instagram className="h-5 w-5 text-pink-600 group-hover:scale-110 transition-transform" />
                 </a>
               )}
               {settings.facebook_url && (
-                <a
-                  href={settings.facebook_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="h-10 w-10 rounded-full bg-blue-600/10 hover:bg-blue-600/20 flex items-center justify-center transition-colors group"
-                  title="Facebook"
-                >
+                <a href={settings.facebook_url} target="_blank" rel="noopener noreferrer"
+                  className="h-10 w-10 rounded-full bg-blue-600/10 hover:bg-blue-600/20 flex items-center justify-center transition-colors group" title="Facebook">
                   <Facebook className="h-5 w-5 text-blue-600 group-hover:scale-110 transition-transform" />
                 </a>
               )}
               {settings.tiktok_url && (
-                <a
-                  href={settings.tiktok_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="h-10 w-10 rounded-full bg-gray-600/10 hover:bg-gray-600/20 flex items-center justify-center transition-colors group"
-                  title="TikTok"
-                >
+                <a href={settings.tiktok_url} target="_blank" rel="noopener noreferrer"
+                  className="h-10 w-10 rounded-full bg-gray-600/10 hover:bg-gray-600/20 flex items-center justify-center transition-colors group" title="TikTok">
                   <Music2 className="h-5 w-5 text-gray-800 dark:text-gray-200 group-hover:scale-110 transition-transform" />
                 </a>
               )}
               {settings.gmail_address && (
-                <a
-                  href={`mailto:${settings.gmail_address}`}
-                  className="h-10 w-10 rounded-full bg-red-600/10 hover:bg-red-600/20 flex items-center justify-center transition-colors group"
-                  title="Email"
-                >
+                <a href={`mailto:${settings.gmail_address}`}
+                  className="h-10 w-10 rounded-full bg-red-600/10 hover:bg-red-600/20 flex items-center justify-center transition-colors group" title="Email">
                   <Mail className="h-5 w-5 text-red-600 group-hover:scale-110 transition-transform" />
                 </a>
               )}
@@ -189,7 +157,6 @@ export function CustomerServiceFooter() {
           </div>
         </div>
 
-        {/* Bottom Bar */}
         <div className="mt-8 pt-6 border-t border-border/40 text-center text-xs text-muted-foreground">
           <span className="gold-text font-semibold">GRAND Auto Luxe</span> · Made in Algeria · {new Date().getFullYear()}
         </div>
