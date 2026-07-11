@@ -177,6 +177,9 @@ function AdminPage() {
           <TabsTrigger value="receipts" className="data-[state=active]:bg-gold data-[state=active]:text-gold-foreground">
             <Receipt className="h-4 w-4 mr-1" /> Receipts
           </TabsTrigger>
+          <TabsTrigger value="subscriptions" className="data-[state=active]:bg-gold data-[state=active]:text-gold-foreground">
+            <Crown className="h-4 w-4 mr-1" /> Plans
+          </TabsTrigger>
           <TabsTrigger value="settings" className="data-[state=active]:bg-gold data-[state=active]:text-gold-foreground">
             <Settings className="h-4 w-4 mr-1" /> Settings
           </TabsTrigger>
@@ -192,6 +195,7 @@ function AdminPage() {
         <TabsContent value="promos"><PromoCodesTab /></TabsContent>
         <TabsContent value="broadcast"><BroadcastTab /></TabsContent>
         <TabsContent value="receipts"><ReceiptsTab /></TabsContent>
+        <TabsContent value="subscriptions"><SubscriptionsTab /></TabsContent>
         <TabsContent value="settings"><SettingsTab /></TabsContent>
         <TabsContent value="analytics"><AnalyticsTab /></TabsContent>
       </Tabs>
@@ -685,7 +689,15 @@ function WeeklyReminderSection() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ firebaseDbUrl }),
       });
-      const data = await response.json();
+
+      const text = await response.text();
+      let data: any;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        throw new Error(`Server returned a non-JSON response (status ${response.status}). The edge function may be misconfigured.`);
+      }
+
       if (response.ok) {
         setResult({ remindersSent: data.remindersSent || 0, message: data.message || "Reminders sent" });
         toast.success(`${data.remindersSent || 0} reminder(s) sent to owners of unsold listings`);
@@ -764,6 +776,164 @@ function ReceiptsTab() {
       {subscriptions.filter((s) => s.status === "pending").map((s) => (
         <div key={s.id} className="premium-card rounded-xl p-4 border border-gold/20">{s.plan} / {s.userPhone}</div>
       ))}
+    </div>
+  );
+}
+
+type SubscriptionPlan = {
+  id: string;
+  name: string;
+  tier: "individual" | "showroom";
+  price_dzd: number;
+  billing_period: "monthly" | "yearly";
+  features: string[];
+  is_active: boolean;
+  created_at: string;
+};
+
+function SubscriptionsTab() {
+  const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showCreate, setShowCreate] = useState(false);
+  const [newPlan, setNewPlan] = useState({
+    name: "",
+    tier: "individual" as "individual" | "showroom",
+    price_dzd: 1000,
+    billing_period: "monthly" as "monthly" | "yearly",
+    features: "",
+  });
+
+  useEffect(() => {
+    const plansRef = ref(realtimeDb, "subscription_plans");
+    const handleSnapshot = (snapshot: { val: () => Record<string, any> | null }) => {
+      try {
+        const data = snapshot.val();
+        if (!data || typeof data !== "object") { setPlans([]); setLoading(false); return; }
+        const planList: SubscriptionPlan[] = Object.entries(data).map(([id, v]) => ({
+          id,
+          name: String(v?.name || "Unnamed"),
+          tier: v?.tier === "showroom" ? "showroom" : "individual",
+          price_dzd: Number(v?.price_dzd ?? 0) || 0,
+          billing_period: v?.billing_period === "yearly" ? "yearly" : "monthly",
+          features: Array.isArray(v?.features) ? v.features : [],
+          is_active: Boolean(v?.is_active ?? true),
+          created_at: v?.created_at || new Date().toISOString(),
+        }));
+        planList.sort((a, b) => a.price_dzd - b.price_dzd);
+        setPlans(planList);
+      } catch (err) {
+        console.error("Failed to load subscription plans:", err);
+        setPlans([]);
+      }
+      setLoading(false);
+    };
+    onValue(plansRef, handleSnapshot);
+    return () => off(plansRef);
+  }, []);
+
+  const createPlan = async () => {
+    if (!newPlan.name || newPlan.name.length < 2) { toast.error("Name too short"); return; }
+    try {
+      const planRef = push(ref(realtimeDb, "subscription_plans"));
+      const plan: SubscriptionPlan = {
+        id: planRef.key!,
+        name: newPlan.name,
+        tier: newPlan.tier,
+        price_dzd: newPlan.price_dzd,
+        billing_period: newPlan.billing_period,
+        features: newPlan.features.split(",").map((f) => f.trim()).filter(Boolean),
+        is_active: true,
+        created_at: new Date().toISOString(),
+      };
+      await set(planRef, plan);
+      setPlans([...plans, plan]);
+      setShowCreate(false);
+      setNewPlan({ name: "", tier: "individual", price_dzd: 1000, billing_period: "monthly", features: "" });
+      toast.success("Plan created");
+    } catch (err) {
+      toast.error("Failed to create plan");
+    }
+  };
+
+  const togglePlanActive = async (plan: SubscriptionPlan) => {
+    try {
+      await set(ref(realtimeDb, `subscription_plans/${plan.id}/is_active`), !plan.is_active);
+      setPlans(plans.map((p) => p.id === plan.id ? { ...p, is_active: !plan.is_active } : p));
+      toast.success("Updated");
+    } catch (err) {
+      toast.error("Failed to update plan");
+    }
+  };
+
+  const deletePlan = async (id: string) => {
+    try {
+      await remove(ref(realtimeDb, `subscription_plans/${id}`));
+      setPlans(plans.filter((p) => p.id !== id));
+      toast.success("Plan deleted");
+    } catch (err) {
+      toast.error("Failed to delete plan");
+    }
+  };
+
+  if (loading) return <div className="py-10 text-center text-muted-foreground">Loading subscription plans...</div>;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <span className="text-sm text-muted-foreground">{plans.length} subscription plans</span>
+        <Button variant="gold" size="sm" onClick={() => setShowCreate(!showCreate)}><Plus className="h-4 w-4 mr-1" /> Create Plan</Button>
+      </div>
+
+      {showCreate && (
+        <div className="premium-card rounded-xl p-4 border border-gold/20 space-y-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <Input value={newPlan.name} onChange={(e) => setNewPlan({ ...newPlan, name: e.target.value })} placeholder="Plan name (e.g. Individual Monthly)" className="bg-charcoal" />
+            <select value={newPlan.tier} onChange={(e) => setNewPlan({ ...newPlan, tier: e.target.value as any })} className="h-10 rounded-md border bg-charcoal px-3">
+              <option value="individual">Individual</option>
+              <option value="showroom">Showroom</option>
+            </select>
+            <Input type="number" value={newPlan.price_dzd} onChange={(e) => setNewPlan({ ...newPlan, price_dzd: Number(e.target.value) || 0 })} placeholder="Price (DZD)" className="bg-charcoal" />
+            <select value={newPlan.billing_period} onChange={(e) => setNewPlan({ ...newPlan, billing_period: e.target.value as any })} className="h-10 rounded-md border bg-charcoal px-3">
+              <option value="monthly">Monthly</option>
+              <option value="yearly">Yearly</option>
+            </select>
+          </div>
+          <Textarea value={newPlan.features} onChange={(e) => setNewPlan({ ...newPlan, features: e.target.value })} placeholder="Features (comma-separated)" className="bg-charcoal" />
+          <Button variant="gold" size="sm" onClick={createPlan}>Create</Button>
+        </div>
+      )}
+
+      <div className="space-y-3">
+        {plans.length === 0 && (
+          <div className="text-center py-8 text-muted-foreground">
+            <Crown className="h-10 w-10 mx-auto mb-2 text-gold/40" />
+            <p>No subscription plans yet. Create one to get started.</p>
+          </div>
+        )}
+        {plans.map((plan) => (
+          <div key={plan.id} className="premium-card rounded-xl p-4 border border-gold/20 flex items-center gap-4">
+            <div className="flex-1">
+              <div className="font-medium flex items-center gap-2">
+                {plan.name}
+                {plan.is_active ? <Badge className="bg-green-500/20 text-green-400">Active</Badge> : <Badge variant="outline">Inactive</Badge>}
+                <Badge variant="outline" className="capitalize border-gold/40 text-gold">{plan.tier}</Badge>
+              </div>
+              <div className="text-xs text-muted-foreground mt-1">
+                {formatDZD(plan.price_dzd)} / {plan.billing_period}
+              </div>
+              {plan.features.length > 0 && (
+                <div className="text-xs text-muted-foreground mt-1">
+                  {plan.features.join(" · ")}
+                </div>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={() => togglePlanActive(plan)}>{plan.is_active ? "Deactivate" : "Activate"}</Button>
+              <Button variant="destructive" size="sm" onClick={() => deletePlan(plan.id)}><Trash2 className="h-4 w-4" /></Button>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
