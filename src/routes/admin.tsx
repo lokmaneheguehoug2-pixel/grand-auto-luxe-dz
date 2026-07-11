@@ -674,6 +674,12 @@ function WeeklyReminderSection() {
     try {
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
       const firebaseDbUrl = import.meta.env.VITE_FIREBASE_DATABASE_URL;
+
+      if (!firebaseDbUrl) {
+        toast.error("Firebase database URL not configured. Set VITE_FIREBASE_DATABASE_URL in your environment.");
+        return;
+      }
+
       const response = await fetch(`${supabaseUrl}/functions/v1/weekly-unsold-reminder`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -686,8 +692,8 @@ function WeeklyReminderSection() {
       } else {
         throw new Error(data.error || "Failed to send reminders");
       }
-    } catch (err) {
-      toast.error("Failed to send reminders");
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to send reminders");
       console.error(err);
     } finally {
       setSending(false);
