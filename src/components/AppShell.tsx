@@ -64,9 +64,6 @@ export function AppShell() {
               </div>
             </Link>
             <nav className="flex items-center gap-1 sm:gap-2">
-              <Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex">
-                <Link to="/brands">Brands</Link>
-              </Button>
               <Button asChild variant="ghost" size="sm">
                 <Link to="/reels"><Film className="h-4 w-4" /> <span className="hidden sm:inline">Reels</span></Link>
               </Button>
