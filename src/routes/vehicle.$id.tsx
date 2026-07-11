@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { formatDZD } from "@/lib/format";
-import { Flag } from "lucide-react";
+import { Flag, Calendar, Gauge, Fuel, Cog, Gavel, Trophy, Phone, MessageCircle } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Countdown } from "@/components/Countdown";
 import { useState, useEffect } from "react";
@@ -81,8 +81,30 @@ function VehicleDetail() {
     const vehicleRef = ref(realtimeDb, `vehicles/${id}`);
     const handleSnapshot = (snapshot: { val: () => (Vehicle & { [key: string]: any }) | null }) => {
       const data = snapshot.val();
-      if (data) setV({ ...data, id });
-      else setV(null);
+      if (data) {
+        setV({
+          ...data,
+          id,
+          brand: data.brand || "Unknown",
+          model: data.model || "",
+          year: data.year || 0,
+          mileage: data.mileage ?? 0,
+          fuel_type: data.fuel_type || "N/A",
+          transmission: data.transmission || "N/A",
+          wilaya: data.wilaya || "N/A",
+          phone: data.phone || "",
+          sellerPhone: data.sellerPhone || "",
+          sellerId: data.sellerId || "",
+          images: Array.isArray(data.images) ? data.images : [],
+          video_url: data.video_url || null,
+          fixed_price: data.fixed_price ?? null,
+          starting_price: data.starting_price ?? null,
+          current_highest_bid: data.current_highest_bid ?? null,
+          current_highest_bidder: data.current_highest_bidder ?? null,
+          auction_ends_at: data.auction_ends_at ?? null,
+          status: data.status || "active",
+        });
+      } else setV(null);
     };
     onValue(vehicleRef, handleSnapshot);
     return () => off(vehicleRef);

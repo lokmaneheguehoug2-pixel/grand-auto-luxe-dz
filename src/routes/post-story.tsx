@@ -18,6 +18,24 @@ const SHOWROOM_DAILY_LIMIT = 5;
 const NORMAL_WEEKLY_LIMIT = 5;
 const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+const THIRTY_SECONDS = 30;
+
+function getVideoDuration(file: File): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const video = document.createElement("video");
+    video.preload = "metadata";
+    const url = URL.createObjectURL(file);
+    video.onloadedmetadata = () => {
+      URL.revokeObjectURL(url);
+      resolve(video.duration);
+    };
+    video.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Failed to read video metadata"));
+    };
+    video.src = url;
+  });
+}
 
 function PostStoryPage() {
   const auth = useAuth();
@@ -126,14 +144,31 @@ function PostStoryPage() {
     setUploadProgress(0);
 
     try {
+      let duration: number;
+      try {
+        duration = await getVideoDuration(file);
+      } catch {
+        toast.error("Could not read video file. Please try a different format.");
+        setBusy(false);
+        return;
+      }
+
+      if (duration > THIRTY_SECONDS) {
+        toast.error(`Video is ${Math.round(duration)}s long. Stories must be under 30 seconds.`);
+        setBusy(false);
+        return;
+      }
+
       const videoUrl = await uploadVideoToCloudinary(file, (percent) => {
         setUploadProgress(percent);
       });
 
       setUploadProgress(100);
 
+      const now = new Date();
       const storyRef = push(dbRef(realtimeDb, "stories"));
       const storyId = storyRef.key!;
+      const quotaMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 
       await set(storyRef, {
         id: storyId,
@@ -141,9 +176,23 @@ function PostStoryPage() {
         authorPhone: user.phone,
         videoUrl,
         caption: caption.trim() || null,
-        createdAt: new Date().toISOString(),
-        expiresAt: new Date(Date.now() + TWENTY_FOUR_HOURS_MS).toISOString(),
+        createdAt: now.toISOString(),
+        expiresAt: new Date(now.getTime() + TWENTY_FOUR_HOURS_MS).toISOString(),
+        duration: Math.round(duration),
+        quotaMonth: isShowroom ? null : quotaMonth,
       });
+
+      // Increment monthly quota for non-showroom users
+      if (!isShowroom) {
+        try {
+          const quotaRef = dbRef(realtimeDb, `story_quota/${user.phone}/${quotaMonth}`);
+          const quotaSnap = await get(quotaRef);
+          const currentCount = Number(quotaSnap.val()) || 0;
+          await set(quotaRef, currentCount + 1);
+        } catch (e) {
+          console.error("Failed to update quota:", e);
+        }
+      }
 
       toast.success("Story posted! It will expire in 24 hours.");
       navigate({ to: "/" });
