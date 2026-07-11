@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as ReelsRouteImport } from './routes/reels'
+import { Route as PostStoryRouteImport } from './routes/post-story'
 import { Route as PostReelRouteImport } from './routes/post-reel'
 import { Route as PostRouteImport } from './routes/post'
 import { Route as PlansRouteImport } from './routes/plans'
@@ -28,6 +29,11 @@ import { Route as EditListingIdRouteImport } from './routes/edit-listing.$id'
 const ReelsRoute = ReelsRouteImport.update({
   id: '/reels',
   path: '/reels',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PostStoryRoute = PostStoryRouteImport.update({
+  id: '/post-story',
+  path: '/post-story',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PostReelRoute = PostReelRouteImport.update({
@@ -113,6 +119,7 @@ export interface FileRoutesByFullPath {
   '/plans': typeof PlansRoute
   '/post': typeof PostRoute
   '/post-reel': typeof PostReelRoute
+  '/post-story': typeof PostStoryRoute
   '/reels': typeof ReelsRoute
   '/edit-listing/$id': typeof EditListingIdRoute
   '/seller/$id': typeof SellerIdRoute
@@ -130,6 +137,7 @@ export interface FileRoutesByTo {
   '/plans': typeof PlansRoute
   '/post': typeof PostRoute
   '/post-reel': typeof PostReelRoute
+  '/post-story': typeof PostStoryRoute
   '/reels': typeof ReelsRoute
   '/edit-listing/$id': typeof EditListingIdRoute
   '/seller/$id': typeof SellerIdRoute
@@ -148,6 +156,7 @@ export interface FileRoutesById {
   '/plans': typeof PlansRoute
   '/post': typeof PostRoute
   '/post-reel': typeof PostReelRoute
+  '/post-story': typeof PostStoryRoute
   '/reels': typeof ReelsRoute
   '/edit-listing/$id': typeof EditListingIdRoute
   '/seller/$id': typeof SellerIdRoute
@@ -167,6 +176,7 @@ export interface FileRouteTypes {
     | '/plans'
     | '/post'
     | '/post-reel'
+    | '/post-story'
     | '/reels'
     | '/edit-listing/$id'
     | '/seller/$id'
@@ -184,6 +194,7 @@ export interface FileRouteTypes {
     | '/plans'
     | '/post'
     | '/post-reel'
+    | '/post-story'
     | '/reels'
     | '/edit-listing/$id'
     | '/seller/$id'
@@ -201,6 +212,7 @@ export interface FileRouteTypes {
     | '/plans'
     | '/post'
     | '/post-reel'
+    | '/post-story'
     | '/reels'
     | '/edit-listing/$id'
     | '/seller/$id'
@@ -219,6 +231,7 @@ export interface RootRouteChildren {
   PlansRoute: typeof PlansRoute
   PostRoute: typeof PostRoute
   PostReelRoute: typeof PostReelRoute
+  PostStoryRoute: typeof PostStoryRoute
   ReelsRoute: typeof ReelsRoute
   EditListingIdRoute: typeof EditListingIdRoute
   SellerIdRoute: typeof SellerIdRoute
@@ -232,6 +245,13 @@ declare module '@tanstack/react-router' {
       path: '/reels'
       fullPath: '/reels'
       preLoaderRoute: typeof ReelsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/post-story': {
+      id: '/post-story'
+      path: '/post-story'
+      fullPath: '/post-story'
+      preLoaderRoute: typeof PostStoryRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/post-reel': {
@@ -347,6 +367,7 @@ const rootRouteChildren: RootRouteChildren = {
   PlansRoute: PlansRoute,
   PostRoute: PostRoute,
   PostReelRoute: PostReelRoute,
+  PostStoryRoute: PostStoryRoute,
   ReelsRoute: ReelsRoute,
   EditListingIdRoute: EditListingIdRoute,
   SellerIdRoute: SellerIdRoute,

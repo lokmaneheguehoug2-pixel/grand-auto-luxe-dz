@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
-import { Shield, Check, X, Eye, DollarSign, Ban, UserCheck, Crown, Users, Car, Clock, RefreshCw, Key, ChartBar as BarChart3, Activity, Tag, Megaphone, Settings, Copy, Trash2, Plus, Send, Receipt, Mail, UserX, Film, Play, Gauge, Fuel, Cog, MapPin, Calendar, FileText, Flag } from "lucide-react";
+import { Shield, Check, X, Eye, DollarSign, Ban, UserCheck, Crown, Users, Car, Clock, RefreshCw, Key, ChartBar as BarChart3, Activity, Tag, Megaphone, Settings, Copy, Trash2, Plus, Send, Receipt, Mail, UserX, Film, Play, Gauge, Fuel, Cog, MapPin, Calendar, FileText, Flag, ImageIcon, ZoomIn, ShieldCheck, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { useState, useEffect, useCallback } from "react";
 import { formatDZD } from "@/lib/format";
@@ -268,22 +268,37 @@ function StatCard({ icon: Icon, label, value, color }: { icon: React.ElementType
   );
 }
 
+const ACTIVATION_PLANS = [
+  { id: "individual-monthly", label: "Individual Monthly", amount: 1000, days: 30, tier: "individual" as const },
+  { id: "individual-yearly", label: "Individual Yearly", amount: 10000, days: 365, tier: "individual" as const },
+  { id: "showroom-monthly", label: "Showroom Monthly", amount: 2500, days: 30, tier: "showroom" as const },
+  { id: "showroom-yearly", label: "Showroom Yearly", amount: 25000, days: 365, tier: "showroom" as const },
+];
+
 function UsersManagementTab() {
   const [users, setUsers] = useState<FirebaseUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchPhone, setSearchPhone] = useState("");
   const [editingPassword, setEditingPassword] = useState<string | null>(null);
   const [newPassword, setNewPassword] = useState("");
+  const [activateUser, setActivateUser] = useState<FirebaseUser | null>(null);
+  const [selectedPlan, setSelectedPlan] = useState<string>("individual-monthly");
+  const [activating, setActivating] = useState(false);
 
   useEffect(() => {
     const usersRef = ref(realtimeDb, "users");
     const handleSnapshot = (snapshot: { val: () => Record<string, FirebaseUser> | null }) => {
-      const data = snapshot.val();
-      if (data) {
-        const usersList = Object.values(data);
-        const sorted = usersList.sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
-        setUsers(sorted);
-      } else { setUsers([]); }
+      try {
+        const data = snapshot.val();
+        if (data) {
+          const usersList = Object.values(data);
+          const sorted = usersList.sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+          setUsers(sorted);
+        } else { setUsers([]); }
+      } catch (err) {
+        console.error("Failed to load users:", err);
+        setUsers([]);
+      }
       setLoading(false);
     };
     onValue(usersRef, handleSnapshot);
@@ -299,18 +314,22 @@ function UsersManagementTab() {
   };
 
   const grantSubscription = async (user: FirebaseUser, planId: string) => {
+    setActivating(true);
     try {
-      let days = 30;
-      let tier: "individual" | "showroom" = "individual";
-      if (planId === "individual-yearly" || planId === "showroom-yearly") { days = 365; }
-      if (planId.startsWith("showroom")) { tier = "showroom"; }
-      const until = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
+      const plan = ACTIVATION_PLANS.find((p) => p.id === planId);
+      if (!plan) { toast.error("Invalid plan"); return; }
+      const until = new Date(Date.now() + plan.days * 24 * 60 * 60 * 1000).toISOString();
       await set(ref(realtimeDb, `users/${user.phone}/subscription_status`), "active");
       await set(ref(realtimeDb, `users/${user.phone}/subscription_until`), until);
-      await set(ref(realtimeDb, `users/${user.phone}/subscription_tier`), tier);
-      setUsers(users.map((u) => u.phone === user.phone ? { ...u, subscription_status: "active", subscription_until: until, subscription_tier: tier } : u));
-      toast.success(`Activated for ${days} days`);
-    } catch (err) { toast.error("Failed to grant subscription"); }
+      await set(ref(realtimeDb, `users/${user.phone}/subscription_tier`), plan.tier);
+      setUsers(users.map((u) => u.phone === user.phone ? { ...u, subscription_status: "active", subscription_until: until, subscription_tier: plan.tier } : u));
+      toast.success(`${plan.label} activated for ${plan.days} days`);
+      setActivateUser(null);
+    } catch (err) {
+      toast.error("Failed to grant subscription");
+    } finally {
+      setActivating(false);
+    }
   };
 
   const deleteUser = async (user: FirebaseUser) => {
@@ -347,19 +366,71 @@ function UsersManagementTab() {
         {filteredUsers.map((user) => (
           <div key={user.id || user.phone} className="premium-card rounded-xl p-4 border border-gold/20 flex items-center gap-4">
             <div className="flex-1">
-              <div className="font-medium flex items-center gap-2">{user.first_name} {user.last_name}{user.role === "admin" && <Badge variant="outline" className="text-xs border-gold/40 text-gold">Admin</Badge>}</div>
+              <div className="font-medium flex items-center gap-2">
+                {user.first_name} {user.last_name}
+                {user.role === "admin" && <Badge variant="outline" className="text-xs border-gold/40 text-gold">Admin</Badge>}
+                {user.subscription_status === "active" && (
+                  <Badge variant="outline" className={`text-xs ${user.subscription_tier === "showroom" || user.subscription_tier === "dealer" ? "border-gold text-gold" : "border-red-500 text-red-400"}`}>
+                    {user.subscription_tier === "showroom" || user.subscription_tier === "dealer" ? "Showroom" : "Individual"}
+                  </Badge>
+                )}
+              </div>
               <div className="text-xs text-muted-foreground">{user.phone}</div>
-              <div className="text-xs flex items-center gap-2 mt-1"><span className={user.subscription_status === "active" ? "text-green-400" : "text-yellow-400"}>{user.subscription_status}</span></div>
+              <div className="text-xs flex items-center gap-2 mt-1">
+                <span className={user.subscription_status === "active" ? "text-green-400" : "text-yellow-400"}>{user.subscription_status}</span>
+                {user.subscription_until && <span className="text-muted-foreground">until {new Date(user.subscription_until).toLocaleDateString()}</span>}
+              </div>
             </div>
             <div className="flex gap-2 flex-wrap">
               {!user.is_banned ? <Button variant="destructive" size="sm" onClick={() => toggleBan(user, true)}><Ban className="h-4 w-4" /></Button> : <Button variant="outline" size="sm" onClick={() => toggleBan(user, false)}><UserCheck className="h-4 w-4" /></Button>}
-              {user.role !== "admin" && <Button variant="gold" size="sm" onClick={() => grantSubscription(user, "individual-monthly")}>IM</Button>}
+              {user.role !== "admin" && (
+                <Button variant="gold" size="sm" onClick={() => { setActivateUser(user); setSelectedPlan("individual-monthly"); }}>
+                  <Crown className="h-4 w-4 mr-1" /> Activate
+                </Button>
+              )}
               <Button variant="ghost" size="sm" onClick={() => { setEditingPassword(user.phone); setNewPassword(""); }}><Key className="h-4 w-4" /></Button>
               {user.role !== "admin" && <Button variant="destructive" size="sm" onClick={() => deleteUser(user)}><UserX className="h-4 w-4" /></Button>}
             </div>
           </div>
         ))}
       </div>
+
+      {/* Activate Subscription Modal */}
+      <Dialog open={!!activateUser} onOpenChange={(open) => { if (!open) setActivateUser(null); }}>
+        <DialogContent className="max-w-md bg-background border-gold/40">
+          <DialogHeader>
+            <DialogTitle className="gold-text flex items-center gap-2">
+              <Crown className="h-5 w-5" /> Activate Subscription
+            </DialogTitle>
+          </DialogHeader>
+          {activateUser && (
+            <div className="space-y-4">
+              <div className="text-sm text-muted-foreground">
+                User: <span className="font-medium text-foreground">{activateUser.first_name} {activateUser.last_name}</span> ({activateUser.phone})
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {ACTIVATION_PLANS.map((p) => (
+                  <button
+                    key={p.id}
+                    onClick={() => setSelectedPlan(p.id)}
+                    className={`rounded-lg border p-3 text-left transition ${
+                      selectedPlan === p.id
+                        ? p.tier === "showroom" ? "border-gold bg-gold/10" : "border-red-500 bg-red-500/10"
+                        : "border-white/10 bg-charcoal/40 hover:border-gold/30"
+                    }`}>
+                    <div className="text-xs text-white/60">{p.label.includes("yearly") ? "Yearly" : "Monthly"}</div>
+                    <div className="font-medium">{p.amount.toLocaleString()} DZD</div>
+                    <div className="text-[10px] text-muted-foreground mt-0.5">{p.tier === "showroom" ? "Showroom" : "Individual"}</div>
+                  </button>
+                ))}
+              </div>
+              <Button variant="gold" className="w-full" disabled={activating} onClick={() => grantSubscription(activateUser, selectedPlan)}>
+                {activating ? "Activating..." : "Verify & Activate"}
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -753,29 +824,173 @@ function AnalyticsTab() {
   );
 }
 
+type SubscriptionRecord = {
+  id: string;
+  userId: string;
+  userPhone: string;
+  plan: string;
+  amount: number;
+  receiptUrl: string | null;
+  status: "pending" | "verified" | "rejected";
+  submittedAt: string;
+};
+
 function ReceiptsTab() {
-  const [subscriptions, setSubscriptions] = useState<{ id: string; userPhone: string; plan: string; status: string }[]>([]);
+  const [subscriptions, setSubscriptions] = useState<SubscriptionRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [viewingReceipt, setViewingReceipt] = useState<string | null>(null);
+  const [verifying, setVerifying] = useState<string | null>(null);
 
   useEffect(() => {
     const subsRef = ref(realtimeDb, "subscriptions");
     const handle = (snapshot: { val: () => Record<string, any> | null }) => {
-      const data = snapshot.val();
-      if (data) setSubscriptions(Object.entries(data).map(([id, v]) => ({ id, userPhone: v.userPhone || "", plan: v.plan || "", status: v.status || "pending" })));
-      else setSubscriptions([]);
+      try {
+        const data = snapshot.val();
+        if (data) {
+          const list: SubscriptionRecord[] = Object.entries(data).map(([id, v]) => ({
+            id,
+            userId: v.userId || "",
+            userPhone: v.userPhone || "",
+            plan: v.plan || "",
+            amount: Number(v.amount) || 0,
+            receiptUrl: v.receiptUrl || null,
+            status: v.status || "pending",
+            submittedAt: v.submittedAt || new Date().toISOString(),
+          }));
+          list.sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
+          setSubscriptions(list);
+        } else setSubscriptions([]);
+      } catch (err) {
+        console.error("Failed to load subscriptions:", err);
+        setSubscriptions([]);
+      }
       setLoading(false);
     };
     onValue(subsRef, handle);
     return () => off(subsRef);
   }, []);
 
-  if (loading) return <div className="py-10 text-center text-muted-foreground">Loading...</div>;
+  const verifyAndActivate = async (sub: SubscriptionRecord) => {
+    setVerifying(sub.id);
+    try {
+      const plan = ACTIVATION_PLANS.find((p) => p.id === sub.plan);
+      const days = plan?.days || 30;
+      const tier = plan?.tier || "individual";
+      const until = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
+
+      await set(ref(realtimeDb, `subscriptions/${sub.id}/status`), "verified");
+      await set(ref(realtimeDb, `users/${sub.userPhone}/subscription_status`), "active");
+      await set(ref(realtimeDb, `users/${sub.userPhone}/subscription_until`), until);
+      await set(ref(realtimeDb, `users/${sub.userPhone}/subscription_tier`), tier);
+
+      setSubscriptions(subscriptions.map((s) => s.id === sub.id ? { ...s, status: "verified" } : s));
+      toast.success(`Subscription activated for ${sub.userPhone}`);
+    } catch (err) {
+      toast.error("Failed to verify and activate");
+    } finally {
+      setVerifying(null);
+    }
+  };
+
+  const rejectReceipt = async (sub: SubscriptionRecord) => {
+    try {
+      await set(ref(realtimeDb, `subscriptions/${sub.id}/status`), "rejected");
+      setSubscriptions(subscriptions.map((s) => s.id === sub.id ? { ...s, status: "rejected" } : s));
+      toast.success("Receipt rejected");
+    } catch (err) {
+      toast.error("Failed to reject receipt");
+    }
+  };
+
+  if (loading) return <div className="py-10 text-center text-muted-foreground">Loading receipts...</div>;
+
+  const pending = subscriptions.filter((s) => s.status === "pending");
+  const verified = subscriptions.filter((s) => s.status === "verified");
 
   return (
-    <div className="space-y-3">
-      {subscriptions.filter((s) => s.status === "pending").map((s) => (
-        <div key={s.id} className="premium-card rounded-xl p-4 border border-gold/20">{s.plan} / {s.userPhone}</div>
+    <div className="space-y-4">
+      <div className="text-sm text-muted-foreground">{pending.length} pending · {verified.length} verified</div>
+
+      {pending.length === 0 && (
+        <div className="text-center py-8 text-muted-foreground">
+          <Receipt className="h-10 w-10 mx-auto mb-2 text-gold/40" />
+          <p>No pending receipts.</p>
+        </div>
+      )}
+
+      {pending.map((sub) => (
+        <div key={sub.id} className="premium-card rounded-xl p-4 border border-gold/20">
+          <div className="flex flex-col sm:flex-row gap-4">
+            {/* Receipt Image */}
+            <div className="shrink-0">
+              {sub.receiptUrl ? (
+                <button
+                  onClick={() => setViewingReceipt(sub.receiptUrl)}
+                  className="relative group block"
+                >
+                  <img
+                    src={sub.receiptUrl}
+                    alt="Payment receipt"
+                    className="h-32 w-32 rounded-lg border border-gold/20 object-cover"
+                  />
+                  <div className="absolute inset-0 rounded-lg bg-black/0 group-hover:bg-black/40 transition grid place-items-center">
+                    <ZoomIn className="h-6 w-6 text-white opacity-0 group-hover:opacity-100 transition" />
+                  </div>
+                </button>
+              ) : (
+                <div className="h-32 w-32 rounded-lg border border-border bg-charcoal grid place-items-center">
+                  <ImageIcon className="h-8 w-8 text-muted-foreground/40" />
+                </div>
+              )}
+            </div>
+
+            {/* Details */}
+            <div className="flex-1 min-w-0">
+              <div className="font-medium flex items-center gap-2">
+                {sub.plan}
+                <Badge variant="outline" className="text-xs border-yellow-500 text-yellow-400">{sub.status}</Badge>
+              </div>
+              <div className="text-xs text-muted-foreground mt-1">{sub.userPhone}</div>
+              <div className="text-xs text-muted-foreground">{sub.amount.toLocaleString()} DZD</div>
+              <div className="text-xs text-muted-foreground">Submitted: {new Date(sub.submittedAt).toLocaleString()}</div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex flex-col gap-2 shrink-0">
+              <Button variant="gold" size="sm" disabled={verifying === sub.id} onClick={() => verifyAndActivate(sub)}>
+                {verifying === sub.id ? (
+                  <><RefreshCw className="h-4 w-4 mr-1 animate-spin" /> Verifying...</>
+                ) : (
+                  <><ShieldCheck className="h-4 w-4 mr-1" /> Verify & Activate</>
+                )}
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => rejectReceipt(sub)}>
+                <X className="h-4 w-4 mr-1" /> Reject
+              </Button>
+            </div>
+          </div>
+        </div>
       ))}
+
+      {/* Fullscreen Receipt Viewer */}
+      <Dialog open={!!viewingReceipt} onOpenChange={(open) => { if (!open) setViewingReceipt(null); }}>
+        <DialogContent className="max-w-3xl bg-black border-gold/40 p-0 overflow-hidden">
+          <DialogHeader className="px-5 pt-5 pb-3 border-b border-border/60">
+            <DialogTitle className="font-display text-lg gold-text flex items-center gap-2">
+              <Receipt className="h-5 w-5" /> Payment Receipt
+            </DialogTitle>
+          </DialogHeader>
+          {viewingReceipt && (
+            <div className="p-4 max-h-[80vh] overflow-y-auto grid place-items-center">
+              <img
+                src={viewingReceipt}
+                alt="Receipt fullscreen"
+                className="max-w-full max-h-[70vh] object-contain rounded-lg"
+              />
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -34,20 +34,20 @@ export function CompareTray() {
 
   return (
     <>
-      <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 premium-card gold-border rounded-2xl px-4 py-3 flex items-center gap-3 shadow-[0_10px_40px_-10px_rgba(212,175,55,0.6)] backdrop-blur-xl bg-background/85">
-        <div className="flex items-center gap-2 text-xs uppercase tracking-widest text-gold">
-          <Scale className="h-4 w-4" /> Compare · {ids.length}/4
+      <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 premium-card gold-border rounded-2xl px-3 sm:px-4 py-2.5 sm:py-3 flex items-center gap-2 sm:gap-3 shadow-[0_10px_40px_-10px_rgba(212,175,55,0.6)] backdrop-blur-xl bg-background/85 max-w-[95vw]">
+        <div className="flex items-center gap-1.5 sm:gap-2 text-[10px] sm:text-xs uppercase tracking-widest text-gold whitespace-nowrap">
+          <Scale className="h-4 w-4 shrink-0" /> <span className="hidden sm:inline">Compare ·</span> {ids.length}/4
         </div>
-        <Button variant="gold" size="sm" disabled={ids.length < 2} onClick={() => setOpen(true)}>Compare Now</Button>
-        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => compareStore.clear()}>
-          <Trash2 className="h-4 w-4 text-destructive" />
+        <Button variant="gold" size="sm" disabled={ids.length < 2} onClick={() => setOpen(true)} className="text-xs sm:text-sm">Compare</Button>
+        <Button variant="ghost" size="icon" className="h-7 w-7 sm:h-8 sm:w-8 shrink-0" onClick={() => compareStore.clear()}>
+          <Trash2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-destructive" />
         </Button>
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-5xl bg-background border-gold/40 p-0 overflow-hidden">
-          <DialogHeader className="px-5 pt-5 pb-3 border-b border-border/60">
-            <DialogTitle className="font-display text-xl gold-text flex items-center gap-2">
+        <DialogContent className="sm:max-w-5xl max-w-[95vw] bg-background border-gold/40 p-0 overflow-hidden">
+          <DialogHeader className="px-4 sm:px-5 pt-4 sm:pt-5 pb-3 border-b border-border/60">
+            <DialogTitle className="font-display text-lg sm:text-xl gold-text flex items-center gap-2">
               <Scale className="h-5 w-5 text-gold" /> Luxury Compare
             </DialogTitle>
           </DialogHeader>
@@ -142,21 +142,22 @@ function CompareTable({ ids }: { ids: string[] }) {
 
   return (
     <div className="overflow-x-auto">
-      <div className="flex items-center justify-end gap-2 px-5 py-2 border-b border-border/40">
+      <div className="flex items-center justify-end gap-2 px-4 sm:px-5 py-2 border-b border-border/40">
         <span className="text-xs text-muted-foreground">Highlight differences</span>
         <button onClick={() => setHighlight(!highlight)} className="text-gold">
           {highlight ? <ToggleRight className="h-6 w-6" /> : <ToggleLeft className="h-6 w-6" />}
         </button>
       </div>
 
-      <table className="w-full text-sm">
+      {/* Desktop: Table layout */}
+      <table className="hidden sm:table w-full text-sm">
         <thead>
           <tr className="border-b border-border/60">
-            <th className="w-32 sticky left-0 bg-background z-10 px-3 py-2 text-left text-xs uppercase tracking-widest text-muted-foreground font-medium">
+            <th className="w-28 lg:w-32 sticky left-0 bg-background z-10 px-3 py-2 text-left text-xs uppercase tracking-widest text-muted-foreground font-medium">
               Vehicle
             </th>
             {vehicles.map((v) => (
-              <th key={v.id} className="px-3 py-2 align-bottom min-w-[160px]">
+              <th key={v.id} className="px-3 py-2 align-bottom min-w-[140px] lg:min-w-[160px]">
                 <div className="relative">
                   <div className="aspect-[4/3] rounded-lg overflow-hidden bg-charcoal mb-2 relative">
                     {(v.photos?.[0] || v.images?.[0]) && (
@@ -177,7 +178,6 @@ function CompareTable({ ids }: { ids: string[] }) {
           </tr>
         </thead>
         <tbody>
-          {/* Price row */}
           <tr className={`border-b border-border/40 ${priceDiffers ? "bg-gold/10" : ""}`}>
             <td className="px-3 py-2.5 text-xs uppercase tracking-widest text-muted-foreground font-medium sticky left-0 bg-background z-10">
               Price
@@ -193,7 +193,6 @@ function CompareTable({ ids }: { ids: string[] }) {
               );
             })}
           </tr>
-          {/* Data rows */}
           {ROWS.map((r) => {
             const isDiff = differingLabels.has(r.label);
             return (
@@ -215,6 +214,66 @@ function CompareTable({ ids }: { ids: string[] }) {
           })}
         </tbody>
       </table>
+
+      {/* Mobile: Card-based layout */}
+      <div className="sm:hidden divide-y divide-border/40">
+        {/* Vehicle headers */}
+        <div className="flex gap-2 p-3 overflow-x-auto no-scrollbar">
+          {vehicles.map((v) => (
+            <div key={v.id} className="shrink-0 w-32">
+              <div className="relative aspect-[4/3] rounded-lg overflow-hidden bg-charcoal mb-1.5">
+                {(v.photos?.[0] || v.images?.[0]) && (
+                  <img src={v.photos?.[0] || v.images?.[0]} className="h-full w-full object-cover" alt={`${v.brand} ${v.model}`} />
+                )}
+                <button
+                  onClick={() => compareStore.remove(v.id)}
+                  className="absolute top-1 right-1 h-5 w-5 rounded-full bg-black/70 grid place-items-center"
+                >
+                  <X className="h-3 w-3 text-gold" />
+                </button>
+              </div>
+              <div className="font-display text-xs leading-tight truncate">{v.brand} {v.model}</div>
+              <div className="text-[10px] text-muted-foreground">{v.year}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Price row */}
+        <div className={`flex items-center gap-2 px-3 py-2.5 ${priceDiffers ? "bg-gold/10" : ""}`}>
+          <div className="w-20 shrink-0 text-[10px] uppercase tracking-widest text-muted-foreground font-medium">Price</div>
+          <div className="flex gap-2 flex-1 overflow-x-auto no-scrollbar">
+            {vehicles.map((v) => {
+              const p = priceOf(v);
+              const isBest = highlight && priceDiffers && p === maxPrice && p > 0;
+              return (
+                <div key={v.id} className={`min-w-[80px] text-xs ${isBest ? "text-gold font-bold" : "font-medium"}`}>
+                  {p ? formatDZD(p) : "—"}
+                  {isBest && <span className="text-[9px] text-gold/70 ml-0.5">★</span>}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Data rows */}
+        {ROWS.map((r) => {
+          const isDiff = differingLabels.has(r.label);
+          return (
+            <div key={r.label} className={`flex items-center gap-2 px-3 py-2.5 ${isDiff ? "bg-gold/10" : ""}`}>
+              <div className="w-20 shrink-0 text-[10px] uppercase tracking-widest text-muted-foreground font-medium">{r.label}</div>
+              <div className="flex gap-2 flex-1 overflow-x-auto no-scrollbar">
+                {vehicles.map((v) => {
+                  const val = v[r.key];
+                  const formatted = r.format ? r.format(val) : String(val ?? "—");
+                  return (
+                    <div key={v.id} className="min-w-[80px] text-xs">{formatted}</div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
