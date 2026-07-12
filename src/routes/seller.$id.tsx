@@ -106,16 +106,22 @@ function SellerProfile() {
     async function load() {
       setLoading(true);
       try {
-        // Multi-strategy lookup: try id directly, then strip admin- prefix, then search vehicles for matching sellerId
-        let profileSnap = await get(ref(realtimeDb, `users/${id}`));
+        console.log("[Profile] Fetching profile for id:", id);
 
+        // Strategy 1: direct lookup at users/{id}
+        let profileSnap = await get(ref(realtimeDb, `users/${id}`));
+        console.log("[Profile] Direct lookup users/" + id + ":", profileSnap.exists());
+
+        // Strategy 2: strip admin- prefix
         if (!profileSnap.exists() && id.startsWith("admin-")) {
           const phonePart = id.replace("admin-", "");
           profileSnap = await get(ref(realtimeDb, `users/${phonePart}`));
+          console.log("[Profile] Stripped admin- prefix, lookup users/" + phonePart + ":", profileSnap.exists());
         }
 
+        // Strategy 3: search vehicles for matching sellerId/sellerPhone to recover phone
+        let recoveredPhone: string | null = null;
         if (!profileSnap.exists()) {
-          // Try looking up by searching vehicles for a matching sellerId to find the phone
           const vehiclesSnap = await get(ref(realtimeDb, "vehicles"));
           if (vehiclesSnap.exists()) {
             const allV = vehiclesSnap.val() as Record<string, any>;
@@ -123,14 +129,58 @@ function SellerProfile() {
               (v) => v.sellerId === id || v.sellerPhone === id,
             );
             if (match?.sellerPhone) {
+              recoveredPhone = match.sellerPhone;
               profileSnap = await get(ref(realtimeDb, `users/${match.sellerPhone}`));
+              console.log("[Profile] Vehicle lookup recovered phone:", match.sellerPhone, "→ exists:", profileSnap.exists());
             }
           }
         }
 
+        // Determine the effective phone key for content queries
+        const phoneKey = profileSnap.exists()
+          ? (profileSnap.val().phone || id)
+          : (recoveredPhone || (id.startsWith("admin-") ? id.replace("admin-", "") : id));
+
+        // Load vehicles, reels, stories regardless of whether profile exists
+        const vehiclesSnap = await get(ref(realtimeDb, "vehicles"));
+        let sellerVehicles: Vehicle[] = [];
+        if (vehiclesSnap.exists()) {
+          const allVehicles = vehiclesSnap.val() as Record<string, Vehicle>;
+          sellerVehicles = Object.entries(allVehicles)
+            .filter(([_, v]) => v.sellerId === id || v.sellerPhone === id || v.sellerId === phoneKey || v.sellerPhone === phoneKey)
+            .map(([vid, v]) => ({ ...v, id: vid }))
+            .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+          setVehicles(sellerVehicles);
+        }
+
+        const reelsSnap = await get(ref(realtimeDb, "reels"));
+        if (reelsSnap.exists()) {
+          const allReels = reelsSnap.val() as Record<string, Reel>;
+          const sellerReels = Object.entries(allReels)
+            .filter(([_, r]) => r.authorId === id || r.authorPhone === id || r.authorId === phoneKey || r.authorPhone === phoneKey)
+            .map(([rid, r]) => ({ ...r, id: rid }))
+            .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+          setReels(sellerReels);
+        }
+
+        const storiesSnap = await get(ref(realtimeDb, "stories"));
+        if (storiesSnap.exists()) {
+          const now = Date.now();
+          const allStories = storiesSnap.val() as Record<string, Story>;
+          const sellerStories = Object.entries(allStories)
+            .filter(([_, s]) =>
+              (s.authorId === id || s.authorPhone === id || s.authorId === phoneKey || s.authorPhone === phoneKey) &&
+              now - new Date(s.createdAt).getTime() < TWENTY_FOUR_HOURS_MS,
+            )
+            .map(([sid, s]) => ({ ...s, id: sid }))
+            .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+          setStories(sellerStories);
+        }
+
         if (profileSnap.exists()) {
+          // Profile found in Firebase
           const data = profileSnap.val();
-          const phoneKey = data.phone || id;
+          console.log("[Profile] Found profile data:", { phone: data.phone, first_name: data.first_name, subscription_tier: data.subscription_tier });
           setProfile({
             id,
             phone: phoneKey,
@@ -148,46 +198,30 @@ function SellerProfile() {
           });
           setEditBio(data.bio || "");
           setEditShowroomName(data.showroom_name || "");
-
-          // Load vehicles by this seller
-          const vehiclesSnap = await get(ref(realtimeDb, "vehicles"));
-          if (vehiclesSnap.exists()) {
-            const allVehicles = vehiclesSnap.val() as Record<string, Vehicle>;
-            const sellerVehicles = Object.entries(allVehicles)
-              .filter(([_, v]) => v.sellerId === id || v.sellerPhone === id || v.sellerId === phoneKey || v.sellerPhone === phoneKey)
-              .map(([vid, v]) => ({ ...v, id: vid }))
-              .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
-            setVehicles(sellerVehicles);
-          }
-
-          // Load reels by this seller
-          const reelsSnap = await get(ref(realtimeDb, "reels"));
-          if (reelsSnap.exists()) {
-            const allReels = reelsSnap.val() as Record<string, Reel>;
-            const sellerReels = Object.entries(allReels)
-              .filter(([_, r]) => r.authorId === id || r.authorPhone === id || r.authorId === phoneKey || r.authorPhone === phoneKey)
-              .map(([rid, r]) => ({ ...r, id: rid }))
-              .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
-            setReels(sellerReels);
-          }
-
-          // Load active stories by this seller (24h only)
-          const storiesSnap = await get(ref(realtimeDb, "stories"));
-          if (storiesSnap.exists()) {
-            const now = Date.now();
-            const allStories = storiesSnap.val() as Record<string, Story>;
-            const sellerStories = Object.entries(allStories)
-              .filter(([_, s]) =>
-                (s.authorId === id || s.authorPhone === id || s.authorId === phoneKey || s.authorPhone === phoneKey) &&
-                now - new Date(s.createdAt).getTime() < TWENTY_FOUR_HOURS_MS,
-              )
-              .map(([sid, s]) => ({ ...s, id: sid }))
-              .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-            setStories(sellerStories);
-          }
+        } else if (sellerVehicles.length > 0 || reelsSnap.exists() || storiesSnap.exists()) {
+          // No users/ entry but has content — build a minimal profile from vehicle/reel metadata
+          console.log("[Profile] No users/ entry but content exists. Building fallback profile for phone:", phoneKey);
+          const firstVehicle = sellerVehicles[0];
+          setProfile({
+            id,
+            phone: phoneKey,
+            first_name: "",
+            last_name: "",
+            showroom_name: undefined,
+            bio: undefined,
+            avatar_url: undefined,
+            avatar_updated_at: undefined,
+            subscription_status: "trial",
+            subscription_until: undefined,
+            subscription_tier: undefined,
+            is_showroom: false,
+            instagram: undefined,
+          });
+        } else {
+          console.log("[Profile] No profile and no content found for id:", id);
         }
       } catch (err) {
-        console.error("Error loading seller profile:", err);
+        console.error("[Profile] Error loading seller profile:", err);
       }
       setLoading(false);
     }
