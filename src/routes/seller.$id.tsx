@@ -4,7 +4,7 @@ import { formatDZD } from "@/lib/format";
 import {
   BadgeCheck, Car, MapPin, Gauge, Crown, AlertTriangle, Tag, Calendar,
   Instagram, Phone, MessageCircle, Camera, Pencil, Trash2, Film, Heart,
-  Lock, Grid, Play, Eye,
+  Lock, Grid, Play, Eye, Flag,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PremiumPaywallModal } from "@/components/PremiumPaywallModal";
@@ -14,7 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
 import { realtimeDb } from "@/lib/firebase";
-import { ref, get, set, remove, onValue, off } from "firebase/database";
+import { ref, get, set, remove, onValue, off, push } from "firebase/database";
 import { uploadImageToCloudinary } from "@/lib/cloudinary";
 import { ChatDialog } from "@/components/ChatDialog";
 
@@ -104,6 +104,9 @@ function SellerProfile() {
   const [savingProfile, setSavingProfile] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const [paywallOpen, setPaywallOpen] = useState(false);
+  const [showReportDialog, setShowReportDialog] = useState(false);
+  const [reportReason, setReportReason] = useState("");
+  const [reporting, setReporting] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -314,6 +317,32 @@ function SellerProfile() {
     }
   };
 
+  const handleReport = async () => {
+    if (!reportReason.trim()) { toast.error("Please describe the issue"); return; }
+    setReporting(true);
+    try {
+      const reportRef = push(ref(realtimeDb, "reports"));
+      await set(reportRef, {
+        id: reportRef.key,
+        contentType: "seller",
+        contentId: id,
+        contentTitle: `${profile?.first_name || ""} ${profile?.last_name || ""} (${profile?.phone || id})`,
+        reporterId: user?.id || "anonymous",
+        reporterPhone: user?.phone || "anonymous",
+        reason: reportReason.trim(),
+        status: "pending",
+        createdAt: new Date().toISOString(),
+      });
+      toast.success("Report submitted. Admin will review it.");
+      setShowReportDialog(false);
+      setReportReason("");
+    } catch (err) {
+      toast.error("Failed to submit report");
+    } finally {
+      setReporting(false);
+    }
+  };
+
   const getInstagramUrl = (username: string) => {
     if (!username) return null;
     const clean = username.replace("@", "").trim();
@@ -325,7 +354,7 @@ function SellerProfile() {
 
   const activeVehicles = vehicles.filter((v) => v.status === "active" || !v.status);
   const soldVehicles = vehicles.filter((v) => v.status === "sold");
-  const canSeeContact = access === "active" || isOwnProfile || isAdmin;
+  const canSeeContact = !!user && (access === "active" || isOwnProfile || isAdmin);
 
   if (loading) {
     return (
@@ -463,6 +492,15 @@ function SellerProfile() {
             </Button>
             <Button variant="ghost" size="sm" asChild>
               <Link to="/plans"><Crown className="h-4 w-4 text-gold mr-1.5" /> Upgrade</Link>
+            </Button>
+          </div>
+        )}
+
+        {/* Report button - only for subscribed users viewing someone else's profile */}
+        {user && !isOwnProfile && access === "active" && (
+          <div className="mt-4 flex justify-center">
+            <Button variant="outline" size="sm" onClick={() => setShowReportDialog(true)} className="text-muted-foreground hover:text-destructive border-border/60">
+              <Flag className="h-4 w-4 mr-2" /> Report Profile
             </Button>
           </div>
         )}
@@ -673,6 +711,28 @@ function SellerProfile() {
       </Dialog>
 
       <PremiumPaywallModal open={paywallOpen} onOpenChange={setPaywallOpen} />
+
+      {/* Report Dialog */}
+      <Dialog open={showReportDialog} onOpenChange={setShowReportDialog}>
+        <DialogContent className="max-w-md bg-background border-gold/40">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive"><Flag className="h-5 w-5" /> Report Profile</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">Describe why you're reporting this profile. Admin will review it.</p>
+          <Textarea
+            value={reportReason}
+            onChange={(e) => setReportReason(e.target.value)}
+            placeholder="e.g. fake account, scam, misleading info..."
+            className="bg-charcoal min-h-[80px]"
+          />
+          <div className="flex gap-2">
+            <Button variant="destructive" onClick={handleReport} disabled={reporting}>
+              {reporting ? "Submitting..." : "Submit Report"}
+            </Button>
+            <Button variant="ghost" onClick={() => setShowReportDialog(false)}>Cancel</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
