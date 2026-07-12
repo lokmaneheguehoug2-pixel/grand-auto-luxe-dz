@@ -154,9 +154,23 @@ function VehicleDetail() {
   useEffect(() => {
     async function loadOwner() {
       if (!v?.sellerPhone && !v?.sellerId) return;
-      const phoneKey = v.sellerPhone || v.sellerId;
+      let phoneKey = v.sellerPhone || v.sellerId;
+      if (phoneKey.startsWith("admin-")) {
+        phoneKey = phoneKey.replace("admin-", "");
+      }
       try {
-        const snap = await get(ref(realtimeDb, `users/${phoneKey}`));
+        let snap = await get(ref(realtimeDb, `users/${phoneKey}`));
+        if (!snap.exists() && v.sellerId) {
+          const vehiclesSnap = await get(ref(realtimeDb, "vehicles"));
+          if (vehiclesSnap.exists()) {
+            const allV = vehiclesSnap.val() as Record<string, any>;
+            const match = Object.values(allV).find((veh) => veh.sellerId === v.sellerId);
+            if (match?.sellerPhone) {
+              phoneKey = match.sellerPhone;
+              snap = await get(ref(realtimeDb, `users/${phoneKey}`));
+            }
+          }
+        }
         if (snap.exists()) {
           const data = snap.val();
           setOwner({
