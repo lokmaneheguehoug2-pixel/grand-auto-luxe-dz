@@ -1,12 +1,13 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { Link } from "@tanstack/react-router";
 import { realtimeDb } from "@/lib/firebase";
-import { ref, onValue, off, get, remove, set } from "firebase/database";
-import { Plus, Film, Trash2, X } from "lucide-react";
+import { ref, onValue, off, get, remove, set, push } from "firebase/database";
+import { Plus, Film, Trash2, Heart, Send, ChevronLeft, ChevronRight, X } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 
 type Story = {
   id: string;
@@ -18,7 +19,11 @@ type Story = {
   duration?: number;
   quotaMonth?: string | null;
   author_name?: string;
+  author_avatar?: string | null;
   is_showroom?: boolean;
+  vehicleId?: string | null;
+  vehicleTitle?: string | null;
+  likedBy?: string[];
 };
 
 const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
@@ -26,7 +31,7 @@ const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
 export function StoriesStrip() {
   const { user, access, isAdmin } = useAuth();
   const [stories, setStories] = useState<Story[]>([]);
-  const [viewing, setViewing] = useState<Story | null>(null);
+  const [viewingIndex, setViewingIndex] = useState<number | null>(null);
 
   useEffect(() => {
     if (!realtimeDb) return;
@@ -48,6 +53,9 @@ export function StoriesStrip() {
             createdAt: s?.createdAt || new Date().toISOString(),
             duration: s?.duration,
             quotaMonth: s?.quotaMonth,
+            vehicleId: s?.vehicleId || null,
+            vehicleTitle: s?.vehicleTitle || null,
+            likedBy: Array.isArray(s?.likedBy) ? s.likedBy : [],
           }))
           .filter((s) => {
             const age = now - new Date(s.createdAt).getTime();
@@ -72,12 +80,16 @@ export function StoriesStrip() {
           const author_name = p?.is_showroom && p.showroom_name
             ? p.showroom_name
             : `${p?.first_name ?? ""} ${p?.last_name ?? ""}`.trim() || "User";
-          return { ...s, author_name, is_showroom: p?.is_showroom || p?.subscription_tier === "showroom" || p?.subscription_tier === "dealer" };
+          return {
+            ...s,
+            author_name,
+            author_avatar: p?.avatar_url || null,
+            is_showroom: p?.is_showroom || p?.subscription_tier === "showroom" || p?.subscription_tier === "dealer",
+          };
         });
 
         setStories(withAuthors);
 
-        // Client-side cleanup: delete expired stories
         const expired = Object.entries(data)
           .filter(([, s]: [string, any]) => {
             const age = now - new Date(s?.createdAt || 0).getTime();
@@ -104,9 +116,8 @@ export function StoriesStrip() {
     try {
       await remove(ref(realtimeDb, `stories/${story.id}`));
       setStories((prev) => prev.filter((s) => s.id !== story.id));
-      setViewing(null);
+      setViewingIndex(null);
 
-      // Quota refund: only for non-showroom users who have a quotaMonth set
       if (story.quotaMonth && !story.is_showroom) {
         try {
           const quotaRef = ref(realtimeDb, `story_quota/${story.authorPhone}/${story.quotaMonth}`);
@@ -127,6 +138,64 @@ export function StoriesStrip() {
       toast.error("Failed to delete story");
     }
   }, []);
+
+  const handleLike = useCallback(async (story: Story) => {
+    if (!user) { toast.error("Sign in to like stories"); return; }
+    try {
+      const likes = story.likedBy || [];
+      const isLiked = likes.includes(user.id);
+      const newLikes = isLiked ? likes.filter((id) => id !== user.id) : [...likes, user.id];
+      await set(ref(realtimeDb, `stories/${story.id}/likedBy`), newLikes);
+      setStories((prev) => prev.map((s) => s.id === story.id ? { ...s, likedBy: newLikes } : s));
+
+      if (!isLiked && story.authorId !== user.id) {
+        const notifRef = push(ref(realtimeDb, `users/${story.authorPhone}/notifications`));
+        await set(notifRef, {
+          id: notifRef.key,
+          title: "New like on your story",
+          body: `${user.phone} liked your story`,
+          type: "story_like",
+          storyId: story.id,
+          createdAt: new Date().toISOString(),
+          read: false,
+        });
+      }
+    } catch (err) {
+      console.error("Failed to like story:", err);
+    }
+  }, [user]);
+
+  const handleReply = useCallback(async (story: Story, text: string) => {
+    if (!user || !text.trim()) return;
+    try {
+      const msgRef = push(ref(realtimeDb, "messages"));
+      await set(msgRef, {
+        id: msgRef.key,
+        vehicleId: story.vehicleId || "",
+        senderId: user.id,
+        recipientId: story.authorId,
+        body: text.trim(),
+        createdAt: new Date().toISOString(),
+        readAt: null,
+      });
+
+      const notifRef = push(ref(realtimeDb, `users/${story.authorPhone}/notifications`));
+      await set(notifRef, {
+        id: notifRef.key,
+        title: "New story reply",
+        body: text.trim().slice(0, 140),
+        type: "story_reply",
+        storyId: story.id,
+        vehicleId: story.vehicleId || "",
+        createdAt: new Date().toISOString(),
+        read: false,
+      });
+
+      toast.success("Reply sent");
+    } catch (err) {
+      toast.error("Failed to send reply");
+    }
+  }, [user]);
 
   if (stories.length === 0 && !user) return null;
 
@@ -150,11 +219,12 @@ export function StoriesStrip() {
                 <div className="text-[10px] text-center mt-1.5 text-gold/90 truncate">Your story</div>
               </Link>
             )}
-            {stories.map((s) => {
+            {stories.map((s, i) => {
               const isOwner = user?.id === s.authorId || user?.phone === s.authorPhone;
               const canDelete = isOwner || isAdmin;
+              const liked = s.likedBy?.includes(user?.id || "") ?? false;
               return (
-                <div key={s.id} className="shrink-0 w-20 group cursor-pointer" onClick={() => setViewing(s)}>
+                <div key={s.id} className="shrink-0 w-20 group cursor-pointer" onClick={() => setViewingIndex(i)}>
                   <div className="relative h-28 w-20 rounded-xl overflow-hidden gold-border bg-black">
                     {s.videoUrl ? (
                       <video
@@ -175,6 +245,9 @@ export function StoriesStrip() {
                     <div className="absolute bottom-1 inset-x-1 text-[9px] text-white text-center truncate font-semibold drop-shadow">
                       {s.author_name || "User"}
                     </div>
+                    {liked && (
+                      <Heart className="absolute top-1 left-1 h-3.5 w-3.5 fill-red-500 text-red-500" />
+                    )}
                     {canDelete && (
                       <button
                         onClick={(e) => { e.stopPropagation(); handleDeleteStory(s); }}
@@ -192,45 +265,227 @@ export function StoriesStrip() {
         </div>
       </div>
 
-      {/* Story Viewer */}
-      <Dialog open={!!viewing} onOpenChange={(open) => { if (!open) setViewing(null); }}>
-        <DialogContent className="max-w-sm p-0 bg-black border-gold/40 overflow-hidden">
-          {viewing && (
-            <div className="relative">
-              <video
-                src={viewing.videoUrl}
-                controls
-                autoPlay
-                playsInline
-                className="w-full max-h-[70vh] object-contain bg-black"
-              />
-              <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/90 to-transparent">
-                <div className="text-sm font-medium text-white">{viewing.author_name || "User"}</div>
-                {viewing.caption && <p className="text-xs text-white/70 mt-0.5">{viewing.caption}</p>}
-                <div className="text-[10px] text-white/50 mt-1">
-                  {new Date(viewing.createdAt).toLocaleString()}
-                  {viewing.duration && ` · ${viewing.duration}s`}
-                </div>
-              </div>
-              {(() => {
-                const isOwner = user?.id === viewing.authorId || user?.phone === viewing.authorPhone;
-                const canDelete = isOwner || isAdmin;
-                if (!canDelete) return null;
-                return (
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    className="absolute top-2 right-2"
-                    onClick={() => handleDeleteStory(viewing)}
-                  >
-                    <Trash2 className="h-4 w-4 mr-1" /> Delete
-                  </Button>
-                );
-              })()}
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+      {/* Full-screen Story Viewer */}
+      {viewingIndex !== null && stories[viewingIndex] && (
+        <FullScreenStoryViewer
+          stories={stories}
+          startIndex={viewingIndex}
+          user={user}
+          isAdmin={isAdmin}
+          onClose={() => setViewingIndex(null)}
+          onDelete={handleDeleteStory}
+          onLike={handleLike}
+          onReply={handleReply}
+          onNavigate={setViewingIndex}
+        />
+      )}
     </>
+  );
+}
+
+function FullScreenStoryViewer({
+  stories,
+  startIndex,
+  user,
+  isAdmin,
+  onClose,
+  onDelete,
+  onLike,
+  onReply,
+  onNavigate,
+}: {
+  stories: Story[];
+  startIndex: number;
+  user: any;
+  isAdmin: boolean;
+  onClose: () => void;
+  onDelete: (s: Story) => void;
+  onLike: (s: Story) => void;
+  onReply: (s: Story, text: string) => void;
+  onNavigate: (index: number) => void;
+}) {
+  const [index, setIndex] = useState(startIndex);
+  const [replyText, setReplyText] = useState("");
+  const [progress, setProgress] = useState(0);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const progressTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const current = stories[index];
+
+  const goNext = useCallback(() => {
+    if (index < stories.length - 1) {
+      setIndex(index + 1);
+      setProgress(0);
+      onNavigate(index + 1);
+    } else {
+      onClose();
+    }
+  }, [index, stories.length, onClose, onNavigate]);
+
+  const goPrev = useCallback(() => {
+    if (index > 0) {
+      setIndex(index - 1);
+      setProgress(0);
+      onNavigate(index - 1);
+    }
+  }, [index, onNavigate]);
+
+  useEffect(() => {
+    setProgress(0);
+    const duration = (current?.duration || 15) * 1000;
+    if (progressTimer.current) clearInterval(progressTimer.current);
+    progressTimer.current = setInterval(() => {
+      setProgress((p) => {
+        const next = p + 100 / (duration / 100);
+        if (next >= 100) {
+          goNext();
+          return 0;
+        }
+        return next;
+      });
+    }, 100);
+    return () => { if (progressTimer.current) clearInterval(progressTimer.current); };
+  }, [index, current?.duration, goNext]);
+
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "ArrowRight") goNext();
+      else if (e.key === "ArrowLeft") goPrev();
+      else if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [goNext, goPrev, onClose]);
+
+  if (!current) return null;
+
+  const isOwner = user?.id === current.authorId || user?.phone === current.authorPhone;
+  const canDelete = isOwner || isAdmin;
+  const liked = current.likedBy?.includes(user?.id || "") ?? false;
+  const likeCount = current.likedBy?.length || 0;
+
+  return (
+    <div className="fixed inset-0 z-[100] bg-black flex items-center justify-center select-none">
+      {/* Progress bars */}
+      <div className="absolute top-0 left-0 right-0 z-20 flex gap-1 p-3">
+        {stories.map((_, i) => (
+          <div key={i} className="flex-1 h-0.5 bg-white/20 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-white transition-all duration-100"
+              style={{ width: i < index ? "100%" : i === index ? `${progress}%` : "0%" }}
+            />
+          </div>
+        ))}
+      </div>
+
+      {/* Close button */}
+      <button onClick={onClose} className="absolute top-6 right-4 z-30 h-9 w-9 rounded-full bg-black/50 grid place-items-center hover:bg-black/80 transition">
+        <X className="h-5 w-5 text-white" />
+      </button>
+
+      {/* Delete button */}
+      {canDelete && (
+        <button onClick={() => onDelete(current)} className="absolute top-6 right-14 z-30 h-9 w-9 rounded-full bg-black/50 grid place-items-center hover:bg-red-500/80 transition">
+          <Trash2 className="h-4 w-4 text-white" />
+        </button>
+      )}
+
+      {/* Navigation zones */}
+      <button onClick={goPrev} className="absolute left-0 top-0 bottom-0 w-1/3 z-10 flex items-center justify-start pl-2 group" disabled={index === 0}>
+        {index > 0 && <ChevronLeft className="h-8 w-8 text-white/50 group-hover:text-white/90 transition opacity-0 group-hover:opacity-100" />}
+      </button>
+      <button onClick={goNext} className="absolute right-0 top-0 bottom-0 w-1/3 z-10 flex items-center justify-end pr-2 group">
+        <ChevronRight className="h-8 w-8 text-white/50 group-hover:text-white/90 transition opacity-0 group-hover:opacity-100" />
+      </button>
+
+      {/* Video - full screen 16:9, no whitespace */}
+      <div className="relative w-full h-full flex items-center justify-center bg-black">
+        <video
+          ref={videoRef}
+          src={current.videoUrl}
+          autoPlay
+          playsInline
+          className="w-full h-full object-contain bg-black"
+          onEnded={goNext}
+          onClick={(e) => {
+            const v = e.currentTarget;
+            if (v.paused) v.play().catch(() => {}); else v.pause();
+          }}
+        />
+
+        {/* Author info overlay - top left */}
+        <div className="absolute top-10 left-4 z-20 flex items-center gap-2">
+          <div className="h-9 w-9 rounded-full overflow-hidden gold-border bg-charcoal grid place-items-center">
+            {current.author_avatar ? (
+              <img src={current.author_avatar} alt="" className="h-full w-full object-cover" />
+            ) : (
+              <span className="text-sm font-bold text-gold">{(current.author_name || "U").charAt(0)}</span>
+            )}
+          </div>
+          <div>
+            <div className="text-sm font-semibold text-white flex items-center gap-1">
+              {current.author_name || "User"}
+              {current.is_showroom && (
+                <svg className="h-4 w-4 text-gold" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M9.5 21l-1.7-3.3L4 16l3.8-1.7L9.5 11l1.7 3.3L15 16l-3.8 1.7L9.5 21zM18 14l-1-2-1 2-2 1 2 1 1 2 1-2 2-1-2-1zM14.5 6l-1.3-2.5L12 6l-2.5 1.3L12 8.5l1.2 2.5L14.5 8.5l2.5-1.2L14.5 6z" />
+                </svg>
+              )}
+            </div>
+            <div className="text-[10px] text-white/60">{new Date(current.createdAt).toLocaleString()}</div>
+          </div>
+        </div>
+
+        {/* Caption + vehicle context - bottom */}
+        <div className="absolute bottom-0 left-0 right-0 z-20 p-4 bg-gradient-to-t from-black/80 to-transparent">
+          {current.caption && (
+            <p className="text-sm text-white/90 mb-2 max-w-2xl">{current.caption}</p>
+          )}
+          {current.vehicleTitle && (
+            <Link to="/vehicle/$id" params={{ id: current.vehicleId! }} onClick={onClose} className="inline-block text-xs text-gold border border-gold/30 rounded-full px-3 py-1 hover:bg-gold/10 transition">
+              {current.vehicleTitle}
+            </Link>
+          )}
+
+          {/* Action bar */}
+          <div className="flex items-center gap-3 mt-3">
+            <button
+              onClick={() => onLike(current)}
+              className="flex items-center gap-1.5 text-sm text-white/90 hover:text-white transition"
+            >
+              <Heart className={`h-5 w-5 ${liked ? "fill-red-500 text-red-500" : ""}`} />
+              {likeCount > 0 && <span>{likeCount}</span>}
+            </button>
+
+            {user && !isOwner && (
+              <div className="flex-1 flex gap-2">
+                <Input
+                  value={replyText}
+                  onChange={(e) => setReplyText(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && replyText.trim()) {
+                      onReply(current, replyText);
+                      setReplyText("");
+                    }
+                  }}
+                  placeholder="Reply to story..."
+                  className="bg-white/10 border-white/20 text-white placeholder:text-white/40 text-sm h-9"
+                />
+                <Button
+                  variant="gold"
+                  size="icon"
+                  className="h-9 w-9 shrink-0"
+                  disabled={!replyText.trim()}
+                  onClick={() => {
+                    onReply(current, replyText);
+                    setReplyText("");
+                  }}
+                >
+                  <Send className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }

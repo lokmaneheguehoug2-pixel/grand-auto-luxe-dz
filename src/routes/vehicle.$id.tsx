@@ -2,9 +2,9 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { formatDZD } from "@/lib/format";
-import { Flag, Calendar, Gauge, Fuel, Cog, Gavel, Trophy, Phone, MessageCircle } from "lucide-react";
+import { Flag, Calendar, Gauge, Fuel, Cog, Gavel, Trophy, Phone, MessageCircle, Lock, Pencil, Trash2, MapPin, Crown, BadgeCheck } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Countdown } from "@/components/Countdown";
 import { useState, useEffect } from "react";
@@ -13,10 +13,9 @@ import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious
 import { ChatDialog } from "@/components/ChatDialog";
 import { AppointmentBooking } from "@/components/AppointmentBooking";
 import { PremiumPaywallModal } from "@/components/PremiumPaywallModal";
-import { ref, get, onValue, off, push, set } from "firebase/database";
+import { ref, get, onValue, off, push, set, remove } from "firebase/database";
 import { realtimeDb } from "@/lib/firebase";
 
-/** Algerian phone helpers */
 function normalizeAlgPhone(raw: string): string {
   const digits = (raw ?? "").replace(/\D/g, "");
   if (digits.startsWith("213")) return `+${digits}`;
@@ -65,10 +64,25 @@ type Bid = {
   createdAt: string;
 };
 
+type OwnerProfile = {
+  phone: string;
+  first_name: string;
+  last_name: string;
+  showroom_name?: string;
+  bio?: string;
+  avatar_url?: string;
+  subscription_status: string;
+  subscription_until?: string;
+  subscription_tier?: string;
+  is_showroom?: boolean;
+  instagram?: string;
+};
+
 function VehicleDetail() {
   const { id } = Route.useParams();
   const auth = useAuth();
   const user = auth?.user;
+  const access = auth?.access ?? "locked";
   const [v, setV] = useState<Vehicle | null>(null);
   const [bids, setBids] = useState<Bid[]>([]);
   const [bidAmount, setBidAmount] = useState("");
@@ -76,35 +90,41 @@ function VehicleDetail() {
   const [showReportDialog, setShowReportDialog] = useState(false);
   const [reportReason, setReportReason] = useState("");
   const [reporting, setReporting] = useState(false);
+  const [owner, setOwner] = useState<OwnerProfile | null>(null);
 
   useEffect(() => {
     const vehicleRef = ref(realtimeDb, `vehicles/${id}`);
     const handleSnapshot = (snapshot: { val: () => (Vehicle & { [key: string]: any }) | null }) => {
-      const data = snapshot.val();
-      if (data) {
-        setV({
-          ...data,
-          id,
-          brand: data.brand || "Unknown",
-          model: data.model || "",
-          year: data.year || 0,
-          mileage: data.mileage ?? 0,
-          fuel_type: data.fuel_type || "N/A",
-          transmission: data.transmission || "N/A",
-          wilaya: data.wilaya || "N/A",
-          phone: data.phone || "",
-          sellerPhone: data.sellerPhone || "",
-          sellerId: data.sellerId || "",
-          images: Array.isArray(data.images) ? data.images : [],
-          video_url: data.video_url || null,
-          fixed_price: data.fixed_price ?? null,
-          starting_price: data.starting_price ?? null,
-          current_highest_bid: data.current_highest_bid ?? null,
-          current_highest_bidder: data.current_highest_bidder ?? null,
-          auction_ends_at: data.auction_ends_at ?? null,
-          status: data.status || "active",
-        });
-      } else setV(null);
+      try {
+        const data = snapshot.val();
+        if (data) {
+          setV({
+            ...data,
+            id,
+            brand: data.brand || "Unknown",
+            model: data.model || "",
+            year: data.year || 0,
+            mileage: data.mileage ?? 0,
+            fuel_type: data.fuel_type || "N/A",
+            transmission: data.transmission || "N/A",
+            wilaya: data.wilaya || "N/A",
+            phone: data.phone || "",
+            sellerPhone: data.sellerPhone || "",
+            sellerId: data.sellerId || "",
+            images: Array.isArray(data.images) ? data.images : [],
+            video_url: data.video_url || null,
+            fixed_price: data.fixed_price ?? null,
+            starting_price: data.starting_price ?? null,
+            current_highest_bid: data.current_highest_bid ?? null,
+            current_highest_bidder: data.current_highest_bidder ?? null,
+            auction_ends_at: data.auction_ends_at ?? null,
+            status: data.status || "active",
+          });
+        } else setV(null);
+      } catch (err) {
+        console.error("Error loading vehicle:", err);
+        setV(null);
+      }
     };
     onValue(vehicleRef, handleSnapshot);
     return () => off(vehicleRef);
@@ -114,17 +134,51 @@ function VehicleDetail() {
     if (!v || v.price_type !== "auction") return;
     const bidsRef = ref(realtimeDb, `bids/${id}`);
     const handleBids = (snapshot: { val: () => Record<string, Bid> | null }) => {
-      const data = snapshot.val();
-      if (data) {
-        const list = Object.values(data).sort((a, b) => b.amount - a.amount);
-        setBids(list);
-      } else {
+      try {
+        const data = snapshot.val();
+        if (data) {
+          const list = Object.values(data).sort((a, b) => b.amount - a.amount);
+          setBids(list);
+        } else {
+          setBids([]);
+        }
+      } catch (err) {
+        console.error("Error loading bids:", err);
         setBids([]);
       }
     };
     onValue(bidsRef, handleBids);
     return () => off(bidsRef);
   }, [id, v?.price_type]);
+
+  useEffect(() => {
+    async function loadOwner() {
+      if (!v?.sellerPhone && !v?.sellerId) return;
+      const phoneKey = v.sellerPhone || v.sellerId;
+      try {
+        const snap = await get(ref(realtimeDb, `users/${phoneKey}`));
+        if (snap.exists()) {
+          const data = snap.val();
+          setOwner({
+            phone: data.phone || phoneKey,
+            first_name: data.first_name || "",
+            last_name: data.last_name || "",
+            showroom_name: data.showroom_name,
+            bio: data.bio,
+            avatar_url: data.avatar_url,
+            subscription_status: data.subscription_status || "trial",
+            subscription_until: data.subscription_until,
+            subscription_tier: data.subscription_tier,
+            is_showroom: data.subscription_tier === "dealer" || data.subscription_tier === "showroom",
+            instagram: data.instagram,
+          });
+        }
+      } catch (err) {
+        console.error("Error loading owner profile:", err);
+      }
+    }
+    loadOwner();
+  }, [v?.sellerPhone, v?.sellerId]);
 
   if (!v) {
     return (
@@ -136,6 +190,11 @@ function VehicleDetail() {
 
   const isSeller = user?.id === v.sellerId;
   const isWinner = user?.id === v.current_highest_bidder;
+  const canSeeContact = access === "active" || isSeller;
+  const ownerVerified = owner?.is_showroom && owner?.subscription_status === "active" && owner?.subscription_until && new Date(owner.subscription_until) > new Date();
+  const ownerName = owner
+    ? (owner.showroom_name || `${owner.first_name ?? ""} ${owner.last_name ?? ""}`.trim() || "Seller")
+    : "Seller";
 
   const handleBid = async () => {
     if (!user) { toast.error("Please sign in to bid"); return; }
@@ -189,6 +248,17 @@ function VehicleDetail() {
     }
   };
 
+  const handleDelete = async () => {
+    if (!confirm("Delete this listing permanently?")) return;
+    try {
+      await remove(ref(realtimeDb, `vehicles/${v.id}`));
+      toast.success("Listing deleted");
+      window.location.href = "/";
+    } catch (err) {
+      toast.error("Failed to delete listing");
+    }
+  };
+
   return (
     <div className="pb-20">
       {/* Gallery */}
@@ -233,6 +303,20 @@ function VehicleDetail() {
             {v.price_type === "fixed" && <div className="text-xs text-muted-foreground uppercase tracking-widest">Price</div>}
           </div>
         </div>
+
+        {/* Owner actions */}
+        {isSeller && v.status !== "sold" && (
+          <div className="mb-4 flex gap-2">
+            <Button variant="outline" size="sm" asChild>
+              <Link to="/edit-listing/$id" params={{ id: v.id }}>
+                <Pencil className="h-4 w-4 mr-1" /> Edit
+              </Link>
+            </Button>
+            <Button variant="destructive" size="sm" onClick={handleDelete}>
+              <Trash2 className="h-4 w-4 mr-1" /> Delete
+            </Button>
+          </div>
+        )}
 
         {v.status === "sold" && (
           <div className="mb-4 p-3 rounded-lg bg-blue-500/10 border border-blue-500/30 text-blue-400 text-sm font-medium">
@@ -292,34 +376,79 @@ function VehicleDetail() {
           </div>
         )}
 
-        {/* Owner Contact */}
+        {/* Contact Owner - Privacy Locked */}
         <div className="mb-6 premium-card rounded-xl p-4 border border-gold/20">
           <h3 className="text-sm font-semibold text-gold mb-3">Contact Owner</h3>
-          <div className="flex gap-2 flex-wrap">
-            <a href={`tel:${normalizeAlgPhone(v.phone)}`}>
-              <Button variant="outline" size="sm">
-                <Phone className="h-4 w-4 mr-2" /> Call
+          {canSeeContact ? (
+            <div className="flex gap-2 flex-wrap">
+              <a href={`tel:${normalizeAlgPhone(v.phone)}`}>
+                <Button variant="outline" size="sm">
+                  <Phone className="h-4 w-4 mr-2" /> Call
+                </Button>
+              </a>
+              <a href={`https://wa.me/${toWhatsApp(v.phone)}`} target="_blank" rel="noopener noreferrer">
+                <Button variant="outline" size="sm">
+                  <MessageCircle className="h-4 w-4 mr-2" /> WhatsApp
+                </Button>
+              </a>
+              {user && !isSeller && (
+                <ChatDialog recipientId={v.sellerId} recipientPhone={v.sellerPhone} vehicleId={v.id} vehicleTitle={`${v.brand} ${v.model} (${v.year})`} />
+              )}
+            </div>
+          ) : (
+            <div className="flex flex-col items-center py-4 gap-3">
+              <Lock className="h-8 w-8 text-gold/50" />
+              <p className="text-sm text-muted-foreground text-center">
+                Contact details are locked. Subscribe to view phone, WhatsApp, and chat with sellers.
+              </p>
+              <Button variant="gold" size="sm" onClick={() => setPaywallOpen(true)}>
+                <Crown className="h-4 w-4 mr-1" /> Unlock Contact
               </Button>
-            </a>
-            <a href={`https://wa.me/${toWhatsApp(v.phone)}`} target="_blank" rel="noopener noreferrer">
-              <Button variant="outline" size="sm">
-                <MessageCircle className="h-4 w-4 mr-2" /> WhatsApp
-              </Button>
-            </a>
-            {user && !isSeller && (
-              <ChatDialog recipientId={v.sellerId} recipientPhone={v.sellerPhone} />
-            )}
-          </div>
+            </div>
+          )}
         </div>
 
         {/* Appointments */}
-        {user && !isSeller && (
+        {user && !isSeller && access === "active" && (
           <AppointmentBooking
             vehicleId={v.id}
             vehicleTitle={`${v.brand} ${v.model} (${v.year})`}
             sellerId={v.sellerId}
             sellerPhone={v.sellerPhone}
           />
+        )}
+
+        {/* Owner Profile Card */}
+        {owner && (
+          <div className="mt-8 premium-card rounded-xl p-5 border border-gold/20">
+            <h3 className="text-xs uppercase tracking-widest text-gold mb-4">Listing Owner</h3>
+            <Link to="/seller/$id" params={{ id: owner.phone }} className="flex items-center gap-4 group">
+              <div className="h-14 w-14 rounded-xl overflow-hidden gold-border bg-charcoal grid place-items-center shrink-0">
+                {owner.avatar_url ? (
+                  <img src={owner.avatar_url} alt={ownerName} className="h-full w-full object-cover" />
+                ) : (
+                  <span className="text-lg font-bold text-gold">{ownerName.charAt(0).toUpperCase()}</span>
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <span className="font-display text-lg group-hover:text-gold transition truncate">{ownerName}</span>
+                  {ownerVerified && owner.is_showroom && (
+                    <svg className="h-5 w-5 text-gold shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M9.5 21l-1.7-3.3L4 16l3.8-1.7L9.5 11l1.7 3.3L15 16l-3.8 1.7L9.5 21zM18 14l-1-2-1 2-2 1 2 1 1 2 1-2 2-1-2-1zM14.5 6l-1.3-2.5L12 6l-2.5 1.3L12 8.5l1.2 2.5L14.5 8.5l2.5-1.2L14.5 6z" />
+                    </svg>
+                  )}
+                  {ownerVerified && !owner.is_showroom && <BadgeCheck className="h-5 w-5 text-blue-400 shrink-0" />}
+                </div>
+                {owner.bio && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{owner.bio}</p>}
+                <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2">
+                  <span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{v.wilaya}</span>
+                  {owner.is_showroom && <span className="text-gold text-[10px] uppercase tracking-widest">Showroom</span>}
+                </div>
+              </div>
+              <Button variant="ghost" size="sm" className="shrink-0">View Profile</Button>
+            </Link>
+          </div>
         )}
       </div>
 

@@ -1,8 +1,13 @@
 import { useEffect, useState } from "react";
-import { Instagram, Facebook, Mail, MessageCircle, Phone, Music2 } from "lucide-react";
+import { Instagram, Facebook, Mail, MessageCircle, Phone, Music2, Lightbulb, Send } from "lucide-react";
 import { realtimeDb } from "@/lib/firebase";
-import { ref, onValue, off } from "firebase/database";
+import { ref, onValue, off, push, set } from "firebase/database";
 import { fetchPlatformSettings } from "@/lib/supabase";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
+import { useAuth } from "@/hooks/use-auth";
+import { toast } from "sonner";
 
 interface SiteSettings {
   whatsapp_number: string;
@@ -28,6 +33,13 @@ const EMPTY_SETTINGS: SiteSettings = {
 
 export function CustomerServiceFooter() {
   const [settings, setSettings] = useState<SiteSettings>(EMPTY_SETTINGS);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [feedbackText, setFeedbackText] = useState("");
+  const [feedbackCategory, setFeedbackCategory] = useState("general");
+  const [submittingFeedback, setSubmittingFeedback] = useState(false);
+  const auth = useAuth();
+  const user = auth?.user;
+  const access = auth?.access ?? "locked";
 
   useEffect(() => {
     fetchPlatformSettings()
@@ -87,7 +99,9 @@ export function CustomerServiceFooter() {
           <div className="space-y-4">
             <h3 className="font-semibold text-sm uppercase tracking-wider">Quick Links</h3>
             <nav className="flex flex-col gap-2 text-sm">
-              <a href="/brands" className="text-muted-foreground hover:text-gold transition-colors">Browse Brands</a>
+              <button onClick={() => setFeedbackOpen(true)} className="text-muted-foreground hover:text-gold transition-colors text-left flex items-center gap-1.5">
+                <Lightbulb className="h-3.5 w-3.5" /> اقتراحات · Suggest Improvements
+              </button>
               <a href="/plans" className="text-muted-foreground hover:text-gold transition-colors">Subscription Plans</a>
               <a href="/auth" className="text-muted-foreground hover:text-gold transition-colors">Sign In / Register</a>
               <a href="/reels" className="text-muted-foreground hover:text-gold transition-colors">Reels</a>
@@ -161,6 +175,78 @@ export function CustomerServiceFooter() {
           <span className="gold-text font-semibold">GRAND Auto Luxe</span> · Made in Algeria · {new Date().getFullYear()}
         </div>
       </div>
+
+      {/* Feedback Modal */}
+      <Dialog open={feedbackOpen} onOpenChange={setFeedbackOpen}>
+        <DialogContent className="max-w-md bg-background border-gold/40">
+          <DialogHeader>
+            <DialogTitle className="gold-text flex items-center gap-2">
+              <Lightbulb className="h-5 w-5" /> اقتراحات · Suggest Improvements
+            </DialogTitle>
+          </DialogHeader>
+          {!user ? (
+            <div className="py-4 text-center">
+              <p className="text-sm text-muted-foreground mb-3">Please sign in to submit feedback.</p>
+              <Button variant="gold" size="sm" asChild><a href="/auth">Sign In</a></Button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <select
+                value={feedbackCategory}
+                onChange={(e) => setFeedbackCategory(e.target.value)}
+                className="w-full h-10 rounded-md border border-border bg-charcoal px-3 text-sm"
+              >
+                <option value="general">General Feedback</option>
+                <option value="bug">Bug Report</option>
+                <option value="feature">Feature Request</option>
+                <option value="ui">UI/UX Improvement</option>
+                <option value="other">Other</option>
+              </select>
+              <Textarea
+                value={feedbackText}
+                onChange={(e) => setFeedbackText(e.target.value)}
+                placeholder="Share your thoughts on how we can improve..."
+                className="bg-charcoal min-h-[100px]"
+                maxLength={500}
+              />
+              <p className="text-[10px] text-muted-foreground">{feedbackText.length}/500</p>
+              <Button
+                variant="gold"
+                className="w-full"
+                disabled={submittingFeedback || !feedbackText.trim()}
+                onClick={async () => {
+                  setSubmittingFeedback(true);
+                  try {
+                    const fbRef = push(ref(realtimeDb, "feedback"));
+                    await set(fbRef, {
+                      id: fbRef.key,
+                      userId: user.id,
+                      userPhone: user.phone,
+                      category: feedbackCategory,
+                      message: feedbackText.trim(),
+                      status: "pending",
+                      createdAt: new Date().toISOString(),
+                    });
+                    toast.success("Thank you! Your feedback has been submitted.");
+                    setFeedbackText("");
+                    setFeedbackOpen(false);
+                  } catch (err) {
+                    toast.error("Failed to submit feedback");
+                  } finally {
+                    setSubmittingFeedback(false);
+                  }
+                }}
+              >
+                {submittingFeedback ? "Submitting..." : (
+                  <>
+                    <Send className="h-4 w-4 mr-2" /> Submit Feedback
+                  </>
+                )}
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </footer>
   );
 }
