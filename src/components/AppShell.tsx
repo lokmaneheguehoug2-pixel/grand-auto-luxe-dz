@@ -89,7 +89,7 @@ export function AppShell() {
               )}
               {isAdminStable && (
                 <Button asChild variant="ghost" size="sm">
-                  <Link to="/admin"><Shield className="h-4 w-4" /> Admin</Link>
+                  <Link to="/admin"><Shield className="h-4 w-4" /> Dashboard</Link>
                 </Button>
               )}
               {user ? (

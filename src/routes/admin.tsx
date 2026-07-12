@@ -279,8 +279,13 @@ function UsersManagementTab() {
   const [users, setUsers] = useState<FirebaseUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchPhone, setSearchPhone] = useState("");
-  const [editingPassword, setEditingPassword] = useState<string | null>(null);
+  const [editingPassword, setEditingPassword] = useState<FirebaseUser | null>(null);
   const [newPassword, setNewPassword] = useState("");
+  const [editingUser, setEditingUser] = useState<FirebaseUser | null>(null);
+  const [editFirstName, setEditFirstName] = useState("");
+  const [editLastName, setEditLastName] = useState("");
+  const [editPhone, setEditPhone] = useState("");
+  const [savingUser, setSavingUser] = useState(false);
   const [activateUser, setActivateUser] = useState<FirebaseUser | null>(null);
   const [selectedPlan, setSelectedPlan] = useState<string>("individual-monthly");
   const [activating, setActivating] = useState(false);
@@ -352,6 +357,37 @@ function UsersManagementTab() {
     } catch (err) { toast.error("Failed to update password"); }
   };
 
+  const openEditUser = (u: FirebaseUser) => {
+    setEditingUser(u);
+    setEditFirstName(u.first_name || "");
+    setEditLastName(u.last_name || "");
+    setEditPhone(u.phone || "");
+  };
+
+  const saveUserEdits = async () => {
+    if (!editingUser) return;
+    setSavingUser(true);
+    try {
+      const phoneKey = editingUser.phone;
+      if (editFirstName !== (editingUser.first_name || "")) {
+        await set(ref(realtimeDb, `users/${phoneKey}/first_name`), editFirstName.trim());
+      }
+      if (editLastName !== (editingUser.last_name || "")) {
+        await set(ref(realtimeDb, `users/${phoneKey}/last_name`), editLastName.trim());
+      }
+      if (editPhone.trim() && editPhone !== phoneKey) {
+        await set(ref(realtimeDb, `users/${phoneKey}/phone`), editPhone.trim());
+      }
+      setUsers(users.map((u) => u.phone === phoneKey ? { ...u, first_name: editFirstName, last_name: editLastName, phone: editPhone || u.phone } : u));
+      setEditingUser(null);
+      toast.success("User updated");
+    } catch (err) {
+      toast.error("Failed to update user");
+    } finally {
+      setSavingUser(false);
+    }
+  };
+
   const safeString = (val: unknown): string => { try { if (val == null) return ""; return String(val).toLowerCase(); } catch { return ""; } };
   const filteredUsers = searchPhone.trim()
     ? users.filter((u) => { try { const s = safeString(searchPhone); return safeString(u?.phone).includes(s) || safeString(u?.first_name).includes(s) || safeString(u?.last_name).includes(s); } catch { return false; } })
@@ -388,8 +424,9 @@ function UsersManagementTab() {
                   <Crown className="h-4 w-4 mr-1" /> Activate
                 </Button>
               )}
-              <Button variant="ghost" size="sm" onClick={() => { setEditingPassword(user.phone); setNewPassword(""); }}><Key className="h-4 w-4" /></Button>
-              {user.role !== "admin" && <Button variant="destructive" size="sm" onClick={() => deleteUser(user)}><UserX className="h-4 w-4" /></Button>}
+              <Button variant="ghost" size="sm" onClick={() => openEditUser(user)} title="Edit user"><Settings className="h-4 w-4" /></Button>
+              <Button variant="ghost" size="sm" onClick={() => { setEditingPassword(user); setNewPassword(""); }} title="Reset password"><Key className="h-4 w-4" /></Button>
+              {user.role !== "admin" && <Button variant="destructive" size="sm" onClick={() => deleteUser(user)} title="Delete user"><UserX className="h-4 w-4" /></Button>}
             </div>
           </div>
         ))}
@@ -426,6 +463,72 @@ function UsersManagementTab() {
               </div>
               <Button variant="gold" className="w-full" disabled={activating} onClick={() => grantSubscription(activateUser, selectedPlan)}>
                 {activating ? "Activating..." : "Verify & Activate"}
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit User Modal */}
+      <Dialog open={!!editingUser} onOpenChange={(open) => { if (!open) setEditingUser(null); }}>
+        <DialogContent className="max-w-md bg-background border-gold/40">
+          <DialogHeader>
+            <DialogTitle className="gold-text flex items-center gap-2">
+              <Settings className="h-5 w-5" /> Edit User
+            </DialogTitle>
+          </DialogHeader>
+          {editingUser && (
+            <div className="space-y-4">
+              <div className="text-sm text-muted-foreground">
+                Managing: <span className="font-medium text-foreground">{editingUser.first_name} {editingUser.last_name}</span>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs uppercase tracking-widest text-muted-foreground mb-1.5 block">First Name</label>
+                  <Input value={editFirstName} onChange={(e) => setEditFirstName(e.target.value)} className="bg-charcoal" />
+                </div>
+                <div>
+                  <label className="text-xs uppercase tracking-widest text-muted-foreground mb-1.5 block">Last Name</label>
+                  <Input value={editLastName} onChange={(e) => setEditLastName(e.target.value)} className="bg-charcoal" />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs uppercase tracking-widest text-muted-foreground mb-1.5 block">Phone Number</label>
+                <Input value={editPhone} onChange={(e) => setEditPhone(e.target.value)} className="bg-charcoal" />
+              </div>
+              <Button variant="gold" className="w-full" disabled={savingUser} onClick={saveUserEdits}>
+                {savingUser ? "Saving..." : "Save Changes"}
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Reset Password Modal */}
+      <Dialog open={!!editingPassword} onOpenChange={(open) => { if (!open) setEditingPassword(null); }}>
+        <DialogContent className="max-w-md bg-background border-gold/40">
+          <DialogHeader>
+            <DialogTitle className="gold-text flex items-center gap-2">
+              <Key className="h-5 w-5" /> Reset Password
+            </DialogTitle>
+          </DialogHeader>
+          {editingPassword && (
+            <div className="space-y-4">
+              <div className="text-sm text-muted-foreground">
+                User: <span className="font-medium text-foreground">{editingPassword.first_name} {editingPassword.last_name}</span> ({editingPassword.phone})
+              </div>
+              <div>
+                <label className="text-xs uppercase tracking-widest text-muted-foreground mb-1.5 block">New Password</label>
+                <Input
+                  type="text"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Enter new password (min 4 chars)"
+                  className="bg-charcoal"
+                />
+              </div>
+              <Button variant="gold" className="w-full" onClick={() => updatePassword(editingPassword)}>
+                Update Password
               </Button>
             </div>
           )}
