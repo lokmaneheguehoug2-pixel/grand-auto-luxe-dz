@@ -1,7 +1,11 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useAuth } from "@/hooks/use-auth";
 import { formatDZD } from "@/lib/format";
-import { BadgeCheck, Car, MapPin, Gauge, Clock, Crown, AlertTriangle, Tag, Calendar, Instagram, Phone, MessageCircle, Camera, Pencil, Trash2, Heart } from "lucide-react";
+import {
+  BadgeCheck, Car, MapPin, Gauge, Crown, AlertTriangle, Tag, Calendar,
+  Instagram, Phone, MessageCircle, Camera, Pencil, Trash2, Film, Heart,
+  Lock, Grid, Play, Eye,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PremiumPaywallModal } from "@/components/PremiumPaywallModal";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -10,11 +14,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
 import { realtimeDb } from "@/lib/firebase";
-import { ref, get, set, remove, onValue, off, push } from "firebase/database";
+import { ref, get, set, remove, onValue, off } from "firebase/database";
 import { uploadImageToCloudinary } from "@/lib/cloudinary";
+import { ChatDialog } from "@/components/ChatDialog";
 
 export const Route = createFileRoute("/seller/$id")({
-  head: () => ({ meta: [{ title: "Seller Profile · GRAND Auto Luxe" }] }),
+  head: () => ({ meta: [{ title: "Profile · GRAND Auto Luxe" }] }),
   component: SellerProfile,
 });
 
@@ -31,7 +36,6 @@ type SellerProfileData = {
   subscription_until?: string;
   subscription_tier?: string;
   is_showroom?: boolean;
-  plan_type?: string;
   instagram?: string;
 };
 
@@ -44,6 +48,7 @@ type Vehicle = {
   mileage: number;
   photos?: string[];
   images?: string[];
+  video_url?: string | null;
   price_type: "fixed" | "auction";
   fixed_price?: number;
   current_highest_bid?: number;
@@ -54,32 +59,81 @@ type Vehicle = {
   sellerPhone?: string;
 };
 
+type Reel = {
+  id: string;
+  authorId: string;
+  authorPhone: string;
+  videoUrl: string;
+  caption: string | null;
+  vehicleId: string | null;
+  likesCount: number;
+  viewsCount: number;
+  createdAt: string;
+};
+
+type Story = {
+  id: string;
+  authorId: string;
+  authorPhone: string;
+  videoUrl: string;
+  caption: string | null;
+  createdAt: string;
+  likedBy?: string[];
+};
+
+const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
+
 function SellerProfile() {
   const { id } = Route.useParams();
   const { user, profile: me, access, isAdmin } = useAuth();
-  const navigate = useNavigate();
   const isOwnProfile = user?.id === id || user?.phone === id;
 
   const [profile, setProfile] = useState<SellerProfileData | null>(null);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [reels, setReels] = useState<Reel[]>([]);
+  const [stories, setStories] = useState<Story[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"active" | "sold">("active");
+  const [activeTab, setActiveTab] = useState<"listings" | "reels" | "stories" | "sold">("listings");
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [editBio, setEditBio] = useState("");
   const [editShowroomName, setEditShowroomName] = useState("");
   const [editAvatar, setEditAvatar] = useState<File | null>(null);
   const [savingProfile, setSavingProfile] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [paywallOpen, setPaywallOpen] = useState(false);
 
   useEffect(() => {
     async function load() {
       setLoading(true);
       try {
-        const profileSnap = await get(ref(realtimeDb, `users/${id}`));
+        // Multi-strategy lookup: try id directly, then strip admin- prefix, then search vehicles for matching sellerId
+        let profileSnap = await get(ref(realtimeDb, `users/${id}`));
+
+        if (!profileSnap.exists() && id.startsWith("admin-")) {
+          const phonePart = id.replace("admin-", "");
+          profileSnap = await get(ref(realtimeDb, `users/${phonePart}`));
+        }
+
+        if (!profileSnap.exists()) {
+          // Try looking up by searching vehicles for a matching sellerId to find the phone
+          const vehiclesSnap = await get(ref(realtimeDb, "vehicles"));
+          if (vehiclesSnap.exists()) {
+            const allV = vehiclesSnap.val() as Record<string, any>;
+            const match = Object.values(allV).find(
+              (v) => v.sellerId === id || v.sellerPhone === id,
+            );
+            if (match?.sellerPhone) {
+              profileSnap = await get(ref(realtimeDb, `users/${match.sellerPhone}`));
+            }
+          }
+        }
+
         if (profileSnap.exists()) {
           const data = profileSnap.val();
+          const phoneKey = data.phone || id;
           setProfile({
             id,
-            phone: data.phone || id,
+            phone: phoneKey,
             first_name: data.first_name || "",
             last_name: data.last_name || "",
             showroom_name: data.showroom_name,
@@ -90,21 +144,47 @@ function SellerProfile() {
             subscription_until: data.subscription_until,
             subscription_tier: data.subscription_tier,
             is_showroom: data.subscription_tier === "dealer" || data.subscription_tier === "showroom",
-            plan_type: data.subscription_tier === "dealer" || data.subscription_tier === "showroom" ? "showroom" : "individual",
             instagram: data.instagram,
           });
           setEditBio(data.bio || "");
           setEditShowroomName(data.showroom_name || "");
-        }
 
-        const vehiclesSnap = await get(ref(realtimeDb, "vehicles"));
-        if (vehiclesSnap.exists()) {
-          const allVehicles = vehiclesSnap.val() as Record<string, Vehicle>;
-          const sellerVehicles = Object.entries(allVehicles)
-            .filter(([_, v]) => v.sellerId === id || v.sellerPhone === id)
-            .map(([vid, v]) => ({ ...v, id: vid }))
-            .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
-          setVehicles(sellerVehicles);
+          // Load vehicles by this seller
+          const vehiclesSnap = await get(ref(realtimeDb, "vehicles"));
+          if (vehiclesSnap.exists()) {
+            const allVehicles = vehiclesSnap.val() as Record<string, Vehicle>;
+            const sellerVehicles = Object.entries(allVehicles)
+              .filter(([_, v]) => v.sellerId === id || v.sellerPhone === id || v.sellerId === phoneKey || v.sellerPhone === phoneKey)
+              .map(([vid, v]) => ({ ...v, id: vid }))
+              .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+            setVehicles(sellerVehicles);
+          }
+
+          // Load reels by this seller
+          const reelsSnap = await get(ref(realtimeDb, "reels"));
+          if (reelsSnap.exists()) {
+            const allReels = reelsSnap.val() as Record<string, Reel>;
+            const sellerReels = Object.entries(allReels)
+              .filter(([_, r]) => r.authorId === id || r.authorPhone === id || r.authorId === phoneKey || r.authorPhone === phoneKey)
+              .map(([rid, r]) => ({ ...r, id: rid }))
+              .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+            setReels(sellerReels);
+          }
+
+          // Load active stories by this seller (24h only)
+          const storiesSnap = await get(ref(realtimeDb, "stories"));
+          if (storiesSnap.exists()) {
+            const now = Date.now();
+            const allStories = storiesSnap.val() as Record<string, Story>;
+            const sellerStories = Object.entries(allStories)
+              .filter(([_, s]) =>
+                (s.authorId === id || s.authorPhone === id || s.authorId === phoneKey || s.authorPhone === phoneKey) &&
+                now - new Date(s.createdAt).getTime() < TWENTY_FOUR_HOURS_MS,
+              )
+              .map(([sid, s]) => ({ ...s, id: sid }))
+              .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+            setStories(sellerStories);
+          }
         }
       } catch (err) {
         console.error("Error loading seller profile:", err);
@@ -124,6 +204,8 @@ function SellerProfile() {
     ? (profile.showroom_name || `${profile.first_name ?? ""} ${profile.last_name ?? ""}`.trim() || "Seller")
     : "Seller";
 
+  const username = profile?.phone || id;
+
   const canChangeAvatar = useCallback(() => {
     if (!profile?.avatar_updated_at) return true;
     const oneMonthAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
@@ -133,19 +215,18 @@ function SellerProfile() {
   const saveProfile = async () => {
     setSavingProfile(true);
     try {
+      const phoneKey = profile?.phone || id;
       if (editBio !== (profile?.bio || "")) {
-        await set(ref(realtimeDb, `users/${id}/bio`), editBio.trim() || null);
+        await set(ref(realtimeDb, `users/${phoneKey}/bio`), editBio.trim() || null);
       }
       if (profile?.is_showroom && editShowroomName !== (profile?.showroom_name || "")) {
-        await set(ref(realtimeDb, `users/${id}/showroom_name`), editShowroomName.trim() || null);
+        await set(ref(realtimeDb, `users/${phoneKey}/showroom_name`), editShowroomName.trim() || null);
       }
-
       if (editAvatar && canChangeAvatar()) {
         const avatarUrl = await uploadImageToCloudinary(editAvatar);
-        await set(ref(realtimeDb, `users/${id}/avatar_url`), avatarUrl);
-        await set(ref(realtimeDb, `users/${id}/avatar_updated_at`), new Date().toISOString());
+        await set(ref(realtimeDb, `users/${phoneKey}/avatar_url`), avatarUrl);
+        await set(ref(realtimeDb, `users/${phoneKey}/avatar_updated_at`), new Date().toISOString());
       }
-
       setProfile(prev => prev ? { ...prev, bio: editBio, showroom_name: editShowroomName || prev.showroom_name } : null);
       setShowEditProfile(false);
       toast.success("Profile updated");
@@ -188,156 +269,258 @@ function SellerProfile() {
 
   const activeVehicles = vehicles.filter((v) => v.status === "active" || !v.status);
   const soldVehicles = vehicles.filter((v) => v.status === "sold");
-  const displayVehicles = activeTab === "active" ? activeVehicles : soldVehicles;
+  const canSeeContact = access === "active" || isOwnProfile || isAdmin;
 
-  if (loading) return <div className="max-w-6xl mx-auto px-6 py-20 text-center text-muted-foreground">Loading...</div>;
-  if (!profile) return (
-    <div className="max-w-6xl mx-auto px-6 py-20 text-center">
-      <h1 className="font-display text-2xl gold-text">Seller not found</h1>
-      <Button asChild variant="gold" className="mt-4"><Link to="/">Back</Link></Button>
-    </div>
-  );
+  if (loading) {
+    return (
+      <div className="max-w-2xl mx-auto px-6 py-20 text-center text-muted-foreground">
+        <div className="h-8 w-8 mx-auto mb-3 rounded-full border-2 border-gold/30 border-t-gold animate-spin" />
+        Loading profile...
+      </div>
+    );
+  }
+
+  if (!profile) {
+    return (
+      <div className="max-w-2xl mx-auto px-6 py-20 text-center">
+        <div className="h-20 w-20 mx-auto mb-4 rounded-full bg-charcoal grid place-items-center">
+          <Car className="h-10 w-10 text-muted-foreground/30" />
+        </div>
+        <h1 className="font-display text-2xl gold-text">Profile not found</h1>
+        <p className="text-sm text-muted-foreground mt-2">This user may not have any listings yet.</p>
+        <Button asChild variant="gold" className="mt-4"><Link to="/">Back to Home</Link></Button>
+      </div>
+    );
+  }
 
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 py-10">
+    <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
       {isOwnProfile && access === "trial" && me && <TrialExpiryBanner trialStartedAt={me.trial_started_at} />}
 
-      {/* Luxury Profile Card */}
-      <div className="premium-card rounded-2xl p-6 sm:p-8 relative overflow-hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_0%,rgba(212,175,55,0.18),transparent_50%)]" />
-        <div className="relative flex flex-col sm:flex-row sm:items-center gap-6">
-          {/* Avatar */}
-          <div className="relative shrink-0">
-            <div className="h-24 w-24 rounded-2xl overflow-hidden gold-gradient grid place-items-center text-3xl font-display text-gold-foreground shadow-lg">
-              {profile.avatar_url ? (
-                <img src={profile.avatar_url} alt={name} className="h-full w-full object-cover" />
-              ) : (
-                <span>{name.charAt(0).toUpperCase()}</span>
-              )}
-            </div>
-            {isOwnProfile && (
-              <button
-                onClick={() => setShowEditProfile(true)}
-                className="absolute -bottom-1 -right-1 h-7 w-7 rounded-full bg-background border border-gold/40 grid place-items-center hover:bg-gold/10 transition"
-                title="Edit profile"
-              >
-                <Camera className="h-3.5 w-3.5 text-gold" />
-              </button>
+      {/* ===== PROFILE HEADER (TikTok-style centered) ===== */}
+      <div className="flex flex-col items-center text-center">
+        {/* Avatar - large, circular */}
+        <div className="relative shrink-0 mb-4">
+          <div className="h-28 w-28 sm:h-32 sm:w-32 rounded-full overflow-hidden gold-gradient grid place-items-center text-4xl font-display text-gold-foreground shadow-[0_0_40px_rgba(212,175,55,0.3)]">
+            {profile.avatar_url ? (
+              <img src={profile.avatar_url} alt={name} className="h-full w-full object-cover" />
+            ) : (
+              <span>{name.charAt(0).toUpperCase()}</span>
             )}
           </div>
-
-          {/* Name + badges */}
-          <div className="flex-1">
-            <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="font-display text-2xl sm:text-3xl">{name}</h1>
-              {verified && profile?.is_showroom && (
-                <span title="Golden Verified Showroom" className="inline-flex">
-                  <svg className="h-6 w-6 text-gold" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M9.5 21l-1.7-3.3L4 16l3.8-1.7L9.5 11l1.7 3.3L15 16l-3.8 1.7L9.5 21zM18 14l-1-2-1 2-2 1 2 1 1 2 1-2 2-1-2-1zM14.5 6l-1.3-2.5L12 6l-2.5 1.3L12 8.5l1.2 2.5L14.5 8.5l2.5-1.2L14.5 6z" />
-                  </svg>
-                </span>
-              )}
-              {verified && !profile?.is_showroom && (
-                <BadgeCheck className="h-6 w-6 text-blue-400" />
-              )}
-            </div>
-            <div className="text-xs uppercase tracking-widest text-gold/80 mt-1">
-              {profile?.plan_type === "showroom" ? "Showroom Account" : "Individual Account"}
-            </div>
-
-            {/* Bio */}
-            {profile?.bio && (
-              <p className="text-sm text-muted-foreground mt-3 max-w-lg">{profile.bio}</p>
-            )}
-
-            {/* Contact links */}
-            <div className="mt-3 flex flex-wrap items-center gap-3">
-              {instagramUrl && (
-                <a href={instagramUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-sm text-pink-500 hover:text-pink-400">
-                  <Instagram className="h-4 w-4" /><span>{profile.instagram}</span>
-                </a>
-              )}
-              {profile.phone && (access === "active" || isOwnProfile) && (
-                <a href={`tel:${profile.phone}`} className="inline-flex items-center gap-1.5 text-sm text-gold hover:text-gold/80">
-                  <Phone className="h-4 w-4" /><span>{profile.phone}</span>
-                </a>
-              )}
-              {profile.phone && (access === "active" || isOwnProfile) && (
-                <a href={`https://wa.me/${profile.phone.replace(/\D/g, "")}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-sm text-green-500 hover:text-green-400">
-                  <MessageCircle className="h-4 w-4" /><span>WhatsApp</span>
-                </a>
-              )}
-              {access !== "active" && !isOwnProfile && profile.phone && (
-                <span className="text-xs text-muted-foreground italic">Subscribe to view contact</span>
-              )}
-            </div>
-
-            {isOwnProfile && (
-              <div className="mt-3 flex gap-2 flex-wrap">
-                <Button variant="ghost" size="sm" onClick={() => setShowEditProfile(true)}>
-                  <Pencil className="h-4 w-4 mr-1" /> Edit Profile
-                </Button>
-                <Button variant="ghost" size="sm" asChild><Link to="/plans"><Crown className="h-4 w-4 text-gold" /> Upgrade</Link></Button>
-              </div>
-            )}
-          </div>
-
-          {/* Stats */}
-          <div className="flex gap-3">
-            <div className="rounded-xl gold-border bg-gold-soft/30 px-5 py-4 text-center min-w-[100px]">
-              <div className="text-[10px] uppercase tracking-widest text-gold/80">Active</div>
-              <div className="font-display text-2xl gold-text mt-1 flex items-center justify-center gap-1">
-                <Car className="h-4 w-4" />{activeVehicles.length}
-              </div>
-            </div>
-            <div className="rounded-xl border border-blue-500/30 bg-blue-500/10 px-5 py-4 text-center min-w-[100px]">
-              <div className="text-[10px] uppercase tracking-widest text-blue-400">Sold</div>
-              <div className="font-display text-2xl text-blue-400 mt-1 flex items-center justify-center gap-1">
-                <Tag className="h-4 w-4" />{soldVehicles.length}
-              </div>
-            </div>
-            {isOwnProfile && me?.subscription_until && (
-              <SubscriptionCountdown until={me.subscription_until} status={me.subscription_status} />
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Listings Tabs */}
-      <div className="mt-8">
-        <div className="flex gap-2 mb-4">
-          <button
-            onClick={() => setActiveTab("active")}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition ${activeTab === "active" ? "gold-gradient text-gold-foreground" : "bg-charcoal text-muted-foreground hover:text-foreground"}`}
-          >
-            Active ({activeVehicles.length})
-          </button>
-          <button
-            onClick={() => setActiveTab("sold")}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition ${activeTab === "sold" ? "gold-gradient text-gold-foreground" : "bg-charcoal text-muted-foreground hover:text-foreground"}`}
-          >
-            Sold ({soldVehicles.length})
-          </button>
+          {isOwnProfile && (
+            <button
+              onClick={() => setShowEditProfile(true)}
+              className="absolute bottom-0 right-0 h-9 w-9 rounded-full bg-background border-2 border-gold/50 grid place-items-center hover:bg-gold/10 transition shadow-lg"
+              title="Edit profile"
+            >
+              <Camera className="h-4 w-4 text-gold" />
+            </button>
+          )}
         </div>
 
-        {displayVehicles.length === 0 ? (
-          <div className="text-center text-muted-foreground py-16">
-            <Car className="h-12 w-12 mx-auto mb-3 text-muted-foreground/30" />
-            <p>{activeTab === "active" ? "No active listings." : "No sold listings."}</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {displayVehicles.map((v) => (
-              <SellerCard
-                key={v.id}
-                v={v}
-                isOwner={isOwnProfile}
-                onDelete={deleteListing}
-                onMarkSold={markAsSold}
-              />
-            ))}
+        {/* Name + Golden Verified badge */}
+        <div className="flex items-center gap-2 justify-center">
+          <h1 className="font-display text-2xl sm:text-3xl">{name}</h1>
+          {verified && profile?.is_showroom && (
+            <span title="Golden Verified Showroom" className="inline-flex shrink-0">
+              <svg className="h-7 w-7 text-gold" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M9.5 21l-1.7-3.3L4 16l3.8-1.7L9.5 11l1.7 3.3L15 16l-3.8 1.7L9.5 21zM18 14l-1-2-1 2-2 1 2 1 1 2 1-2 2-1-2-1zM14.5 6l-1.3-2.5L12 6l-2.5 1.3L12 8.5l1.2 2.5L14.5 8.5l2.5-1.2L14.5 6z" />
+              </svg>
+            </span>
+          )}
+          {verified && !profile?.is_showroom && (
+            <BadgeCheck className="h-6 w-6 text-blue-400 shrink-0" />
+          )}
+        </div>
+
+        {/* Username */}
+        <p className="text-sm text-muted-foreground mt-0.5">@{username}</p>
+
+        {/* Account type badge */}
+        <div className="mt-2">
+          <span className={`text-[10px] uppercase tracking-[0.2em] px-3 py-1 rounded-full border ${
+            profile?.is_showroom
+              ? "border-gold/40 bg-gold-soft/30 text-gold"
+              : "border-border bg-charcoal text-muted-foreground"
+          }`}>
+            {profile?.is_showroom ? "Showroom Account" : "Individual Account"}
+          </span>
+        </div>
+
+        {/* Bio */}
+        {profile?.bio && (
+          <p className="text-sm text-foreground/80 mt-4 max-w-md leading-relaxed">{profile.bio}</p>
+        )}
+
+        {/* Contact - only visible if subscribed/logged in */}
+        <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
+          {canSeeContact && profile.phone && (
+            <>
+              <a href={`tel:${profile.phone}`} className="inline-flex items-center gap-1.5 text-sm text-gold hover:text-gold/80 transition">
+                <Phone className="h-4 w-4" /><span>{profile.phone}</span>
+              </a>
+              <a href={`https://wa.me/${profile.phone.replace(/\D/g, "")}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-sm text-green-500 hover:text-green-400 transition">
+                <MessageCircle className="h-4 w-4" /><span>WhatsApp</span>
+              </a>
+            </>
+          )}
+          {instagramUrl && (
+            <a href={instagramUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-sm text-pink-500 hover:text-pink-400 transition">
+              <Instagram className="h-4 w-4" /><span>{profile.instagram}</span>
+            </a>
+          )}
+          {!canSeeContact && profile.phone && (
+            <button onClick={() => setPaywallOpen(true)} className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-gold transition">
+              <Lock className="h-4 w-4" /><span>Subscribe to view contact</span>
+            </button>
+          )}
+        </div>
+
+        {/* Message button */}
+        {user && !isOwnProfile && (
+          <div className="mt-5">
+            <ChatDialog
+              recipientId={profile.phone}
+              recipientPhone={profile.phone}
+              vehicleId=""
+              vehicleTitle={`Profile: ${name}`}
+              autoOpen={chatOpen}
+              onClose={() => setChatOpen(false)}
+            />
+            <Button
+              variant="gold"
+              size="sm"
+              className="px-8"
+              onClick={() => setChatOpen(true)}
+            >
+              <MessageCircle className="h-4 w-4 mr-2" /> Message
+            </Button>
           </div>
         )}
+
+        {/* Owner actions */}
+        {isOwnProfile && (
+          <div className="mt-5 flex gap-2 flex-wrap justify-center">
+            <Button variant="outline" size="sm" onClick={() => setShowEditProfile(true)}>
+              <Pencil className="h-4 w-4 mr-1.5" /> Edit Profile
+            </Button>
+            <Button variant="ghost" size="sm" asChild>
+              <Link to="/plans"><Crown className="h-4 w-4 text-gold mr-1.5" /> Upgrade</Link>
+            </Button>
+          </div>
+        )}
+      </div>
+
+      {/* ===== CONTENT TABS ===== */}
+      <div className="mt-8 border-t border-border/40">
+        <div className="flex justify-around sticky top-16 z-30 bg-background/80 backdrop-blur-xl -mx-4 sm:-mx-6 px-4 sm:px-6">
+          <TabButton active={activeTab === "listings"} onClick={() => setActiveTab("listings")} icon={Grid} label="Listings" count={activeVehicles.length} />
+          <TabButton active={activeTab === "reels"} onClick={() => setActiveTab("reels")} icon={Film} label="Reels" count={reels.length} />
+          <TabButton active={activeTab === "stories"} onClick={() => setActiveTab("stories")} icon={Play} label="Stories" count={stories.length} />
+          <TabButton active={activeTab === "sold"} onClick={() => setActiveTab("sold")} icon={Tag} label="Sold" count={soldVehicles.length} />
+        </div>
+
+        <div className="mt-4">
+          {/* LISTINGS TAB */}
+          {activeTab === "listings" && (
+            <div>
+              {activeVehicles.length === 0 ? (
+                <EmptyState icon={Car} text="No active listings" />
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
+                  {activeVehicles.map((v) => (
+                    <ProfileVehicleCard key={v.id} v={v} isOwner={isOwnProfile} onDelete={deleteListing} onMarkSold={markAsSold} />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* REELS TAB */}
+          {activeTab === "reels" && (
+            <div>
+              {reels.length === 0 ? (
+                <EmptyState icon={Film} text="No reels posted" />
+              ) : (
+                <div className="grid grid-cols-3 gap-1 sm:gap-2">
+                  {reels.map((r) => (
+                    <Link key={r.id} to="/reels" className="group relative aspect-[9/16] rounded-lg overflow-hidden bg-charcoal">
+                      <video
+                        src={r.videoUrl}
+                        className="w-full h-full object-cover"
+                        muted
+                        playsInline
+                        preload="metadata"
+                        onMouseEnter={(e) => (e.currentTarget as HTMLVideoElement).play().catch(() => {})}
+                        onMouseLeave={(e) => { const vid = e.currentTarget as HTMLVideoElement; vid.pause(); vid.currentTime = 0; }}
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
+                      <div className="absolute bottom-1 left-1 right-1 flex items-center gap-2 text-[10px] text-white">
+                        <span className="flex items-center gap-0.5"><Heart className="h-3 w-3" />{r.likesCount || 0}</span>
+                        <span className="flex items-center gap-0.5"><Eye className="h-3 w-3" />{r.viewsCount || 0}</span>
+                      </div>
+                      <div className="absolute top-1 right-1 bg-black/60 rounded-full p-0.5">
+                        <Play className="h-3 w-3 text-white" />
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* STORIES TAB */}
+          {activeTab === "stories" && (
+            <div>
+              {stories.length === 0 ? (
+                <EmptyState icon={Play} text="No active stories" />
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
+                  {stories.map((s) => {
+                    const likeCount = s.likedBy?.length || 0;
+                    return (
+                      <div key={s.id} className="relative aspect-[9/16] rounded-xl overflow-hidden bg-black gold-border group cursor-pointer">
+                        <video
+                          src={s.videoUrl}
+                          className="w-full h-full object-cover"
+                          muted
+                          playsInline
+                          preload="metadata"
+                          onMouseEnter={(e) => (e.currentTarget as HTMLVideoElement).play().catch(() => {})}
+                          onMouseLeave={(e) => { const vid = e.currentTarget as HTMLVideoElement; vid.pause(); vid.currentTime = 0; }}
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
+                        <div className="absolute bottom-2 left-2 right-2">
+                          {s.caption && <p className="text-[10px] text-white/90 line-clamp-2 mb-1">{s.caption}</p>}
+                          <div className="flex items-center gap-1.5 text-[10px] text-white/70">
+                            <Heart className="h-3 w-3" />{likeCount}
+                            <span className="ml-auto">{new Date(s.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* SOLD TAB */}
+          {activeTab === "sold" && (
+            <div>
+              {soldVehicles.length === 0 ? (
+                <EmptyState icon={Tag} text="No sold listings" />
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
+                  {soldVehicles.map((v) => (
+                    <ProfileVehicleCard key={v.id} v={v} isOwner={isOwnProfile} onDelete={deleteListing} onMarkSold={markAsSold} />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Edit Profile Modal */}
@@ -349,11 +532,10 @@ function SellerProfile() {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            {/* Avatar */}
             <div>
               <label className="text-xs uppercase tracking-widest text-muted-foreground mb-1.5 block">Profile Picture</label>
               <div className="flex items-center gap-3">
-                <div className="h-16 w-16 rounded-xl overflow-hidden gold-border bg-charcoal grid place-items-center">
+                <div className="h-16 w-16 rounded-full overflow-hidden gold-border bg-charcoal grid place-items-center">
                   {editAvatar ? (
                     <img src={URL.createObjectURL(editAvatar)} alt="" className="h-full w-full object-cover" />
                   ) : profile?.avatar_url ? (
@@ -376,8 +558,6 @@ function SellerProfile() {
                 </div>
               </div>
             </div>
-
-            {/* Bio */}
             <div>
               <label className="text-xs uppercase tracking-widest text-muted-foreground mb-1.5 block">Bio</label>
               <Textarea
@@ -389,8 +569,6 @@ function SellerProfile() {
               />
               <p className="text-[10px] text-muted-foreground mt-1">{editBio.length}/200</p>
             </div>
-
-            {/* Showroom Name */}
             {profile?.is_showroom && (
               <div>
                 <label className="text-xs uppercase tracking-widest text-muted-foreground mb-1.5 block">Showroom Name</label>
@@ -402,13 +580,97 @@ function SellerProfile() {
                 />
               </div>
             )}
-
             <Button variant="gold" className="w-full" disabled={savingProfile} onClick={saveProfile}>
               {savingProfile ? "Saving..." : "Save Changes"}
             </Button>
           </div>
         </DialogContent>
       </Dialog>
+
+      <PremiumPaywallModal open={paywallOpen} onOpenChange={setPaywallOpen} />
+    </div>
+  );
+}
+
+function TabButton({ active, onClick, icon: Icon, label, count }: {
+  active: boolean;
+  onClick: () => void;
+  icon: React.ElementType;
+  label: string;
+  count: number;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex-1 flex flex-col items-center gap-1 py-3 transition relative ${
+        active ? "text-gold" : "text-muted-foreground hover:text-foreground"
+      }`}
+    >
+      <Icon className="h-5 w-5" />
+      <span className="text-xs font-medium">{label}</span>
+      {count > 0 && <span className="text-[10px] text-muted-foreground">{count}</span>}
+      {active && <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-12 h-0.5 gold-gradient rounded-full" />}
+    </button>
+  );
+}
+
+function EmptyState({ icon: Icon, text }: { icon: React.ElementType; text: string }) {
+  return (
+    <div className="text-center text-muted-foreground py-16">
+      <Icon className="h-12 w-12 mx-auto mb-3 text-muted-foreground/20" />
+      <p className="text-sm">{text}</p>
+    </div>
+  );
+}
+
+function ProfileVehicleCard({ v, isOwner, onDelete, onMarkSold }: {
+  v: Vehicle;
+  isOwner: boolean;
+  onDelete: (id: string) => void;
+  onMarkSold: (id: string) => void;
+}) {
+  const cover = v.photos?.[0] || v.images?.[0];
+  const price = v.price_type === "fixed" ? v.fixed_price : (v.current_highest_bid ?? v.starting_price);
+  return (
+    <div className="group relative rounded-lg overflow-hidden bg-charcoal border border-gold/10 hover:border-gold/30 transition">
+      <Link to="/vehicle/$id" params={{ id: v.id }}>
+        <div className="aspect-[4/3] overflow-hidden">
+          {cover ? (
+            <img src={cover} className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-500" alt={`${v.brand} ${v.model}`} loading="lazy" />
+          ) : (
+            <div className="h-full w-full grid place-items-center"><Car className="h-8 w-8 text-muted-foreground/20" /></div>
+          )}
+        </div>
+      </Link>
+      <div className="p-2">
+        <div className="text-xs font-medium truncate">{v.brand} {v.model}</div>
+        <div className="text-[10px] text-muted-foreground flex items-center gap-1 mt-0.5">
+          <span>{v.year}</span>
+          <span>·</span>
+          <span className="truncate">{v.wilaya}</span>
+        </div>
+        <div className="text-xs gold-text font-display font-bold mt-1">{formatDZD(price ?? 0)}</div>
+      </div>
+      {v.status === "sold" && (
+        <div className="absolute top-1 left-1 text-[9px] px-1.5 py-0.5 rounded-full bg-blue-500/90 text-white font-medium">SOLD</div>
+      )}
+      {isOwner && v.status !== "sold" && (
+        <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition">
+          <button onClick={() => onMarkSold(v.id)} className="h-6 w-6 rounded-full bg-black/70 grid place-items-center hover:bg-gold/80" title="Mark sold">
+            <Tag className="h-3 w-3 text-white" />
+          </button>
+          <button onClick={() => onDelete(v.id)} className="h-6 w-6 rounded-full bg-black/70 grid place-items-center hover:bg-red-500/80" title="Delete">
+            <Trash2 className="h-3 w-3 text-white" />
+          </button>
+        </div>
+      )}
+      {isOwner && v.status === "sold" && (
+        <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition">
+          <button onClick={() => onDelete(v.id)} className="h-6 w-6 rounded-full bg-black/70 grid place-items-center hover:bg-red-500/80" title="Delete">
+            <Trash2 className="h-3 w-3 text-white" />
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -423,8 +685,8 @@ function TrialExpiryBanner({ trialStartedAt }: { trialStartedAt: string }) {
       setHoursLeft(Math.max(0, (expiry - Date.now()) / (1000 * 60 * 60)));
     };
     calc();
-    const id = setInterval(calc, 60_000);
-    return () => clearInterval(id);
+    const timer = setInterval(calc, 60_000);
+    return () => clearInterval(timer);
   }, [trialStartedAt]);
 
   const daysLeft = Math.ceil(hoursLeft / 24);
@@ -441,83 +703,6 @@ function TrialExpiryBanner({ trialStartedAt }: { trialStartedAt: string }) {
       </div>
       <Button variant="gold" size="sm" onClick={() => setShowPaywall(true)}><Tag className="h-4 w-4" /></Button>
       <PremiumPaywallModal open={showPaywall} onOpenChange={setShowPaywall} />
-    </div>
-  );
-}
-
-function SubscriptionCountdown({ until, status }: { until: string; status: string }) {
-  const [daysLeft, setDaysLeft] = useState(0);
-
-  useEffect(() => {
-    const calc = () => setDaysLeft(Math.max(0, (new Date(until).getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
-    calc();
-    const id = setInterval(calc, 60_000);
-    return () => clearInterval(id);
-  }, [until]);
-
-  if (status !== "active") return null;
-
-  return (
-    <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-5 py-4 text-center min-w-[100px]">
-      <div className="text-[10px] uppercase tracking-widest text-emerald-400">Subscription</div>
-      <div className="font-display text-2xl text-emerald-400 mt-1 flex items-center justify-center gap-2">
-        <Calendar className="h-5 w-5" />{Math.ceil(daysLeft)}d
-      </div>
-    </div>
-  );
-}
-
-function SellerCard({ v, isOwner, onDelete, onMarkSold }: { v: Vehicle; isOwner: boolean; onDelete: (id: string) => void; onMarkSold: (id: string) => void }) {
-  const cover = v.photos?.[0] || v.images?.[0];
-  const price = v.price_type === "fixed" ? v.fixed_price : (v.current_highest_bid ?? v.starting_price);
-  return (
-    <div className="group premium-card rounded-xl overflow-hidden hover:gold-border transition-all relative">
-      <Link to="/vehicle/$id" params={{ id: v.id }}>
-        <div className="aspect-[4/3] bg-charcoal overflow-hidden">
-          {cover && <img src={cover} className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-500" alt={`${v.brand} ${v.model}`} loading="lazy" />}
-        </div>
-      </Link>
-      <div className="p-4">
-        <div className="flex items-baseline justify-between gap-2">
-          <Link to="/vehicle/$id" params={{ id: v.id }}>
-            <h3 className="font-display text-lg truncate">{v.brand} {v.model}</h3>
-          </Link>
-          <span className="text-xs text-muted-foreground shrink-0">{v.year}</span>
-        </div>
-        <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
-          <span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{v.wilaya}</span>
-          <span className="flex items-center gap-1"><Gauge className="h-3 w-3" />{v.mileage?.toLocaleString()} km</span>
-        </div>
-        <div className="gold-text font-display text-xl font-bold mt-2">{formatDZD(price ?? 0)}</div>
-
-        {v.status === "sold" && (
-          <div className="mt-2 inline-block text-xs px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">SOLD</div>
-        )}
-
-        {/* Owner actions */}
-        {isOwner && v.status !== "sold" && (
-          <div className="mt-3 flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => onMarkSold(v.id)}>
-              <Tag className="h-3.5 w-3.5 mr-1" /> Mark Sold
-            </Button>
-            <Button variant="ghost" size="sm" asChild>
-              <Link to="/edit-listing/$id" params={{ id: v.id }}>
-                <Pencil className="h-3.5 w-3.5 mr-1" /> Edit
-              </Link>
-            </Button>
-            <Button variant="destructive" size="sm" onClick={() => onDelete(v.id)}>
-              <Trash2 className="h-3.5 w-3.5" />
-            </Button>
-          </div>
-        )}
-        {isOwner && v.status === "sold" && (
-          <div className="mt-3 flex gap-2">
-            <Button variant="destructive" size="sm" onClick={() => onDelete(v.id)}>
-              <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete
-            </Button>
-          </div>
-        )}
-      </div>
     </div>
   );
 }
