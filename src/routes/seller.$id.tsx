@@ -96,6 +96,9 @@ function SellerProfile() {
   const [activeTab, setActiveTab] = useState<"listings" | "reels" | "stories" | "sold">("listings");
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [editBio, setEditBio] = useState("");
+  const [editFirstName, setEditFirstName] = useState("");
+  const [editLastName, setEditLastName] = useState("");
+  const [editPhone, setEditPhone] = useState("");
   const [editShowroomName, setEditShowroomName] = useState("");
   const [editAvatar, setEditAvatar] = useState<File | null>(null);
   const [savingProfile, setSavingProfile] = useState(false);
@@ -197,6 +200,9 @@ function SellerProfile() {
             instagram: data.instagram,
           });
           setEditBio(data.bio || "");
+          setEditFirstName(data.first_name || "");
+          setEditLastName(data.last_name || "");
+          setEditPhone(data.phone || phoneKey);
           setEditShowroomName(data.showroom_name || "");
         } else if (sellerVehicles.length > 0 || reelsSnap.exists() || storiesSnap.exists()) {
           // No users/ entry but has content — build a minimal profile from vehicle/reel metadata
@@ -253,6 +259,15 @@ function SellerProfile() {
       if (editBio !== (profile?.bio || "")) {
         await set(ref(realtimeDb, `users/${phoneKey}/bio`), editBio.trim() || null);
       }
+      if (editFirstName !== (profile?.first_name || "")) {
+        await set(ref(realtimeDb, `users/${phoneKey}/first_name`), editFirstName.trim());
+      }
+      if (editLastName !== (profile?.last_name || "")) {
+        await set(ref(realtimeDb, `users/${phoneKey}/last_name`), editLastName.trim());
+      }
+      if (editPhone.trim() && editPhone !== (profile?.phone || phoneKey)) {
+        await set(ref(realtimeDb, `users/${phoneKey}/phone`), editPhone.trim());
+      }
       if (profile?.is_showroom && editShowroomName !== (profile?.showroom_name || "")) {
         await set(ref(realtimeDb, `users/${phoneKey}/showroom_name`), editShowroomName.trim() || null);
       }
@@ -261,7 +276,14 @@ function SellerProfile() {
         await set(ref(realtimeDb, `users/${phoneKey}/avatar_url`), avatarUrl);
         await set(ref(realtimeDb, `users/${phoneKey}/avatar_updated_at`), new Date().toISOString());
       }
-      setProfile(prev => prev ? { ...prev, bio: editBio, showroom_name: editShowroomName || prev.showroom_name } : null);
+      setProfile(prev => prev ? {
+        ...prev,
+        bio: editBio,
+        first_name: editFirstName,
+        last_name: editLastName,
+        phone: editPhone || prev.phone,
+        showroom_name: editShowroomName || prev.showroom_name,
+      } : null);
       setShowEditProfile(false);
       toast.success("Profile updated");
     } catch (err) {
@@ -591,6 +613,35 @@ function SellerProfile() {
                   )}
                 </div>
               </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs uppercase tracking-widest text-muted-foreground mb-1.5 block">First Name</label>
+                <Input
+                  value={editFirstName}
+                  onChange={(e) => setEditFirstName(e.target.value)}
+                  placeholder="First name"
+                  className="bg-charcoal"
+                />
+              </div>
+              <div>
+                <label className="text-xs uppercase tracking-widest text-muted-foreground mb-1.5 block">Last Name</label>
+                <Input
+                  value={editLastName}
+                  onChange={(e) => setEditLastName(e.target.value)}
+                  placeholder="Last name"
+                  className="bg-charcoal"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="text-xs uppercase tracking-widest text-muted-foreground mb-1.5 block">Phone Number</label>
+              <Input
+                value={editPhone}
+                onChange={(e) => setEditPhone(e.target.value)}
+                placeholder="Phone number"
+                className="bg-charcoal"
+              />
             </div>
             <div>
               <label className="text-xs uppercase tracking-widest text-muted-foreground mb-1.5 block">Bio</label>
