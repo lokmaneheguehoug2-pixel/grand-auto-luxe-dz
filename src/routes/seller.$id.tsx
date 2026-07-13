@@ -4,7 +4,7 @@ import { formatDZD } from "@/lib/format";
 import {
   BadgeCheck, Car, MapPin, Gauge, Crown, AlertTriangle, Tag, Calendar,
   Instagram, Phone, MessageCircle, Camera, Pencil, Trash2, Film, Heart,
-  Lock, Grid, Play, Eye, Flag,
+  Lock, Grid, Play, Eye, Flag, Clock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PremiumPaywallModal } from "@/components/PremiumPaywallModal";
@@ -243,6 +243,17 @@ function SellerProfile() {
     new Date(profile.subscription_until) > new Date()
   );
 
+  const daysUntilExpiry = profile?.subscription_until
+    ? Math.ceil((new Date(profile.subscription_until).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+    : null;
+
+  useEffect(() => {
+    if (isOwnProfile && profile?.subscription_status === "active" && daysUntilExpiry !== null && daysUntilExpiry <= 0) {
+      set(ref(realtimeDb, `users/${profile.phone}/subscription_status`), "expired");
+      setProfile(prev => prev ? { ...prev, subscription_status: "expired" } : null);
+    }
+  }, [isOwnProfile, profile, daysUntilExpiry]);
+
   const name = profile
     ? (profile.showroom_name || `${profile.first_name ?? ""} ${profile.last_name ?? ""}`.trim() || "Seller")
     : "Seller";
@@ -381,6 +392,47 @@ function SellerProfile() {
   return (
     <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
       {isOwnProfile && access === "trial" && me && <TrialExpiryBanner trialStartedAt={me.trial_started_at} />}
+
+           {/* Subscription countdown badge for profile owner */}
+      {isOwnProfile && profile?.subscription_status === "active" && daysUntilExpiry !== null && daysUntilExpiry > 0 && (
+        <div className={`rounded-xl border p-4 mb-6 flex items-center gap-3 ${
+          daysUntilExpiry <= 3 ? "border-destructive bg-destructive/10" :
+          daysUntilExpiry <= 7 ? "border-yellow-500/40 bg-yellow-500/10" :
+          "border-gold/40 bg-gold-soft/20"
+        }`}>
+          <Clock className={`h-5 w-5 ${
+            daysUntilExpiry <= 3 ? "text-destructive" :
+            daysUntilExpiry <= 7 ? "text-yellow-500" :
+            "text-gold"
+          }`} />
+          <div>
+            <div className="font-medium">
+              {daysUntilExpiry <= 3 ? `Expiring soon: ${daysUntilExpiry} day${daysUntilExpiry !== 1 ? "s" : ""} left` :
+               `Your subscription expires in ${daysUntilExpiry} days`}
+            </div>
+            <div className="text-xs text-muted-foreground">
+              Expires on {new Date(profile.subscription_until!).toLocaleDateString()}
+            </div>
+          </div>
+          <Button variant="gold" size="sm" className="ml-auto" asChild>
+            <Link to="/plans"><Crown className="h-4 w-4 mr-1" /> Renew</Link>
+          </Button>
+        </div>
+      )}
+
+           {/* Expired subscription banner for profile owner */}
+      {isOwnProfile && profile?.subscription_status === "expired" && (
+        <div className="rounded-xl border border-destructive bg-destructive/10 p-4 mb-6 flex items-center gap-3">
+          <AlertTriangle className="h-5 w-5 text-destructive" />
+          <div>
+            <div className="font-medium text-destructive">Your subscription has expired</div>
+            <div className="text-xs text-muted-foreground">Renew to continue posting and accessing premium features</div>
+          </div>
+          <Button variant="gold" size="sm" className="ml-auto" asChild>
+            <Link to="/plans"><Crown className="h-4 w-4 mr-1" /> Renew Now</Link>
+          </Button>
+        </div>
+      )}
 
       {/* ===== PROFILE HEADER (TikTok-style centered) ===== */}
       <div className="flex flex-col items-center text-center">
