@@ -23,11 +23,13 @@ export const Route = createFileRoute("/admin")({
 type FirebaseUser = {
   id: string;
   phone: string;
+  email?: string;
   first_name: string;
   last_name: string;
-  subscription_status: "trial" | "active" | "pending" | "locked";
+  subscription_status: "trial" | "active" | "pending" | "locked" | "expired";
   subscription_tier: "basic" | "pro" | "dealer" | null;
   subscription_until: string | null;
+  subscription_start_date?: string | null;
   trial_started_at: string;
   is_banned: boolean;
   role: "admin" | "user";
@@ -289,6 +291,9 @@ function UsersManagementTab() {
   const [activateUser, setActivateUser] = useState<FirebaseUser | null>(null);
   const [selectedPlan, setSelectedPlan] = useState<string>("individual-monthly");
   const [activating, setActivating] = useState(false);
+  const [credentialsUser, setCredentialsUser] = useState<FirebaseUser | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
+  const [revoking, setRevoking] = useState<string | null>(null);
 
   useEffect(() => {
     const usersRef = ref(realtimeDb, "users");
@@ -297,7 +302,21 @@ function UsersManagementTab() {
         const data = snapshot.val();
         if (data) {
           const usersList = Object.values(data);
-          const sorted = usersList.sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+          const withExpiry = usersList.map((u) => {
+            if (u.subscription_until && u.subscription_status === "active") {
+              const daysLeft = Math.ceil((new Date(u.subscription_until).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+              if (daysLeft <= 0) {
+                set(ref(realtimeDb, `users/${u.phone}/subscription_status`), "expired");
+                return { ...u, subscription_status: "expired" as const };
+              }
+            }
+            return u;
+          });
+          const sorted = withExpiry.sort((a, b) => {
+            const aDays = a.subscription_until ? Math.ceil((new Date(a.subscription_until).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : Infinity;
+            const bDays = b.subscription_until ? Math.ceil((new Date(b.subscription_until).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : Infinity;
+            return aDays - bDays;
+          });
           setUsers(sorted);
         } else { setUsers([]); }
       } catch (err) {
@@ -357,6 +376,30 @@ function UsersManagementTab() {
     } catch (err) { toast.error("Failed to update password"); }
   };
 
+  const toggleSubscription = async (user: FirebaseUser) => {
+    setRevoking(user.phone);
+    try {
+      if (user.subscription_status === "active") {
+        await set(ref(realtimeDb, `users/${user.phone}/subscription_status`), "expired");
+        setUsers(users.map((u) => u.phone === user.phone ? { ...u, subscription_status: "expired" } : u));
+        toast.success("Subscription revoked");
+      } else {
+        const until = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+        await set(ref(realtimeDb, `users/${user.phone}/subscription_status`), "active");
+        await set(ref(realtimeDb, `users/${user.phone}/subscription_until`), until);
+        await set(ref(realtimeDb, `users/${user.phone}/subscription_start_date`), new Date().toISOString());
+        setUsers(users.map((u) => u.phone === user.phone ? { ...u, subscription_status: "active", subscription_until: until, subscription_start_date: new Date().toISOString() } : u));
+        toast.success("Subscription enabled for 30 days");
+      }
+    } catch (err) { toast.error("Failed to update subscription"); }
+    finally { setRevoking(null); }
+  };
+
+  const getDaysRemaining = (user: FirebaseUser): number | null => {
+    if (!user.subscription_until) return null;
+    return Math.ceil((new Date(user.subscription_until).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+  };
+
   const openEditUser = (u: FirebaseUser) => {
     setEditingUser(u);
     setEditFirstName(u.first_name || "");
@@ -413,9 +456,28 @@ function UsersManagementTab() {
               </div>
               <div className="text-xs text-muted-foreground">{user.phone}</div>
               <div className="text-xs flex items-center gap-2 mt-1">
-                <span className={user.subscription_status === "active" ? "text-green-400" : "text-yellow-400"}>{user.subscription_status}</span>
+                <span className={
+                  user.subscription_status === "active" ? "text-green-400" :
+                  user.subscription_status === "expired" ? "text-red-400" :
+                  "text-yellow-400"
+                }>{user.subscription_status}</span>
                 {user.subscription_until && <span className="text-muted-foreground">until {new Date(user.subscription_until).toLocaleDateString()}</span>}
               </div>
+              {(() => {
+                const days = getDaysRemaining(user);
+                if (days === null) return null;
+                return (
+                  <div className="text-xs mt-1">
+                    <span className={
+                      days <= 0 ? "text-red-400" :
+                      days <= 3 ? "text-yellow-400" :
+                      "text-green-400"
+                    }>
+                      {days <= 0 ? "Expired" : `${days} days remaining`}
+                    </span>
+                  </div>
+                );
+              })()}
             </div>
             <div className="flex gap-2 flex-wrap">
               {!user.is_banned ? <Button variant="destructive" size="sm" onClick={() => toggleBan(user, true)}><Ban className="h-4 w-4" /></Button> : <Button variant="outline" size="sm" onClick={() => toggleBan(user, false)}><UserCheck className="h-4 w-4" /></Button>}
@@ -424,8 +486,19 @@ function UsersManagementTab() {
                   <Crown className="h-4 w-4 mr-1" /> Activate
                 </Button>
               )}
+              {user.role !== "admin" && (
+                <Button
+                  variant={user.subscription_status === "active" ? "destructive" : "outline"}
+                  size="sm"
+                  disabled={revoking === user.phone}
+                  onClick={() => toggleSubscription(user)}
+                  title={user.subscription_status === "active" ? "Revoke subscription" : "Enable subscription"}
+                >
+                  {revoking === user.phone ? "..." : user.subscription_status === "active" ? <><Ban className="h-4 w-4 mr-1" /> Revoke</> : <><UserCheck className="h-4 w-4 mr-1" /> Enable</>}
+                </Button>
+              )}
               <Button variant="ghost" size="sm" onClick={() => openEditUser(user)} title="Edit user"><Settings className="h-4 w-4" /></Button>
-              <Button variant="ghost" size="sm" onClick={() => { setEditingPassword(user); setNewPassword(""); }} title="Reset password"><Key className="h-4 w-4" /></Button>
+              <Button variant="ghost" size="sm" onClick={() => { setCredentialsUser(user); setShowPassword(false); setNewPassword(""); }} title="Manage credentials"><Key className="h-4 w-4" /></Button>
               {user.role !== "admin" && <Button variant="destructive" size="sm" onClick={() => deleteUser(user)} title="Delete user"><UserX className="h-4 w-4" /></Button>}
             </div>
           </div>
@@ -530,6 +603,90 @@ function UsersManagementTab() {
               <Button variant="gold" className="w-full" onClick={() => updatePassword(editingPassword)}>
                 Update Password
               </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Manage Credentials Modal */}
+      <Dialog open={!!credentialsUser} onOpenChange={(open) => { if (!open) setCredentialsUser(null); }}>
+        <DialogContent className="max-w-md bg-background border-gold/40">
+          <DialogHeader>
+            <DialogTitle className="gold-text flex items-center gap-2">
+              <Key className="h-5 w-5" /> Manage Credentials
+            </DialogTitle>
+          </DialogHeader>
+          {credentialsUser && (
+            <div className="space-y-4">
+              <div className="text-sm text-muted-foreground">
+                User: <span className="font-medium text-foreground">{credentialsUser.first_name} {credentialsUser.last_name}</span>
+              </div>
+              <div>
+                <label className="text-xs uppercase tracking-widest text-muted-foreground mb-1.5 block">Email</label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={credentialsUser.email || "No email on file"}
+                    readOnly
+                    className="bg-charcoal flex-1"
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      if (credentialsUser.email) {
+                        navigator.clipboard.writeText(credentialsUser.email);
+                        toast.success("Email copied");
+                      }
+                    }}
+                  ><Copy className="h-4 w-4" /></Button>
+                </div>
+              </div>
+              <div>
+                <label className="text-xs uppercase tracking-widest text-muted-foreground mb-1.5 block">Current Password</label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    type={showPassword ? "text" : "password"}
+                    value={credentialsUser.password || ""}
+                    readOnly
+                    className="bg-charcoal flex-1"
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowPassword(!showPassword)}
+                  ><Eye className="h-4 w-4" /></Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      if (credentialsUser.password) {
+                        navigator.clipboard.writeText(credentialsUser.password);
+                        toast.success("Password copied");
+                      }
+                    }}
+                  ><Copy className="h-4 w-4" /></Button>
+                </div>
+              </div>
+              <div className="border-t border-border/40 pt-4">
+                <label className="text-xs uppercase tracking-widest text-muted-foreground mb-1.5 block">Reset Password</label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="text"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="Enter new password (min 4 chars)"
+                    className="bg-charcoal flex-1"
+                  />
+                  <Button
+                    variant="gold"
+                    size="sm"
+                    onClick={() => {
+                      updatePassword(credentialsUser);
+                      setCredentialsUser(null);
+                    }}
+                  >Reset</Button>
+                </div>
+              </div>
             </div>
           )}
         </DialogContent>
