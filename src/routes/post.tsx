@@ -11,7 +11,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
 import { Loader2, Upload, X, Car, GripVertical, ImagePlus, Check } from "lucide-react";
-import { WILAYAS, BRANDS } from "@/lib/wilayas";
+import { WILAYAS } from "@/lib/wilayas";
+import { BrandCombobox } from "@/components/BrandCombobox";
 import { toast } from "sonner";
 import { PremiumPaywallModal } from "@/components/PremiumPaywallModal";
 
@@ -258,16 +259,7 @@ function PostPage() {
         <Section title="Vehicle Details">
           <div className="grid grid-cols-2 gap-3">
             <Field label="Brand">
-              <Select value={f.brand} onValueChange={(v) => setF({ ...f, brand: v })}>
-                <SelectTrigger className="bg-charcoal">
-                  <SelectValue placeholder="Select brand" />
-                </SelectTrigger>
-                <SelectContent>
-                  {BRANDS.map((b) => (
-                    <SelectItem key={b} value={b}>{b}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <BrandCombobox value={f.brand} onChange={(v) => setF({ ...f, brand: v })} />
             </Field>
             <Field label="Model">
               <Input className="bg-charcoal" required value={f.model} onChange={(e) => setF({ ...f, model: e.target.value })} />
