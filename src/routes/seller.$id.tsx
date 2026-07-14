@@ -490,50 +490,69 @@ function SellerProfile() {
           <p className="text-sm text-foreground/80 mt-4 max-w-md leading-relaxed">{profile.bio}</p>
         )}
 
-        {/* Contact - only visible if subscribed/logged in */}
-        <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
-          {canSeeContact && profile.phone && (
-            <>
-              <a href={`tel:${profile.phone}`} className="inline-flex items-center gap-1.5 text-sm text-gold hover:text-gold/80 transition">
-                <Phone className="h-4 w-4" /><span>{profile.phone}</span>
-              </a>
-              <a href={`https://wa.me/${profile.phone.replace(/\D/g, "")}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-sm text-green-500 hover:text-green-400 transition">
-                <MessageCircle className="h-4 w-4" /><span>WhatsApp</span>
-              </a>
-            </>
-          )}
-          {instagramUrl && (
+        {/* Instagram - public, always visible */}
+        {instagramUrl && (
+          <div className="mt-4">
             <a href={instagramUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-sm text-pink-500 hover:text-pink-400 transition">
               <Instagram className="h-4 w-4" /><span>{profile.instagram}</span>
             </a>
-          )}
-          {!canSeeContact && profile.phone && (
-            <button onClick={() => setPaywallOpen(true)} className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-gold transition">
-              <Lock className="h-4 w-4" /><span>Subscribe to view contact</span>
-            </button>
-          )}
-        </div>
-
-        {/* Message button */}
-        {user && !isOwnProfile && (
-          <div className="mt-5">
-            <ChatDialog
-              recipientId={profile.phone}
-              recipientPhone={profile.phone}
-              vehicleId=""
-              vehicleTitle={`Profile: ${name}`}
-              autoOpen={chatOpen}
-              onClose={() => setChatOpen(false)}
-            />
-            <Button
-              variant="gold"
-              size="sm"
-              className="px-8"
-              onClick={() => setChatOpen(true)}
-            >
-              <MessageCircle className="h-4 w-4 mr-2" /> Message
-            </Button>
           </div>
+        )}
+
+        {/* Contact + Chat - gated behind active subscription */}
+        {canSeeContact ? (
+          <>
+            {/* Phone & WhatsApp */}
+            {profile.phone && (
+              <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
+                <a href={`tel:${profile.phone}`} className="inline-flex items-center gap-1.5 text-sm text-gold hover:text-gold/80 transition">
+                  <Phone className="h-4 w-4" /><span>{profile.phone}</span>
+                </a>
+                <a href={`https://wa.me/${profile.phone.replace(/\D/g, "")}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-sm text-green-500 hover:text-green-400 transition">
+                  <MessageCircle className="h-4 w-4" /><span>WhatsApp</span>
+                </a>
+              </div>
+            )}
+
+            {/* In-app Message button */}
+            {!isOwnProfile && (
+              <div className="mt-5">
+                <ChatDialog
+                  recipientId={profile.phone}
+                  recipientPhone={profile.phone}
+                  vehicleId=""
+                  vehicleTitle={`Profile: ${name}`}
+                  autoOpen={chatOpen}
+                  onClose={() => setChatOpen(false)}
+                />
+                <Button
+                  variant="gold"
+                  size="sm"
+                  className="px-8"
+                  onClick={() => setChatOpen(true)}
+                >
+                  <MessageCircle className="h-4 w-4 mr-2" /> Message
+                </Button>
+              </div>
+            )}
+          </>
+        ) : (
+          /* Locked CTA for guests / non-subscribers */
+          !isOwnProfile && (
+            <div className="mt-5 w-full max-w-sm mx-auto">
+              <div className="premium-card gold-border rounded-xl p-5 text-center">
+                <div className="h-12 w-12 mx-auto mb-3 rounded-full bg-gold/10 grid place-items-center">
+                  <Lock className="h-6 w-6 text-gold" />
+                </div>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Subscribe to view contact and start chat
+                </p>
+                <Button asChild variant="gold" size="sm" className="w-full">
+                  <Link to="/plans"><Crown className="h-4 w-4 mr-2" /> Unlock Contact</Link>
+                </Button>
+              </div>
+            </div>
+          )
         )}
 
         {/* Owner actions */}
