@@ -413,10 +413,10 @@ function VehicleDetail() {
             <div className="flex flex-col items-center py-4 gap-3">
               <Lock className="h-8 w-8 text-gold/50" />
               <p className="text-sm text-muted-foreground text-center">
-                Contact details are locked. Subscribe to view phone, WhatsApp, and chat with sellers.
+                Subscribe to contact seller and view phone number
               </p>
-              <Button variant="gold" size="sm" onClick={() => setPaywallOpen(true)}>
-                <Crown className="h-4 w-4 mr-1" /> Unlock Contact
+              <Button asChild variant="gold" size="sm">
+                <Link to="/plans"><Crown className="h-4 w-4 mr-1" /> Unlock Contact</Link>
               </Button>
             </div>
           )}

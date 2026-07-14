@@ -545,7 +545,7 @@ function SellerProfile() {
                   <Lock className="h-6 w-6 text-gold" />
                 </div>
                 <p className="text-sm text-muted-foreground mb-4">
-                  Subscribe to view contact and start chat
+                  Subscribe to contact seller and view phone number
                 </p>
                 <Button asChild variant="gold" size="sm" className="w-full">
                   <Link to="/plans"><Crown className="h-4 w-4 mr-2" /> Unlock Contact</Link>

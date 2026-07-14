@@ -7,6 +7,7 @@ import { PaywallGate } from "@/components/PaywallGate";
 import { CompareTray } from "@/components/CompareTray";
 import { NotificationBell } from "@/components/NotificationBell";
 import { PremiumPaywallModal } from "@/components/PremiumPaywallModal";
+import { SubscriptionReminderModal } from "@/components/SubscriptionReminderModal";
 import { CustomerServiceFooter } from "@/components/CustomerServiceFooter";
 import { useEffect, useState, useMemo } from "react";
 import { ref, onValue, off } from "firebase/database";
@@ -44,6 +45,8 @@ export function AppShell() {
 
   const isAuthPage = pathname === "/auth";
   const unreadMsgs = useUnreadMessages(user?.uid);
+
+  const showReminder = !!user && access !== "active" && !isAdminStable && !isAuthPage && !["/paywall", "/checkout", "/plans", "/post", "/post-reel"].includes(pathname);
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
@@ -131,6 +134,7 @@ export function AppShell() {
       {user && access === "locked" && !isAdminStable && !isAuthPage && !["/paywall", "/checkout", "/post", "/post-reel"].includes(pathname) && <PaywallGate />}
       {!isAuthPage && <CompareTray />}
       {user && !isAuthPage && !isAdminStable && <FloatingPostButton />}
+      <SubscriptionReminderModal shouldShow={showReminder} />
       <Toaster theme="dark" />
     </div>
   );
