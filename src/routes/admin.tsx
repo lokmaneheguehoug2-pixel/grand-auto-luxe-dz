@@ -14,6 +14,7 @@ import { formatDZD } from "@/lib/format";
 import { ref, onValue, set, off, get, push, remove, update } from "firebase/database";
 import { realtimeDb } from "@/lib/firebase";
 import { savePlatformSettings, fetchPlatformSettings } from "@/lib/supabase";
+import { SocialImageGenerator } from "@/components/SocialImageGenerator";
 
 export const Route = createFileRoute("/admin")({
   head: () => ({ meta: [{ title: "Admin · GRAND Auto Luxe" }] }),
@@ -188,6 +189,9 @@ function AdminPage() {
           <TabsTrigger value="analytics" className="data-[state=active]:bg-gold data-[state=active]:text-gold-foreground">
             <BarChart3 className="h-4 w-4 mr-1" /> Analytics
           </TabsTrigger>
+          <TabsTrigger value="social" className="data-[state=active]:bg-gold data-[state=active]:text-gold-foreground">
+            <ImageIcon className="h-4 w-4 mr-1" /> Social
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="users"><UsersManagementTab /></TabsContent>
@@ -200,6 +204,7 @@ function AdminPage() {
         <TabsContent value="subscriptions"><SubscriptionsTab /></TabsContent>
         <TabsContent value="settings"><SettingsTab /></TabsContent>
         <TabsContent value="analytics"><AnalyticsTab /></TabsContent>
+        <TabsContent value="social"><SocialImageGenerator /></TabsContent>
       </Tabs>
     </div>
   );
