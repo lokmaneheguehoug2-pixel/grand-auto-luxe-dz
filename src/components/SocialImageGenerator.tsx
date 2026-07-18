@@ -30,6 +30,14 @@ type Vehicle = {
 
 type TemplateMode = "single" | "comparison";
 
+// Preview is rendered at half the export resolution.
+// Single Post: 1080x1350 (Instagram Portrait, 4:5) -> preview 540x675
+// Comparison Post: 1080x1920 (Story, 9:16) -> preview 540x960
+const SINGLE_W = 540;
+const SINGLE_H = 675;
+const COMPARE_W = 540;
+const COMPARE_H = 960;
+
 function getVehiclePrice(v: Vehicle): number | null {
   if (v.price_type === "fixed") return v.fixed_price;
   return v.current_highest_bid ?? v.starting_price;
@@ -42,6 +50,23 @@ function formatMilliard(n: number | null): string {
   const million = n / 1_000_000;
   if (million >= 1) return `${million.toFixed(0)} Million`;
   return formatDZD(n);
+}
+
+// Preload images with crossOrigin so html2canvas can capture them without tainting the canvas.
+function preloadImages(urls: string[]): Promise<void[]> {
+  return Promise.all(
+    urls.map(
+      (url) =>
+        new Promise<void>((resolve) => {
+          const img = new Image();
+          img.crossOrigin = "anonymous";
+          img.referrerPolicy = "no-referrer";
+          img.onload = () => resolve();
+          img.onerror = () => resolve();
+          img.src = url;
+        })
+    )
+  );
 }
 
 export function SocialImageGenerator() {
@@ -87,12 +112,24 @@ export function SocialImageGenerator() {
 
     setExporting(true);
     try {
+      // Preload all images with CORS before capture so the canvas is not tainted.
+      const imageUrls: string[] = [];
+      if (mode === "single" && singleSelected?.images?.[0]) imageUrls.push(singleSelected.images[0]);
+      if (mode === "comparison") {
+        if (selectedA?.images?.[0]) imageUrls.push(selectedA.images[0]);
+        if (selectedB?.images?.[0]) imageUrls.push(selectedB.images[0]);
+      }
+      await preloadImages(imageUrls);
+
       const html2canvas = (await import("html2canvas")).default;
       const canvas = await html2canvas(canvasRef.current, {
         scale: 2,
         useCORS: true,
+        allowTaint: false,
         backgroundColor: "#0b0b0b",
-        logging: false,
+        logging: true,
+        imageTimeout: 15000,
+        removeContainer: true,
       });
       const link = document.createElement("a");
       const filename = mode === "single"
@@ -104,7 +141,7 @@ export function SocialImageGenerator() {
       toast.success("Image exported successfully");
     } catch (err) {
       console.error("Export error:", err);
-      toast.error("Failed to export image");
+      toast.error("Failed to export image. Check console for details.");
     } finally {
       setExporting(false);
     }
@@ -164,7 +201,7 @@ export function SocialImageGenerator() {
                     className="w-full text-left px-3 py-2 hover:bg-gold/10 transition flex items-center gap-3"
                   >
                     {v.images?.[0] ? (
-                      <img src={v.images[0]} className="h-10 w-14 rounded object-cover" alt="" />
+                      <img src={v.images[0]} className="h-10 w-14 rounded object-cover" alt="" crossOrigin="anonymous" />
                     ) : (
                       <div className="h-10 w-14 rounded bg-border grid place-items-center"><Car className="h-4 w-4 text-muted-foreground" /></div>
                     )}
@@ -182,7 +219,7 @@ export function SocialImageGenerator() {
             {singleSelected && (
               <div className="flex items-center gap-3 rounded-lg border border-gold/30 bg-gold-soft/10 p-3">
                 {singleSelected.images?.[0] ? (
-                  <img src={singleSelected.images[0]} className="h-12 w-16 rounded object-cover" alt="" />
+                  <img src={singleSelected.images[0]} className="h-12 w-16 rounded object-cover" alt="" crossOrigin="anonymous" />
                 ) : (
                   <div className="h-12 w-16 rounded bg-border grid place-items-center"><Car className="h-5 w-5 text-muted-foreground" /></div>
                 )}
@@ -235,13 +272,13 @@ export function SocialImageGenerator() {
           singleSelected ? (
             <SinglePostTemplate ref={canvasRef} vehicle={singleSelected} />
           ) : (
-            <EmptyPreview />
+            <EmptyPreview width={SINGLE_W} height={SINGLE_H} />
           )
         ) : (
           selectedA && selectedB ? (
             <ComparisonPostTemplate ref={canvasRef} carA={selectedA} carB={selectedB} />
           ) : (
-            <EmptyPreview />
+            <EmptyPreview width={COMPARE_W} height={COMPARE_H} />
           )
         )}
       </div>
@@ -278,7 +315,7 @@ function CarSelector({ label, search, setSearch, selected, onSelect, filterVehic
               className="w-full text-left px-3 py-2 hover:bg-gold/10 transition flex items-center gap-3"
             >
               {v.images?.[0] ? (
-                <img src={v.images[0]} className="h-10 w-14 rounded object-cover" alt="" />
+                <img src={v.images[0]} className="h-10 w-14 rounded object-cover" alt="" crossOrigin="anonymous" />
               ) : (
                 <div className="h-10 w-14 rounded bg-border grid place-items-center"><Car className="h-4 w-4 text-muted-foreground" /></div>
               )}
@@ -293,7 +330,7 @@ function CarSelector({ label, search, setSearch, selected, onSelect, filterVehic
       {selected && (
         <div className="flex items-center gap-3 rounded-lg border border-gold/30 bg-gold-soft/10 p-3">
           {selected.images?.[0] ? (
-            <img src={selected.images[0]} className="h-12 w-16 rounded object-cover" alt="" />
+            <img src={selected.images[0]} className="h-12 w-16 rounded object-cover" alt="" crossOrigin="anonymous" />
           ) : (
             <div className="h-12 w-16 rounded bg-border grid place-items-center"><Car className="h-5 w-5 text-muted-foreground" /></div>
           )}
@@ -310,9 +347,12 @@ function CarSelector({ label, search, setSearch, selected, onSelect, filterVehic
   );
 }
 
-function EmptyPreview() {
+function EmptyPreview({ width, height }: { width: number; height: number }) {
   return (
-    <div className="w-[270px] h-[480px] rounded-2xl border border-dashed border-border bg-charcoal/50 grid place-items-center">
+    <div
+      className="rounded-2xl border border-dashed border-border bg-charcoal/50 grid place-items-center"
+      style={{ width: width / 2, height: height / 2 }}
+    >
       <div className="text-center">
         <ImageIcon className="h-12 w-12 text-muted-foreground/20 mx-auto mb-2" />
         <p className="text-sm text-muted-foreground">Select a listing to preview</p>
@@ -321,15 +361,7 @@ function EmptyPreview() {
   );
 }
 
-function SpecRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-lg bg-[#111] border border-gold/10 px-2 py-1.5">
-      <div className="text-[7px] uppercase tracking-wider text-gold/50">{label}</div>
-      <div className="text-[9px] text-white font-medium truncate">{value}</div>
-    </div>
-  );
-}
-
+// ===== SINGLE POST TEMPLATE (1080x1350, preview at 540x675) =====
 const SinglePostTemplate = forwardRef<HTMLDivElement, { vehicle: Vehicle }>(({ vehicle }, ref) => {
   const price = getVehiclePrice(vehicle);
   const cover = vehicle.images?.[0];
@@ -337,50 +369,75 @@ const SinglePostTemplate = forwardRef<HTMLDivElement, { vehicle: Vehicle }>(({ v
   return (
     <div
       ref={ref}
-      className="relative w-[270px] h-[480px] overflow-hidden rounded-2xl"
-      style={{ background: "#0b0b0b", fontFamily: "'Playfair Display', serif" }}
+      className="relative overflow-hidden rounded-2xl flex flex-col"
+      style={{
+        width: SINGLE_W,
+        height: SINGLE_H,
+        background: "#0b0b0b",
+        fontFamily: "'Playfair Display', serif",
+        border: "2px solid #d4af37",
+        boxShadow: "0 0 40px rgba(212, 175, 55, 0.15)",
+      }}
     >
-      <div className="absolute top-0 left-0 right-0 h-1 gold-gradient" />
-      <div className="pt-5 pb-3 text-center">
-        <div className="font-display text-lg">
+      {/* === TOP: Logo header === */}
+      <div className="shrink-0 pt-8 pb-4 text-center px-6">
+        <div className="font-display text-3xl tracking-wide">
           <span className="gold-shine font-bold">GRAND</span>
-          <span className="gold-text">A</span>
           <span className="gold-text"> Auto Luxe</span>
         </div>
-        <div className="text-[8px] uppercase tracking-[0.25em] text-gold/60 mt-0.5">Algeria · Premium</div>
+        <div className="text-[10px] uppercase tracking-[0.35em] text-gold/60 mt-1">Algeria · Premium</div>
+        <div className="mx-auto mt-3 h-px w-3/4 gold-gradient opacity-60" />
       </div>
-      <div className="px-4">
-        {cover ? (
-          <div className="relative rounded-xl overflow-hidden h-[200px]">
-            <img src={cover} alt={`${vehicle.brand} ${vehicle.model}`} className="w-full h-full object-cover" crossOrigin="anonymous" />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-          </div>
-        ) : (
-          <div className="h-[200px] rounded-xl bg-[#1a1a1a] grid place-items-center">
-            <Car className="h-12 w-12 text-gold/20" />
-          </div>
-        )}
+
+      {/* === MIDDLE: Vehicle image === */}
+      <div className="px-6 shrink-0">
+        <div className="relative rounded-xl overflow-hidden" style={{ height: 320 }}>
+          {cover ? (
+            <>
+              <img
+                src={cover}
+                alt={`${vehicle.brand} ${vehicle.model}`}
+                className="w-full h-full object-cover"
+                crossOrigin="anonymous"
+                referrerPolicy="no-referrer"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
+            </>
+          ) : (
+            <div className="w-full h-full bg-[#1a1a1a] grid place-items-center">
+              <Car className="h-16 w-16 text-gold/20" />
+            </div>
+          )}
+        </div>
       </div>
-      <div className="px-5 mt-3 text-center">
-        <h2 className="font-display text-xl text-white">{vehicle.brand} {vehicle.model}</h2>
-        <div className="text-xs text-gold/70 mt-0.5">{vehicle.year} · {vehicle.wilaya}</div>
+
+      {/* === BOTTOM: Title, specs, price === */}
+      <div className="flex-1 flex flex-col px-6 mt-4">
+        <div className="text-center">
+          <h2 className="font-display text-2xl text-white leading-tight">{vehicle.brand} {vehicle.model}</h2>
+          <div className="text-sm text-gold/70 mt-1">{vehicle.year} · {vehicle.wilaya}</div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2 mt-4">
+          <SpecRow label="Engine" value={vehicle.engine_type || "—"} />
+          <SpecRow label="Fuel" value={vehicle.fuel_type || "—"} />
+          <SpecRow label="Gearbox" value={vehicle.transmission || "—"} />
+          <SpecRow label="Mileage" value={`${(vehicle.mileage || 0).toLocaleString()} km`} />
+        </div>
+
+        <div className="mt-auto pb-6 text-center">
+          <div className="text-[10px] uppercase tracking-[0.3em] text-gold/50 mb-1">Price</div>
+          <div className="font-display text-3xl gold-text">{formatMilliard(price)}</div>
+        </div>
       </div>
-      <div className="px-5 mt-3 grid grid-cols-2 gap-2">
-        <SpecRow label="Engine" value={vehicle.engine_type || "—"} />
-        <SpecRow label="Fuel" value={vehicle.fuel_type || "—"} />
-        <SpecRow label="Gearbox" value={vehicle.transmission || "—"} />
-        <SpecRow label="Mileage" value={`${(vehicle.mileage || 0).toLocaleString()} km`} />
-      </div>
-      <div className="absolute bottom-5 left-0 right-0 text-center">
-        <div className="text-[9px] uppercase tracking-widest text-gold/50">Price</div>
-        <div className="font-display text-2xl gold-text">{formatMilliard(price)}</div>
-      </div>
-      <div className="absolute bottom-0 left-0 right-0 h-0.5 gold-gradient" />
+
+      <div className="absolute bottom-0 left-0 right-0 h-1 gold-gradient" />
     </div>
   );
 });
 SinglePostTemplate.displayName = "SinglePostTemplate";
 
+// ===== COMPARISON POST TEMPLATE (1080x1920, preview at 540x960) =====
 const ComparisonPostTemplate = forwardRef<HTMLDivElement, { carA: Vehicle; carB: Vehicle }>(({ carA, carB }, ref) => {
   const priceA = getVehiclePrice(carA);
   const priceB = getVehiclePrice(carB);
@@ -400,79 +457,135 @@ const ComparisonPostTemplate = forwardRef<HTMLDivElement, { carA: Vehicle; carB:
   return (
     <div
       ref={ref}
-      className="relative w-[270px] h-[570px] overflow-hidden rounded-2xl"
-      style={{ background: "#0b0b0b", fontFamily: "'Playfair Display', serif" }}
+      className="relative overflow-hidden rounded-2xl flex flex-col"
+      style={{
+        width: COMPARE_W,
+        height: COMPARE_H,
+        background: "#0b0b0b",
+        fontFamily: "'Playfair Display', serif",
+        border: "2px solid #d4af37",
+        boxShadow: "0 0 40px rgba(212, 175, 55, 0.15)",
+      }}
     >
-      <div className="absolute top-0 left-0 right-0 h-1 gold-gradient" />
-      <div className="pt-4 pb-2 text-center">
-        <div className="font-display text-base">
+      {/* === TOP: Logo header === */}
+      <div className="shrink-0 pt-6 pb-3 text-center px-6">
+        <div className="font-display text-2xl tracking-wide">
           <span className="gold-shine font-bold">GRAND</span>
-          <span className="gold-text">A</span>
           <span className="gold-text"> Auto Luxe</span>
         </div>
-        <div className="text-[7px] uppercase tracking-[0.25em] text-gold/60 mt-0.5">Algeria · Premium</div>
+        <div className="text-[9px] uppercase tracking-[0.35em] text-gold/60 mt-1">Algeria · Premium</div>
+        <div className="mx-auto mt-2 h-px w-3/4 gold-gradient opacity-60" />
       </div>
 
-      <div className="px-3 mt-1 relative">
-        <div className="grid grid-cols-2 gap-2">
-          <div className="relative rounded-lg overflow-hidden h-[140px]">
+      {/* === MIDDLE: Side-by-side images with VS badge === */}
+      <div className="px-4 mt-2 relative shrink-0">
+        <div className="grid grid-cols-2 gap-3">
+          {/* Car A */}
+          <div className="relative rounded-xl overflow-hidden" style={{ height: 240 }}>
             {coverA ? (
-              <img src={coverA} alt={carA.brand} className="w-full h-full object-cover" crossOrigin="anonymous" />
+              <>
+                <img
+                  src={coverA}
+                  alt={carA.brand}
+                  className="w-full h-full object-cover"
+                  crossOrigin="anonymous"
+                  referrerPolicy="no-referrer"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
+              </>
             ) : (
-              <div className="w-full h-full bg-[#1a1a1a] grid place-items-center"><Car className="h-8 w-8 text-gold/20" /></div>
+              <div className="w-full h-full bg-[#1a1a1a] grid place-items-center"><Car className="h-12 w-12 text-gold/20" /></div>
             )}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
-            <div className="absolute bottom-1 left-1 right-1">
-              <div className="text-[9px] font-bold text-white truncate">{carA.brand} {carA.model}</div>
-              <div className="text-[7px] text-gold/80">{carA.year}</div>
+            <div className="absolute bottom-2 left-2 right-2">
+              <div className="text-sm font-bold text-white truncate">{carA.brand} {carA.model}</div>
+              <div className="text-[10px] text-gold/80">{carA.year}</div>
             </div>
           </div>
 
-          <div className="relative rounded-lg overflow-hidden h-[140px]">
+          {/* Car B */}
+          <div className="relative rounded-xl overflow-hidden" style={{ height: 240 }}>
             {coverB ? (
-              <img src={coverB} alt={carB.brand} className="w-full h-full object-cover" crossOrigin="anonymous" />
+              <>
+                <img
+                  src={coverB}
+                  alt={carB.brand}
+                  className="w-full h-full object-cover"
+                  crossOrigin="anonymous"
+                  referrerPolicy="no-referrer"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
+              </>
             ) : (
-              <div className="w-full h-full bg-[#1a1a1a] grid place-items-center"><Car className="h-8 w-8 text-gold/20" /></div>
+              <div className="w-full h-full bg-[#1a1a1a] grid place-items-center"><Car className="h-12 w-12 text-gold/20" /></div>
             )}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
-            <div className="absolute bottom-1 left-1 right-1">
-              <div className="text-[9px] font-bold text-white truncate">{carB.brand} {carB.model}</div>
-              <div className="text-[7px] text-gold/80">{carB.year}</div>
+            <div className="absolute bottom-2 left-2 right-2">
+              <div className="text-sm font-bold text-white truncate">{carB.brand} {carB.model}</div>
+              <div className="text-[10px] text-gold/80">{carB.year}</div>
             </div>
           </div>
         </div>
 
+        {/* VS Badge */}
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10">
-          <div className="h-10 w-10 rounded-full gold-gradient grid place-items-center shadow-[0_0_20px_rgba(212,175,55,0.5)] border-2 border-[#0b0b0b]">
-            <span className="font-display text-sm font-bold text-[#0b0b0b]">VS</span>
+          <div
+            className="rounded-full gold-gradient grid place-items-center border-4 border-[#0b0b0b]"
+            style={{
+              width: 64,
+              height: 64,
+              boxShadow: "0 0 30px rgba(212, 175, 55, 0.6)",
+            }}
+          >
+            <span className="font-display text-xl font-bold text-[#0b0b0b]">VS</span>
           </div>
         </div>
       </div>
 
-      <div className="px-3 mt-3">
-        <div className="rounded-lg overflow-hidden border border-gold/15">
+      {/* === BOTTOM: Comparison table === */}
+      <div className="flex-1 flex flex-col px-4 mt-4">
+        <div className="text-center mb-3">
+          <div className="text-[10px] uppercase tracking-[0.3em] text-gold/50">Specifications</div>
+        </div>
+
+        <div className="rounded-xl overflow-hidden border border-gold/20">
           {rows.map((row, i) => (
             <div
               key={row.label}
-              className={`flex items-center ${i % 2 === 0 ? "bg-[#111]" : "bg-[#161616]"} ${i < rows.length - 1 ? "border-b border-gold/8" : ""}`}
+              className="flex items-stretch"
+              style={{
+                background: i % 2 === 0 ? "#111111" : "#161616",
+                borderBottom: i < rows.length - 1 ? "1px solid rgba(212, 175, 55, 0.1)" : "none",
+              }}
             >
-              <div className="w-[55px] shrink-0 px-2 py-1.5 text-[7px] uppercase tracking-wider text-gold/50 font-semibold">
+              <div className="shrink-0 px-3 py-2.5 text-[10px] uppercase tracking-wider text-gold/50 font-semibold flex items-center" style={{ width: 90 }}>
                 {row.label}
               </div>
-              <div className="flex-1 px-1.5 py-1.5 text-[8px] text-white text-center truncate">
+              <div className="flex-1 px-2 py-2.5 text-[11px] text-white text-center truncate flex items-center justify-center">
                 {row.a}
               </div>
-              <div className="w-px h-full bg-gold/15" />
-              <div className="flex-1 px-1.5 py-1.5 text-[8px] text-white text-center truncate">
+              <div className="w-px bg-gold/15" />
+              <div className="flex-1 px-2 py-2.5 text-[11px] text-white text-center truncate flex items-center justify-center">
                 {row.b}
               </div>
             </div>
           ))}
         </div>
+
+        <div className="mt-auto pb-5 text-center pt-4">
+          <div className="text-[9px] uppercase tracking-[0.3em] text-gold/40">Grand Auto Luxe · Algeria</div>
+        </div>
       </div>
 
-      <div className="absolute bottom-0 left-0 right-0 h-0.5 gold-gradient" />
+      <div className="absolute bottom-0 left-0 right-0 h-1 gold-gradient" />
     </div>
   );
 });
 ComparisonPostTemplate.displayName = "ComparisonPostTemplate";
+
+function SpecRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg bg-[#111] border border-gold/10 px-3 py-2">
+      <div className="text-[9px] uppercase tracking-wider text-gold/50">{label}</div>
+      <div className="text-[11px] text-white font-medium truncate">{value}</div>
+    </div>
+  );
+}
