@@ -52,22 +52,22 @@ function formatMilliard(n: number | null): string {
   return formatDZD(n);
 }
 
-// Preload images with crossOrigin so html2canvas can capture them without tainting the canvas.
-function preloadImages(urls: string[]): Promise<void[]> {
-  return Promise.all(
-    urls.map(
-      (url) =>
-        new Promise<void>((resolve) => {
-          const img = new Image();
-          img.crossOrigin = "anonymous";
-          img.referrerPolicy = "no-referrer";
-          img.onload = () => resolve();
-          img.onerror = () => resolve();
-          img.src = url;
+// Fetch an image URL and convert it to a base64 Data URL so html2canvas can capture it without CORS tainting.
+const toDataURL = (url: string): Promise<string> =>
+  fetch(url, { mode: "cors" })
+    .then((response) => response.blob())
+    .then(
+      (blob) =>
+        new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
         })
-    )
-  );
-}
+    );
+
+// Wait for the next React paint so the DOM reflects the latest state before capture.
+const nextPaint = () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
 
 export function SocialImageGenerator() {
   const [mode, setMode] = useState<TemplateMode>("single");
@@ -79,6 +79,10 @@ export function SocialImageGenerator() {
   const [singleSearch, setSingleSearch] = useState("");
   const [singleSelected, setSingleSelected] = useState<Vehicle | null>(null);
   const [exporting, setExporting] = useState(false);
+  // Base64 overrides swapped in right before html2canvas runs.
+  const [singleCoverOverride, setSingleCoverOverride] = useState<string | null>(null);
+  const [coverAOverride, setCoverAOverride] = useState<string | null>(null);
+  const [coverBOverride, setCoverBOverride] = useState<string | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -112,20 +116,41 @@ export function SocialImageGenerator() {
 
     setExporting(true);
     try {
-      // Preload all images with CORS before capture so the canvas is not tainted.
-      const imageUrls: string[] = [];
-      if (mode === "single" && singleSelected?.images?.[0]) imageUrls.push(singleSelected.images[0]);
-      if (mode === "comparison") {
-        if (selectedA?.images?.[0]) imageUrls.push(selectedA.images[0]);
-        if (selectedB?.images?.[0]) imageUrls.push(selectedB.images[0]);
+      // Collect the remote image URLs that need converting to base64.
+      const urlsToConvert: string[] = [];
+      if (mode === "single") {
+        if (singleSelected?.images?.[0]) urlsToConvert.push(singleSelected.images[0]);
+      } else {
+        if (selectedA?.images?.[0]) urlsToConvert.push(selectedA.images[0]);
+        if (selectedB?.images?.[0]) urlsToConvert.push(selectedB.images[0]);
       }
-      await preloadImages(imageUrls);
+
+      // Convert each remote URL to a base64 Data URL.
+      const dataUrls = await Promise.all(
+        urlsToConvert.map((url) =>
+          toDataURL(url).catch((err) => {
+            console.error("Failed to convert image to base64:", url, err);
+            return null;
+          })
+        )
+      );
+
+      // Swap the template image sources with their base64 equivalents so html2canvas sees same-origin data.
+      if (mode === "single") {
+        setSingleCoverOverride(dataUrls[0] ?? null);
+      } else {
+        setCoverAOverride(dataUrls[0] ?? null);
+        setCoverBOverride(dataUrls[1] ?? null);
+      }
+
+      // Wait for React to re-render with the base64 sources before capturing.
+      await nextPaint();
 
       const html2canvas = (await import("html2canvas")).default;
       const canvas = await html2canvas(canvasRef.current, {
         scale: 2,
         useCORS: true,
-        allowTaint: false,
+        allowTaint: true,
         backgroundColor: "#0b0b0b",
         logging: true,
         imageTimeout: 15000,
@@ -143,6 +168,10 @@ export function SocialImageGenerator() {
       console.error("Export error:", err);
       toast.error("Failed to export image. Check console for details.");
     } finally {
+      // Restore the original remote URLs in the background.
+      setSingleCoverOverride(null);
+      setCoverAOverride(null);
+      setCoverBOverride(null);
       setExporting(false);
     }
   }, [mode, singleSelected, selectedA, selectedB]);
@@ -270,13 +299,19 @@ export function SocialImageGenerator() {
       <div className="flex justify-center">
         {mode === "single" ? (
           singleSelected ? (
-            <SinglePostTemplate ref={canvasRef} vehicle={singleSelected} />
+            <SinglePostTemplate ref={canvasRef} vehicle={singleSelected} coverOverride={singleCoverOverride} />
           ) : (
             <EmptyPreview width={SINGLE_W} height={SINGLE_H} />
           )
         ) : (
           selectedA && selectedB ? (
-            <ComparisonPostTemplate ref={canvasRef} carA={selectedA} carB={selectedB} />
+            <ComparisonPostTemplate
+              ref={canvasRef}
+              carA={selectedA}
+              carB={selectedB}
+              coverAOverride={coverAOverride}
+              coverBOverride={coverBOverride}
+            />
           ) : (
             <EmptyPreview width={COMPARE_W} height={COMPARE_H} />
           )
@@ -301,7 +336,7 @@ function CarSelector({ label, search, setSearch, selected, onSelect, filterVehic
         <Input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder={`Search ${label}...`}
+          placeholder={`Search ${label}...`
           className="bg-charcoal pr-10"
         />
         <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -362,9 +397,10 @@ function EmptyPreview({ width, height }: { width: number; height: number }) {
 }
 
 // ===== SINGLE POST TEMPLATE (1080x1350, preview at 540x675) =====
-const SinglePostTemplate = forwardRef<HTMLDivElement, { vehicle: Vehicle }>(({ vehicle }, ref) => {
+const SinglePostTemplate = forwardRef<HTMLDivElement, { vehicle: Vehicle; coverOverride?: string | null }>(({ vehicle, coverOverride }, ref) => {
   const price = getVehiclePrice(vehicle);
-  const cover = vehicle.images?.[0];
+  // Use the base64 override during export, otherwise the remote URL.
+  const cover = coverOverride ?? vehicle.images?.[0];
 
   return (
     <div
@@ -438,11 +474,17 @@ const SinglePostTemplate = forwardRef<HTMLDivElement, { vehicle: Vehicle }>(({ v
 SinglePostTemplate.displayName = "SinglePostTemplate";
 
 // ===== COMPARISON POST TEMPLATE (1080x1920, preview at 540x960) =====
-const ComparisonPostTemplate = forwardRef<HTMLDivElement, { carA: Vehicle; carB: Vehicle }>(({ carA, carB }, ref) => {
+const ComparisonPostTemplate = forwardRef<HTMLDivElement, {
+  carA: Vehicle;
+  carB: Vehicle;
+  coverAOverride?: string | null;
+  coverBOverride?: string | null;
+}>(({ carA, carB, coverAOverride, coverBOverride }, ref) => {
   const priceA = getVehiclePrice(carA);
   const priceB = getVehiclePrice(carB);
-  const coverA = carA.images?.[0];
-  const coverB = carB.images?.[0];
+  // Use the base64 overrides during export, otherwise the remote URLs.
+  const coverA = coverAOverride ?? carA.images?.[0];
+  const coverB = coverBOverride ?? carB.images?.[0];
 
   const rows = [
     { label: "Model", a: `${carA.brand} ${carA.model}`, b: `${carB.brand} ${carB.model}` },
