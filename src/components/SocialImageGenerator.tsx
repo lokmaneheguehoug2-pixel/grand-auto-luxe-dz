@@ -52,19 +52,46 @@ function formatMilliard(n: number | null): string {
   return formatDZD(n);
 }
 
-// Fetch an image URL and convert it to a base64 Data URL so html2canvas can capture it without CORS tainting.
-const toDataURL = (url: string): Promise<string> =>
-  fetch(url, { mode: "cors" })
-    .then((response) => response.blob())
-    .then(
-      (blob) =>
-        new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onloadend = () => resolve(reader.result as string);
-          reader.onerror = reject;
-          reader.readAsDataURL(blob);
-        })
-    );
+// Robustly convert a remote image URL to a base64 Data URL.
+// Strategy 1: fetch() + FileReader.readAsDataURL (works when the host sends CORS headers).
+// Strategy 2 (fallback): load via a native Image with crossOrigin + cache-buster, then draw to canvas.
+const getSecureBase64Image = async (url: string): Promise<string> => {
+  try {
+    const response = await fetch(url, { mode: "cors" });
+    const blob = await response.blob();
+    return new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  } catch (error) {
+    // Fallback using a clean Image object with a cache-busting query parameter.
+    return new Promise<string>((resolve, reject) => {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.referrerPolicy = "no-referrer";
+      img.src = `${url}${url.includes("?") ? "&" : "?"}t=${new Date().getTime()}`;
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = img.naturalWidth || img.width;
+        canvas.height = img.naturalHeight || img.height;
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.drawImage(img, 0, 0);
+          try {
+            resolve(canvas.toDataURL("image/png"));
+          } catch (e) {
+            reject(new Error("Canvas tainted after drawImage"));
+          }
+        } else {
+          reject(new Error("Canvas context failed"));
+        }
+      };
+      img.onerror = () => reject(new Error("Failed to load image via fallback"));
+    });
+  }
+};
 
 // Wait for the next React paint so the DOM reflects the latest state before capture.
 const nextPaint = () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
@@ -125,10 +152,10 @@ export function SocialImageGenerator() {
         if (selectedB?.images?.[0]) urlsToConvert.push(selectedB.images[0]);
       }
 
-      // Convert each remote URL to a base64 Data URL.
+      // Convert each remote URL to a base64 Data URL using the robust fallback helper.
       const dataUrls = await Promise.all(
         urlsToConvert.map((url) =>
-          toDataURL(url).catch((err) => {
+          getSecureBase64Image(url).catch((err) => {
             console.error("Failed to convert image to base64:", url, err);
             return null;
           })
@@ -336,7 +363,7 @@ function CarSelector({ label, search, setSearch, selected, onSelect, filterVehic
         <Input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder={`Search ${label}...`}
+          placeholder={`Search ${label}...`
           className="bg-charcoal pr-10"
         />
         <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
