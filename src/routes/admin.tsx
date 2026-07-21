@@ -807,7 +807,7 @@ function ReelsModerationTab() {
             <div className="flex-1 min-w-0">
               <div className="font-medium truncate">{r.author?.first_name || "Unknown"} {r.author?.last_name || ""}</div>
               <div className="text-xs text-muted-foreground">{r.authorPhone || "No phone"} · {new Date(r.createdAt).toLocaleDateString()}</div>
-              <div className="text-xs flex items-center gap-2 mt-1 flex-wrap">{r.caption && <span className="text-muted-foreground truncate max-w-xs">"{r.caption}"</span>}<span className="text-muted-foreground">Likes: {r.likesCount || 0}</span><span className="text-muted-foreground">Views: {r.viewsCount || 0}</span>}</div>
+              <div className="text-xs flex items-center gap-2 mt-1 flex-wrap">{r.caption && <span className="text-muted-foreground truncate max-w-xs">{r.caption}</span>}<span className="text-muted-foreground">Likes: {r.likesCount || 0}</span><span className="text-muted-foreground">Views: {r.viewsCount || 0}</span></div>
             </div>
             <div className="flex gap-2 shrink-0">
               <Button variant="outline" size="sm" onClick={() => setReviewReel(r)} title="Review & play video"><Eye className="h-4 w-4" /></Button>
