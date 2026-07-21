@@ -6,8 +6,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
 };
 
-const REMINDER_TITLE = "Is your vehicle still available?";
-const REMINDER_BODY = "Please update your listing status or mark it as sold.";
+const REMINDER_TITLE = "Has your vehicle been sold?";
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 
 Deno.serve(async (req: Request) => {
@@ -66,15 +65,20 @@ Deno.serve(async (req: Request) => {
       const sellerPhone = v.sellerPhone || v.sellerId || v.phone;
       if (!sellerPhone) continue;
 
+      const vehicleModel = `${v.brand || ""} ${v.model || ""}`.trim() || "vehicle";
+      const reminderBody = `Has your ${vehicleModel} been sold? Update your listing status on Grand Auto Luxe to keep your profile updated!`;
+
       const notifRes = await fetch(`${dbBase}/users/${sellerPhone}/notifications.json`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title: REMINDER_TITLE,
-          body: REMINDER_BODY,
+          body: reminderBody,
           read: false,
           kind: "reminder",
           vehicleId,
+          actionLabel: "Mark as Sold",
+          actionUrl: `/vehicle/${vehicleId}`,
           created_at: new Date().toISOString(),
         }),
       });

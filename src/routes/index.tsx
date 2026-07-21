@@ -291,7 +291,7 @@ function VehicleCard({ vehicle: v }: { vehicle: Vehicle }) {
         onClick={(e) => { e.preventDefault(); compareStore.toggle(v.id); }}
         className={`absolute bottom-2 right-2 w-6 h-6 rounded-md border flex items-center justify-center transition ${
           compare.includes(v.id) ? "bg-gold border-gold" : "border-gold/40 hover:border-gold"
-        }`}
+        }`
       >
         {compare.includes(v.id) && <span className="text-black text-xs font-bold">✓</span>}
       </button>
@@ -316,7 +316,7 @@ function VehicleReelCard({ vehicle: v }: { vehicle: Vehicle }) {
           onMouseOver={(e) => (e.target as HTMLVideoElement).play()}
           onMouseOut={(e) => (e.target as HTMLVideoElement).pause()}
         />
-      )}
+      }
 
       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
 
