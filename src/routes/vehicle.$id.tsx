@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { formatDZD } from "@/lib/format";
-import { Flag, Calendar, Gauge, Fuel, Cog, Gavel, Trophy, Phone, MessageCircle, Lock, Pencil, Trash2, MapPin, Crown, BadgeCheck } from "lucide-react";
+import { Flag, Calendar, Gauge, Fuel, Cog, Gavel, Trophy, Phone, MessageCircle, Lock, Pencil, Trash2, MapPin, Crown, BadgeCheck, CircleCheck, RotateCcw } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Countdown } from "@/components/Countdown";
 import { useState, useEffect } from "react";
@@ -273,6 +273,26 @@ function VehicleDetail() {
     }
   };
 
+  const handleMarkSold = async () => {
+    try {
+      await set(ref(realtimeDb, `vehicles/${v.id}/status`), "sold");
+      toast.success("Vehicle marked as sold");
+      setV((prev) => prev ? { ...prev, status: "sold" } : prev);
+    } catch (err) {
+      toast.error("Failed to update listing");
+    }
+  };
+
+  const handleRelist = async () => {
+    try {
+      await set(ref(realtimeDb, `vehicles/${v.id}/status`), "active");
+      toast.success("Vehicle re-listed");
+      setV((prev) => prev ? { ...prev, status: "active" } : prev);
+    } catch (err) {
+      toast.error("Failed to re-list vehicle");
+    }
+  };
+
   return (
     <div className="pb-20">
       {/* Gallery */}
@@ -319,13 +339,25 @@ function VehicleDetail() {
         </div>
 
         {/* Owner actions */}
-        {isSeller && v.status !== "sold" && (
-          <div className="mb-4 flex gap-2">
-            <Button variant="outline" size="sm" asChild>
-              <Link to="/edit-listing/$id" params={{ id: v.id }}>
-                <Pencil className="h-4 w-4 mr-1" /> Edit
-              </Link>
-            </Button>
+        {isSeller && (
+          <div className="mb-4 flex gap-2 flex-wrap">
+            {v.status !== "sold" && (
+              <Button variant="outline" size="sm" asChild>
+                <Link to="/edit-listing/$id" params={{ id: v.id }}>
+                  <Pencil className="h-4 w-4 mr-1" /> Edit
+                </Link>
+              </Button>
+            )}
+            {v.status === "active" && (
+              <Button variant="gold" size="sm" onClick={handleMarkSold}>
+                <CircleCheck className="h-4 w-4 mr-1" /> Mark as Sold
+              </Button>
+            )}
+            {v.status === "sold" && (
+              <Button variant="outline" size="sm" onClick={handleRelist}>
+                <RotateCcw className="h-4 w-4 mr-1" /> Re-list
+              </Button>
+            )}
             <Button variant="destructive" size="sm" onClick={handleDelete}>
               <Trash2 className="h-4 w-4 mr-1" /> Delete
             </Button>
@@ -390,10 +422,20 @@ function VehicleDetail() {
           </div>
         )}
 
-        {/* Contact Owner - Privacy Locked */}
+        {/* Contact Owner - Privacy Locked / Disabled for Sold */}
         <div className="mb-6 premium-card rounded-xl p-4 border border-gold/20">
           <h3 className="text-sm font-semibold text-gold mb-3">Contact Owner</h3>
-          {canSeeContact ? (
+          {v.status === "sold" ? (
+            <div className="flex flex-col items-center py-4 gap-3">
+              <div className="rotate-[-12deg] border-2 border-gold bg-gold/20 backdrop-blur-md px-6 py-2 rounded-md gold-glow">
+                <div className="font-display text-2xl gold-shine font-bold tracking-widest">SOLD</div>
+                <div className="text-[10px] text-gold text-center tracking-[0.3em]">مباع</div>
+              </div>
+              <p className="text-sm text-muted-foreground text-center">
+                This vehicle has been sold. Contact buttons are disabled.
+              </p>
+            </div>
+          ) : canSeeContact ? (
             <div className="flex gap-2 flex-wrap">
               <a href={`tel:${normalizeAlgPhone(v.phone)}`}>
                 <Button variant="outline" size="sm">

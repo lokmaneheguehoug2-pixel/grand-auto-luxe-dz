@@ -106,7 +106,7 @@ export function SocialImageGenerator() {
   const [singleSearch, setSingleSearch] = useState("");
   const [singleSelected, setSingleSelected] = useState<Vehicle | null>(null);
   const [exporting, setExporting] = useState(false);
-  // Base64 overrides swapped in right before html2canvas runs.
+  // Base64 overrides swapped in right before export runs.
   const [singleCoverOverride, setSingleCoverOverride] = useState<string | null>(null);
   const [coverAOverride, setCoverAOverride] = useState<string | null>(null);
   const [coverBOverride, setCoverBOverride] = useState<string | null>(null);
@@ -162,7 +162,7 @@ export function SocialImageGenerator() {
         )
       );
 
-      // Swap the template image sources with their base64 equivalents so html2canvas sees same-origin data.
+      // Swap the template image sources with their base64 equivalents so the exporter sees same-origin data.
       if (mode === "single") {
         setSingleCoverOverride(dataUrls[0] ?? null);
       } else {
@@ -173,22 +173,19 @@ export function SocialImageGenerator() {
       // Wait for React to re-render with the base64 sources before capturing.
       await nextPaint();
 
-      const html2canvas = (await import("html2canvas")).default;
-      const canvas = await html2canvas(canvasRef.current, {
-        scale: 2,
-        useCORS: true,
-        allowTaint: true,
+      const { toPng } = await import("html-to-image");
+      const dataUrl = await toPng(canvasRef.current, {
+        pixelRatio: 2,
+        cacheBust: true,
         backgroundColor: "#0b0b0b",
-        logging: true,
-        imageTimeout: 15000,
-        removeContainer: true,
+        skipFonts: true,
       });
       const link = document.createElement("a");
       const filename = mode === "single"
         ? `single-${singleSelected?.brand}-${singleSelected?.model}-${singleSelected?.year}.png`
         : `vs-${selectedA?.brand}-vs-${selectedB?.brand}.png`;
       link.download = filename;
-      link.href = canvas.toDataURL("image/png");
+      link.href = dataUrl;
       link.click();
       toast.success("Image exported successfully");
     } catch (err) {
@@ -363,7 +360,7 @@ function CarSelector({ label, search, setSearch, selected, onSelect, filterVehic
         <Input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder={`Search ${label}...`}
+          placeholder={`Search ${label}...`
           className="bg-charcoal pr-10"
         />
         <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
