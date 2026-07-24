@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as UnifiedInboxRouteImport } from './routes/unified-inbox'
 import { Route as ReelsRouteImport } from './routes/reels'
 import { Route as PostStoryRouteImport } from './routes/post-story'
 import { Route as PostReelRouteImport } from './routes/post-reel'
@@ -26,6 +27,11 @@ import { Route as VehicleIdRouteImport } from './routes/vehicle.$id'
 import { Route as SellerIdRouteImport } from './routes/seller.$id'
 import { Route as EditListingIdRouteImport } from './routes/edit-listing.$id'
 
+const UnifiedInboxRoute = UnifiedInboxRouteImport.update({
+  id: '/unified-inbox',
+  path: '/unified-inbox',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ReelsRoute = ReelsRouteImport.update({
   id: '/reels',
   path: '/reels',
@@ -121,6 +127,7 @@ export interface FileRoutesByFullPath {
   '/post-reel': typeof PostReelRoute
   '/post-story': typeof PostStoryRoute
   '/reels': typeof ReelsRoute
+  '/unified-inbox': typeof UnifiedInboxRoute
   '/edit-listing/$id': typeof EditListingIdRoute
   '/seller/$id': typeof SellerIdRoute
   '/vehicle/$id': typeof VehicleIdRoute
@@ -139,6 +146,7 @@ export interface FileRoutesByTo {
   '/post-reel': typeof PostReelRoute
   '/post-story': typeof PostStoryRoute
   '/reels': typeof ReelsRoute
+  '/unified-inbox': typeof UnifiedInboxRoute
   '/edit-listing/$id': typeof EditListingIdRoute
   '/seller/$id': typeof SellerIdRoute
   '/vehicle/$id': typeof VehicleIdRoute
@@ -158,6 +166,7 @@ export interface FileRoutesById {
   '/post-reel': typeof PostReelRoute
   '/post-story': typeof PostStoryRoute
   '/reels': typeof ReelsRoute
+  '/unified-inbox': typeof UnifiedInboxRoute
   '/edit-listing/$id': typeof EditListingIdRoute
   '/seller/$id': typeof SellerIdRoute
   '/vehicle/$id': typeof VehicleIdRoute
@@ -178,6 +187,7 @@ export interface FileRouteTypes {
     | '/post-reel'
     | '/post-story'
     | '/reels'
+    | '/unified-inbox'
     | '/edit-listing/$id'
     | '/seller/$id'
     | '/vehicle/$id'
@@ -196,6 +206,7 @@ export interface FileRouteTypes {
     | '/post-reel'
     | '/post-story'
     | '/reels'
+    | '/unified-inbox'
     | '/edit-listing/$id'
     | '/seller/$id'
     | '/vehicle/$id'
@@ -214,6 +225,7 @@ export interface FileRouteTypes {
     | '/post-reel'
     | '/post-story'
     | '/reels'
+    | '/unified-inbox'
     | '/edit-listing/$id'
     | '/seller/$id'
     | '/vehicle/$id'
@@ -233,6 +245,7 @@ export interface RootRouteChildren {
   PostReelRoute: typeof PostReelRoute
   PostStoryRoute: typeof PostStoryRoute
   ReelsRoute: typeof ReelsRoute
+  UnifiedInboxRoute: typeof UnifiedInboxRoute
   EditListingIdRoute: typeof EditListingIdRoute
   SellerIdRoute: typeof SellerIdRoute
   VehicleIdRoute: typeof VehicleIdRoute
@@ -240,6 +253,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/unified-inbox': {
+      id: '/unified-inbox'
+      path: '/unified-inbox'
+      fullPath: '/unified-inbox'
+      preLoaderRoute: typeof UnifiedInboxRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/reels': {
       id: '/reels'
       path: '/reels'
@@ -369,6 +389,7 @@ const rootRouteChildren: RootRouteChildren = {
   PostReelRoute: PostReelRoute,
   PostStoryRoute: PostStoryRoute,
   ReelsRoute: ReelsRoute,
+  UnifiedInboxRoute: UnifiedInboxRoute,
   EditListingIdRoute: EditListingIdRoute,
   SellerIdRoute: SellerIdRoute,
   VehicleIdRoute: VehicleIdRoute,
