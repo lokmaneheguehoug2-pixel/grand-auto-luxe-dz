@@ -43,13 +43,11 @@ function getVehiclePrice(v: Vehicle): number | null {
   return v.current_highest_bid ?? v.starting_price;
 }
 
-function formatMilliard(n: number | null): string {
-  if (n == null) return "—";
-  const milliard = n / 1_000_000_000;
-  if (milliard >= 0.01) return `${milliard.toFixed(2)} Milliard`;
-  const million = n / 1_000_000;
-  if (million >= 1) return `${million.toFixed(0)} Million`;
-  return formatDZD(n);
+const daFormatter = new Intl.NumberFormat("fr-DZ");
+
+function formatPriceDA(n: number | null): string {
+  if (n == null || Number.isNaN(n)) return "—";
+  return `${daFormatter.format(n)} DA`;
 }
 
 // Robustly convert a remote image URL to a base64 Data URL.
@@ -534,7 +532,7 @@ const SinglePostTemplate = forwardRef<HTMLDivElement, { vehicle: Vehicle; coverO
         </div>
         <div className="mt-auto pb-6 text-center">
           <div className="text-[10px] uppercase tracking-[0.3em] text-gold/50 mb-1">Price</div>
-          <div className="font-display text-3xl gold-text">{formatMilliard(price)}</div>
+          <div className="font-display text-3xl gold-text">{formatPriceDA(price)}</div>
         </div>
       </div>
       <div className="absolute bottom-0 left-0 right-0 h-1 gold-gradient" />
@@ -558,7 +556,7 @@ const ComparisonPostTemplate = forwardRef<HTMLDivElement, {
     { label: "Gearbox", a: carA.transmission || "—", b: carB.transmission || "—" },
     { label: "Fuel", a: carA.fuel_type || "—", b: carB.fuel_type || "—" },
     { label: "Mileage", a: `${(carA.mileage || 0).toLocaleString()} km`, b: `${(carB.mileage || 0).toLocaleString()} km` },
-    { label: "Price", a: formatMilliard(priceA), b: formatMilliard(priceB) },
+    { label: "Price", a: formatPriceDA(priceA), b: formatPriceDA(priceB) },
   ];
   return (
     <div ref={ref} className="relative overflow-hidden rounded-2xl flex flex-col" style={{ width: COMPARE_W, height: COMPARE_H, background: "#0b0b0b", fontFamily: "'Playfair Display', serif", border: "2px solid #d4af37", boxShadow: "0 0 40px rgba(212, 175, 55, 0.15)" }}>
@@ -645,7 +643,7 @@ const ReelsSingleTemplate = forwardRef<HTMLDivElement, {
 
         <div className="reel-scale-in" style={{ animationDelay: "0.5s" }}>
           <div className="text-[8px] uppercase tracking-[0.3em] text-gold/50 mb-0.5">Price</div>
-          <div className="font-display text-2xl gold-text drop-shadow-lg">{formatMilliard(price)}</div>
+          <div className="font-display text-2xl gold-text drop-shadow-lg">{formatPriceDA(price)}</div>
         </div>
 
         <div className="reel-fade-in pt-2" style={{ animationDelay: "0.8s" }}>
@@ -685,7 +683,7 @@ const ReelsComparisonTemplate = forwardRef<HTMLDivElement, {
         {/* Vehicle A name */}
         <div className="absolute bottom-2 left-3 right-3 reel-slide-down">
           <div className="font-display text-base text-white font-bold drop-shadow-lg truncate">{carA.brand} {carA.model}</div>
-          <div className="text-[9px] text-gold/80">{carA.year} · {formatMilliard(priceA)}</div>
+          <div className="text-[9px] text-gold/80">{carA.year} · {formatPriceDA(priceA)}</div>
         </div>
       </div>
 
@@ -707,7 +705,7 @@ const ReelsComparisonTemplate = forwardRef<HTMLDivElement, {
         {/* Vehicle B name */}
         <div className="absolute top-2 left-3 right-3 reel-slide-up">
           <div className="font-display text-base text-white font-bold drop-shadow-lg truncate">{carB.brand} {carB.model}</div>
-          <div className="text-[9px] text-gold/80">{carB.year} · {formatMilliard(priceB)}</div>
+          <div className="text-[9px] text-gold/80">{carB.year} · {formatPriceDA(priceB)}</div>
         </div>
       </div>
 
