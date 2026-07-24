@@ -152,60 +152,54 @@
   .no-scrollbar::-webkit-scrollbar { display: none; }
   .no-scrollbar { scrollbar-width: none; }
 
-  /* === Reels / Ken Burns animation keyframes === */
+  /* === Ken Burns pan/zoom for Reels === */
   @keyframes kenburns-top {
     0%   { transform: scale(1) translate(0, 0); }
-    50%  { transform: scale(1.15) translate(-2%, -1%); }
-    100% { transform: scale(1.25) translate(2%, 1%); }
+    50%  { transform: scale(1.25) translate(-3%, 2%); }
+    100% { transform: scale(1.15) translate(2%, -1%); }
   }
   @keyframes kenburns-bottom {
-    0%   { transform: scale(1.25) translate(2%, 1%); }
-    50%  { transform: scale(1.15) translate(-2%, -1%); }
-    100% { transform: scale(1) translate(0, 0); }
-  }
-  @keyframes kenburns-single {
     0%   { transform: scale(1) translate(0, 0); }
-    50%  { transform: scale(1.12) translate(-1.5%, -1%); }
-    100% { transform: scale(1.2) translate(1.5%, 1%); }
+    50%  { transform: scale(1.25) translate(3%, -2%); }
+    100% { transform: scale(1.15) translate(-2%, 1%); }
   }
-  .kenburns-top    { animation: kenburns-top 8s ease-in-out infinite alternate; }
+  .kenburns-top { animation: kenburns-top 8s ease-in-out infinite alternate; }
   .kenburns-bottom { animation: kenburns-bottom 8s ease-in-out infinite alternate; }
-  .kenburns-single { animation: kenburns-single 8s ease-in-out infinite alternate; }
 
-  /* Reels overlay text animations */
+  /* === Reel overlay animations === */
   @keyframes reel-fade-in {
-    0%   { opacity: 0; }
-    100% { opacity: 1; }
-  }
-  @keyframes reel-slide-up {
-    0%   { opacity: 0; transform: translateY(30px); }
+    0%   { opacity: 0; transform: translateY(12px); }
     100% { opacity: 1; transform: translateY(0); }
   }
-  @keyframes reel-slide-down {
-    0%   { opacity: 0; transform: translateY(-30px); }
-    100% { opacity: 1; transform: translateY(0); }
+  @keyframes reel-slide-in-left {
+    0%   { opacity: 0; transform: translateX(-30px); }
+    100% { opacity: 1; transform: translateX(0); }
+  }
+  @keyframes reel-slide-in-right {
+    0%   { opacity: 0; transform: translateX(30px); }
+    100% { opacity: 1; transform: translateX(0); }
   }
   @keyframes reel-scale-in {
     0%   { opacity: 0; transform: scale(0.6); }
     100% { opacity: 1; transform: scale(1); }
   }
-  @keyframes vs-pulse {
+  @keyframes reel-vs-pulse {
     0%, 100% { transform: translate(-50%, -50%) scale(1); box-shadow: 0 0 30px rgba(212, 175, 55, 0.6); }
-    50%      { transform: translate(-50%, -50%) scale(1.08); box-shadow: 0 0 50px rgba(212, 175, 55, 0.9); }
+    50%      { transform: translate(-50%, -50%) scale(1.12); box-shadow: 0 0 50px rgba(212, 175, 55, 0.9); }
   }
-  .reel-fade-in    { animation: reel-fade-in 1.2s ease-out forwards; }
-  .reel-slide-up   { animation: reel-slide-up 0.8s ease-out forwards; }
-  .reel-slide-down { animation: reel-slide-down 0.8s ease-out forwards; }
-  .reel-scale-in   { animation: reel-scale-in 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
-  .vs-pulse        { animation: vs-pulse 2s ease-in-out infinite; }
+  .reel-fade-in { animation: reel-fade-in 1s ease-out forwards; }
+  .reel-slide-left { animation: reel-slide-in-left 0.8s ease-out forwards; }
+  .reel-slide-right { animation: reel-slide-in-right 0.8s ease-out forwards; }
+  .reel-scale-in { animation: reel-scale-in 0.6s ease-out forwards; }
+  .reel-vs-pulse { animation: reel-vs-pulse 2s ease-in-out infinite; }
 
-  /* When recording, freeze animations at a fixed state to ensure consistent capture */
-  .recording .kenburns-top,
-  .recording .kenburns-bottom,
-  .recording .kenburns-single { animation: none !important; transform: scale(1.15); }
-  .recording .reel-fade-in,
-  .recording .reel-slide-up,
-  .recording .reel-slide-down,
-  .recording .reel-scale-in { animation: none !important; opacity: 1 !important; transform: none !important; }
-  .recording .vs-pulse { animation: none !important; }
+  /* Staggered delay helpers */
+  .reel-delay-1 { animation-delay: 0.3s; }
+  .reel-delay-2 { animation-delay: 0.6s; }
+  .reel-delay-3 { animation-delay: 0.9s; }
+  .reel-delay-4 { animation-delay: 1.2s; }
+  .reel-delay-5 { animation-delay: 1.5s; }
+
+  /* Paused state for static export */
+  .reel-paused * { animation-play-state: paused !important; }
 }

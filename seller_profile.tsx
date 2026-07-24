@@ -1,0 +1,905 @@
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useAuth } from "@/hooks/use-auth";
+import { formatDZD } from "@/lib/format";
+import {
+  BadgeCheck, Car, MapPin, Gauge, Crown, AlertTriangle, Tag, Calendar,
+  Instagram, Phone, MessageCircle, Camera, Pencil, Trash2, Film, Heart,
+  Lock, Grid, Play, Eye, Flag, Clock,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { PremiumPaywallModal } from "@/components/PremiumPaywallModal";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { useState, useEffect, useCallback } from "react";
+import { toast } from "sonner";
+import { realtimeDb } from "@/lib/firebase";
+import { ref, get, set, remove, onValue, off, push } from "firebase/database";
+import { uploadImageToCloudinary } from "@/lib/cloudinary";
+import { ChatDialog } from "@/components/ChatDialog";
+
+export const Route = createFileRoute("/seller/$id")({
+  head: () => ({ meta: [{ title: "Profile · GRAND Auto Luxe" }] }),
+  component: SellerProfile,
+});
+
+type SellerProfileData = {
+  id: string;
+  phone: string;
+  first_name: string;
+  last_name: string;
+  showroom_name?: string;
+  bio?: string;
+  avatar_url?: string;
+  avatar_updated_at?: string;
+  subscription_status: string;
+  subscription_until?: string;
+  subscription_tier?: string;
+  is_showroom?: boolean;
+  instagram?: string;
+};
+
+type Vehicle = {
+  id: string;
+  brand: string;
+  model: string;
+  year: number;
+  wilaya: string;
+  mileage: number;
+  photos?: string[];
+  images?: string[];
+  video_url?: string | null;
+  price_type: "fixed" | "auction";
+  fixed_price?: number;
+  current_highest_bid?: number;
+  starting_price?: number;
+  status: string;
+  created_at?: string;
+  sellerId?: string;
+  sellerPhone?: string;
+};
+
+type Reel = {
+  id: string;
+  authorId: string;
+  authorPhone: string;
+  videoUrl: string;
+  caption: string | null;
+  vehicleId: string | null;
+  likesCount: number;
+  viewsCount: number;
+  createdAt: string;
+};
+
+type Story = {
+  id: string;
+  authorId: string;
+  authorPhone: string;
+  videoUrl: string;
+  caption: string | null;
+  createdAt: string;
+  likedBy?: string[];
+};
+
+const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
+
+function SellerProfile() {
+  const { id } = Route.useParams();
+  const { user, profile: me, access, isAdmin } = useAuth();
+  const isOwnProfile = user?.id === id || user?.phone === id;
+
+  const [profile, setProfile] = useState<SellerProfileData | null>(null);
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [reels, setReels] = useState<Reel[]>([]);
+  const [stories, setStories] = useState<Story[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<"listings" | "reels" | "stories" | "sold">("listings");
+  const [showEditProfile, setShowEditProfile] = useState(false);
+  const [editBio, setEditBio] = useState("");
+  const [editFirstName, setEditFirstName] = useState("");
+  const [editLastName, setEditLastName] = useState("");
+  const [editPhone, setEditPhone] = useState("");
+  const [editShowroomName, setEditShowroomName] = useState("");
+  const [editAvatar, setEditAvatar] = useState<File | null>(null);
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [paywallOpen, setPaywallOpen] = useState(false);
+  const [showReportDialog, setShowReportDialog] = useState(false);
+  const [reportReason, setReportReason] = useState("");
+  const [reporting, setReporting] = useState(false);
+
+  useEffect(() => {
+    async function load() {
+      setLoading(true);
+      try {
+        console.log("[Profile] Fetching profile for id:", id);
+
+        // Strategy 1: direct lookup at users/{id}
+        let profileSnap = await get(ref(realtimeDb, `users/${id}`));
+        console.log("[Profile] Direct lookup users/" + id + ":", profileSnap.exists());
+
+        // Strategy 2: strip admin- prefix
+        if (!profileSnap.exists() && id.startsWith("admin-")) {
+          const phonePart = id.replace("admin-", "");
+          profileSnap = await get(ref(realtimeDb, `users/${phonePart}`));
+          console.log("[Profile] Stripped admin- prefix, lookup users/" + phonePart + ":", profileSnap.exists());
+        }
+
+        // Strategy 3: search vehicles for matching sellerId/sellerPhone to recover phone
+        let recoveredPhone: string | null = null;
+        if (!profileSnap.exists()) {
+          const vehiclesSnap = await get(ref(realtimeDb, "vehicles"));
+          if (vehiclesSnap.exists()) {
+            const allV = vehiclesSnap.val() as Record<string, any>;
+            const match = Object.values(allV).find(
+              (v) => v.sellerId === id || v.sellerPhone === id,
+            );
+            if (match?.sellerPhone) {
+              recoveredPhone = match.sellerPhone;
+              profileSnap = await get(ref(realtimeDb, `users/${match.sellerPhone}`));
+              console.log("[Profile] Vehicle lookup recovered phone:", match.sellerPhone, "→ exists:", profileSnap.exists());
+            }
+          }
+        }
+
+        // Determine the effective phone key for content queries
+        const phoneKey = profileSnap.exists()
+          ? (profileSnap.val().phone || id)
+          : (recoveredPhone || (id.startsWith("admin-") ? id.replace("admin-", "") : id));
+
+        // Load vehicles, reels, stories regardless of whether profile exists
+        const vehiclesSnap = await get(ref(realtimeDb, "vehicles"));
+        let sellerVehicles: Vehicle[] = [];
+        if (vehiclesSnap.exists()) {
+          const allVehicles = vehiclesSnap.val() as Record<string, Vehicle>;
+          sellerVehicles = Object.entries(allVehicles)
+            .filter(([_, v]) => v.sellerId === id || v.sellerPhone === id || v.sellerId === phoneKey || v.sellerPhone === phoneKey)
+            .map(([vid, v]) => ({ ...v, id: vid }))
+            .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+          setVehicles(sellerVehicles);
+        }
+
+        const reelsSnap = await get(ref(realtimeDb, "reels"));
+        if (reelsSnap.exists()) {
+          const allReels = reelsSnap.val() as Record<string, Reel>;
+          const sellerReels = Object.entries(allReels)
+            .filter(([_, r]) => r.authorId === id || r.authorPhone === id || r.authorId === phoneKey || r.authorPhone === phoneKey)
+            .map(([rid, r]) => ({ ...r, id: rid }))
+            .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+          setReels(sellerReels);
+        }
+
+        const storiesSnap = await get(ref(realtimeDb, "stories"));
+        if (storiesSnap.exists()) {
+          const now = Date.now();
+          const allStories = storiesSnap.val() as Record<string, Story>;
+          const sellerStories = Object.entries(allStories)
+            .filter(([_, s]) =>
+              (s.authorId === id || s.authorPhone === id || s.authorId === phoneKey || s.authorPhone === phoneKey) &&
+              now - new Date(s.createdAt).getTime() < TWENTY_FOUR_HOURS_MS,
+            )
+            .map(([sid, s]) => ({ ...s, id: sid }))
+            .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+          setStories(sellerStories);
+        }
+
+        if (profileSnap.exists()) {
+          // Profile found in Firebase
+          const data = profileSnap.val();
+          console.log("[Profile] Found profile data:", { phone: data.phone, first_name: data.first_name, subscription_tier: data.subscription_tier });
+          setProfile({
+            id,
+            phone: phoneKey,
+            first_name: data.first_name || "",
+            last_name: data.last_name || "",
+            showroom_name: data.showroom_name,
+            bio: data.bio,
+            avatar_url: data.avatar_url,
+            avatar_updated_at: data.avatar_updated_at,
+            subscription_status: data.subscription_status || "trial",
+            subscription_until: data.subscription_until,
+            subscription_tier: data.subscription_tier,
+            is_showroom: data.subscription_tier === "dealer" || data.subscription_tier === "showroom",
+            instagram: data.instagram,
+          });
+          setEditBio(data.bio || "");
+          setEditFirstName(data.first_name || "");
+          setEditLastName(data.last_name || "");
+          setEditPhone(data.phone || phoneKey);
+          setEditShowroomName(data.showroom_name || "");
+        } else if (sellerVehicles.length > 0 || reelsSnap.exists() || storiesSnap.exists()) {
+          // No users/ entry but has content — build a minimal profile from vehicle/reel metadata
+          console.log("[Profile] No users/ entry but content exists. Building fallback profile for phone:", phoneKey);
+          const firstVehicle = sellerVehicles[0];
+          setProfile({
+            id,
+            phone: phoneKey,
+            first_name: "",
+            last_name: "",
+            showroom_name: undefined,
+            bio: undefined,
+            avatar_url: undefined,
+            avatar_updated_at: undefined,
+            subscription_status: "trial",
+            subscription_until: undefined,
+            subscription_tier: undefined,
+            is_showroom: false,
+            instagram: undefined,
+          });
+        } else {
+          console.log("[Profile] No profile and no content found for id:", id);
+        }
+      } catch (err) {
+        console.error("[Profile] Error loading seller profile:", err);
+      }
+      setLoading(false);
+    }
+    load();
+  }, [id]);
+
+  const verified = profile?.is_showroom || (
+    profile?.subscription_status === "active" &&
+    profile?.subscription_until &&
+    new Date(profile.subscription_until) > new Date()
+  );
+
+  const daysUntilExpiry = profile?.subscription_until
+    ? Math.ceil((new Date(profile.subscription_until).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+    : null;
+
+  useEffect(() => {
+    if (isOwnProfile && profile?.subscription_status === "active" && daysUntilExpiry !== null && daysUntilExpiry <= 0) {
+      set(ref(realtimeDb, `users/${profile.phone}/subscription_status`), "expired");
+      setProfile(prev => prev ? { ...prev, subscription_status: "expired" } : null);
+    }
+  }, [isOwnProfile, profile, daysUntilExpiry]);
+
+  const name = profile
+    ? (profile.showroom_name || `${profile.first_name ?? ""} ${profile.last_name ?? ""}`.trim() || "Seller")
+    : "Seller";
+
+  const username = profile?.phone || id;
+
+  const canChangeAvatar = useCallback(() => {
+    if (!profile?.avatar_updated_at) return true;
+    const oneMonthAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
+    return new Date(profile.avatar_updated_at).getTime() < oneMonthAgo;
+  }, [profile]);
+
+  const saveProfile = async () => {
+    setSavingProfile(true);
+    try {
+      const phoneKey = profile?.phone || id;
+      if (editBio !== (profile?.bio || "")) {
+        await set(ref(realtimeDb, `users/${phoneKey}/bio`), editBio.trim() || null);
+      }
+      if (editFirstName !== (profile?.first_name || "")) {
+        await set(ref(realtimeDb, `users/${phoneKey}/first_name`), editFirstName.trim());
+      }
+      if (editLastName !== (profile?.last_name || "")) {
+        await set(ref(realtimeDb, `users/${phoneKey}/last_name`), editLastName.trim());
+      }
+      if (editPhone.trim() && editPhone !== (profile?.phone || phoneKey)) {
+        await set(ref(realtimeDb, `users/${phoneKey}/phone`), editPhone.trim());
+      }
+      if (profile?.is_showroom && editShowroomName !== (profile?.showroom_name || "")) {
+        await set(ref(realtimeDb, `users/${phoneKey}/showroom_name`), editShowroomName.trim() || null);
+      }
+      if (editAvatar && canChangeAvatar()) {
+        const avatarUrl = await uploadImageToCloudinary(editAvatar);
+        await set(ref(realtimeDb, `users/${phoneKey}/avatar_url`), avatarUrl);
+        await set(ref(realtimeDb, `users/${phoneKey}/avatar_updated_at`), new Date().toISOString());
+      }
+      setProfile(prev => prev ? {
+        ...prev,
+        bio: editBio,
+        first_name: editFirstName,
+        last_name: editLastName,
+        phone: editPhone || prev.phone,
+        showroom_name: editShowroomName || prev.showroom_name,
+      } : null);
+      setShowEditProfile(false);
+      toast.success("Profile updated");
+    } catch (err) {
+      toast.error("Failed to update profile");
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
+  const deleteListing = async (vehicleId: string) => {
+    if (!confirm("Delete this listing permanently?")) return;
+    try {
+      await remove(ref(realtimeDb, `vehicles/${vehicleId}`));
+      setVehicles(vehicles.filter((v) => v.id !== vehicleId));
+      toast.success("Listing deleted");
+    } catch (err) {
+      toast.error("Failed to delete listing");
+    }
+  };
+
+  const markAsSold = async (vehicleId: string) => {
+    try {
+      await set(ref(realtimeDb, `vehicles/${vehicleId}/status`), "sold");
+      setVehicles(vehicles.map((v) => v.id === vehicleId ? { ...v, status: "sold" } : v));
+      toast.success("Marked as sold");
+    } catch (err) {
+      toast.error("Failed to update listing");
+    }
+  };
+
+  const handleReport = async () => {
+    if (!reportReason.trim()) { toast.error("Please describe the issue"); return; }
+    setReporting(true);
+    try {
+      const reportRef = push(ref(realtimeDb, "reports"));
+      await set(reportRef, {
+        id: reportRef.key,
+        contentType: "seller",
+        contentId: id,
+        contentTitle: `${profile?.first_name || ""} ${profile?.last_name || ""} (${profile?.phone || id})`,
+        reporterId: user?.id || "anonymous",
+        reporterPhone: user?.phone || "anonymous",
+        reason: reportReason.trim(),
+        status: "pending",
+        createdAt: new Date().toISOString(),
+      });
+      toast.success("Report submitted. Admin will review it.");
+      setShowReportDialog(false);
+      setReportReason("");
+    } catch (err) {
+      toast.error("Failed to submit report");
+    } finally {
+      setReporting(false);
+    }
+  };
+
+  const getInstagramUrl = (username: string) => {
+    if (!username) return null;
+    const clean = username.replace("@", "").trim();
+    if (clean.startsWith("http")) return clean;
+    return `https://instagram.com/${clean}`;
+  };
+
+  const instagramUrl = profile?.instagram ? getInstagramUrl(profile.instagram) : null;
+
+  const activeVehicles = vehicles.filter((v) => v.status === "active" || !v.status);
+  const soldVehicles = vehicles.filter((v) => v.status === "sold");
+  const canSeeContact = !!user && (access === "active" || isOwnProfile || isAdmin);
+
+  if (loading) {
+    return (
+      <div className="max-w-2xl mx-auto px-6 py-20 text-center text-muted-foreground">
+        <div className="h-8 w-8 mx-auto mb-3 rounded-full border-2 border-gold/30 border-t-gold animate-spin" />
+        Loading profile...
+      </div>
+    );
+  }
+
+  if (!profile) {
+    return (
+      <div className="max-w-2xl mx-auto px-6 py-20 text-center">
+        <div className="h-20 w-20 mx-auto mb-4 rounded-full bg-charcoal grid place-items-center">
+          <Car className="h-10 w-10 text-muted-foreground/30" />
+        </div>
+        <h1 className="font-display text-2xl gold-text">Profile not found</h1>
+        <p className="text-sm text-muted-foreground mt-2">This user may not have any listings yet.</p>
+        <Button asChild variant="gold" className="mt-4"><Link to="/">Back to Home</Link></Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+      {isOwnProfile && access === "trial" && me && <TrialExpiryBanner trialStartedAt={me.trial_started_at} />}
+
+           {/* Subscription countdown badge for profile owner */}
+      {isOwnProfile && profile?.subscription_status === "active" && daysUntilExpiry !== null && daysUntilExpiry > 0 && (
+        <div className={`rounded-xl border p-4 mb-6 flex items-center gap-3 ${
+          daysUntilExpiry <= 3 ? "border-destructive bg-destructive/10" :
+          daysUntilExpiry <= 7 ? "border-yellow-500/40 bg-yellow-500/10" :
+          "border-gold/40 bg-gold-soft/20"
+        }`}>
+          <Clock className={`h-5 w-5 ${
+            daysUntilExpiry <= 3 ? "text-destructive" :
+            daysUntilExpiry <= 7 ? "text-yellow-500" :
+            "text-gold"
+          }`} />
+          <div>
+            <div className="font-medium">
+              {daysUntilExpiry <= 3 ? `Expiring soon: ${daysUntilExpiry} day${daysUntilExpiry !== 1 ? "s" : ""} left` :
+               `Your subscription expires in ${daysUntilExpiry} days`}
+            </div>
+            <div className="text-xs text-muted-foreground">
+              Expires on {new Date(profile.subscription_until!).toLocaleDateString()}
+            </div>
+          </div>
+          <Button variant="gold" size="sm" className="ml-auto" asChild>
+            <Link to="/plans"><Crown className="h-4 w-4 mr-1" /> Renew</Link>
+          </Button>
+        </div>
+      )}
+
+           {/* Expired subscription banner for profile owner */}
+      {isOwnProfile && profile?.subscription_status === "expired" && (
+        <div className="rounded-xl border border-destructive bg-destructive/10 p-4 mb-6 flex items-center gap-3">
+          <AlertTriangle className="h-5 w-5 text-destructive" />
+          <div>
+            <div className="font-medium text-destructive">Your subscription has expired</div>
+            <div className="text-xs text-muted-foreground">Renew to continue posting and accessing premium features</div>
+          </div>
+          <Button variant="gold" size="sm" className="ml-auto" asChild>
+            <Link to="/plans"><Crown className="h-4 w-4 mr-1" /> Renew Now</Link>
+          </Button>
+        </div>
+      )}
+
+      {/* ===== PROFILE HEADER (TikTok-style centered) ===== */}
+      <div className="flex flex-col items-center text-center">
+        {/* Avatar - large, circular */}
+        <div className="relative shrink-0 mb-4">
+          <div className="h-28 w-28 sm:h-32 sm:w-32 rounded-full overflow-hidden gold-gradient grid place-items-center text-4xl font-display text-gold-foreground shadow-[0_0_40px_rgba(212,175,55,0.3)]">
+            {profile.avatar_url ? (
+              <img src={profile.avatar_url} alt={name} className="h-full w-full object-cover" />
+            ) : (
+              <span>{name.charAt(0).toUpperCase()}</span>
+            )}
+          </div>
+          {isOwnProfile && (
+            <button
+              onClick={() => setShowEditProfile(true)}
+              className="absolute bottom-0 right-0 h-9 w-9 rounded-full bg-background border-2 border-gold/50 grid place-items-center hover:bg-gold/10 transition shadow-lg"
+              title="Edit profile"
+            >
+              <Camera className="h-4 w-4 text-gold" />
+            </button>
+          )}
+        </div>
+
+        {/* Name + Golden Verified badge */}
+        <div className="flex items-center gap-2 justify-center">
+          <h1 className="font-display text-2xl sm:text-3xl">{name}</h1>
+          {verified && profile?.is_showroom && (
+            <span title="Golden Verified Showroom" className="inline-flex shrink-0">
+              <svg className="h-7 w-7 text-gold" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M9.5 21l-1.7-3.3L4 16l3.8-1.7L9.5 11l1.7 3.3L15 16l-3.8 1.7L9.5 21zM18 14l-1-2-1 2-2 1 2 1 1 2 1-2 2-1-2-1zM14.5 6l-1.3-2.5L12 6l-2.5 1.3L12 8.5l1.2 2.5L14.5 8.5l2.5-1.2L14.5 6z" />
+              </svg>
+            </span>
+          )}
+          {verified && !profile?.is_showroom && (
+            <BadgeCheck className="h-6 w-6 text-blue-400 shrink-0" />
+          )}
+        </div>
+
+        {/* Username */}
+        <p className="text-sm text-muted-foreground mt-0.5">@{username}</p>
+
+        {/* Account type badge */}
+        <div className="mt-2">
+          <span className={`text-[10px] uppercase tracking-[0.2em] px-3 py-1 rounded-full border ${
+            profile?.is_showroom
+              ? "border-gold/40 bg-gold-soft/30 text-gold"
+              : "border-border bg-charcoal text-muted-foreground"
+          }`}>
+            {profile?.is_showroom ? "Showroom Account" : "Individual Account"}
+          </span>
+        </div>
+
+        {/* Bio */}
+        {profile?.bio && (
+          <p className="text-sm text-foreground/80 mt-4 max-w-md leading-relaxed">{profile.bio}</p>
+        )}
+
+        {/* Contact - only visible if subscribed/logged in */}
+        <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
+          {canSeeContact && profile.phone && (
+            <>
+              <a href={`tel:${profile.phone}`} className="inline-flex items-center gap-1.5 text-sm text-gold hover:text-gold/80 transition">
+                <Phone className="h-4 w-4" /><span>{profile.phone}</span>
+              </a>
+              <a href={`https://wa.me/${profile.phone.replace(/\D/g, "")}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-sm text-green-500 hover:text-green-400 transition">
+                <MessageCircle className="h-4 w-4" /><span>WhatsApp</span>
+              </a>
+            </>
+          )}
+          {instagramUrl && (
+            <a href={instagramUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-sm text-pink-500 hover:text-pink-400 transition">
+              <Instagram className="h-4 w-4" /><span>{profile.instagram}</span>
+            </a>
+          )}
+          {!canSeeContact && profile.phone && (
+            <button onClick={() => setPaywallOpen(true)} className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-gold transition">
+              <Lock className="h-4 w-4" /><span>Subscribe to view contact</span>
+            </button>
+          )}
+        </div>
+
+        {/* Message button */}
+        {user && !isOwnProfile && (
+          <div className="mt-5">
+            <ChatDialog
+              recipientId={profile.phone}
+              recipientPhone={profile.phone}
+              vehicleId=""
+              vehicleTitle={`Profile: ${name}`}
+              autoOpen={chatOpen}
+              onClose={() => setChatOpen(false)}
+            />
+            <Button
+              variant="gold"
+              size="sm"
+              className="px-8"
+              onClick={() => setChatOpen(true)}
+            >
+              <MessageCircle className="h-4 w-4 mr-2" /> Message
+            </Button>
+          </div>
+        )}
+
+        {/* Owner actions */}
+        {isOwnProfile && (
+          <div className="mt-5 flex gap-2 flex-wrap justify-center">
+            <Button variant="outline" size="sm" onClick={() => setShowEditProfile(true)}>
+              <Pencil className="h-4 w-4 mr-1.5" /> Edit Profile
+            </Button>
+            <Button variant="ghost" size="sm" asChild>
+              <Link to="/plans"><Crown className="h-4 w-4 text-gold mr-1.5" /> Upgrade</Link>
+            </Button>
+          </div>
+        )}
+
+        {/* Report button - only for subscribed users viewing someone else's profile */}
+        {user && !isOwnProfile && access === "active" && (
+          <div className="mt-4 flex justify-center">
+            <Button variant="outline" size="sm" onClick={() => setShowReportDialog(true)} className="text-muted-foreground hover:text-destructive border-border/60">
+              <Flag className="h-4 w-4 mr-2" /> Report Profile
+            </Button>
+          </div>
+        )}
+      </div>
+
+      {/* ===== CONTENT TABS ===== */}
+      <div className="mt-8 border-t border-border/40">
+        <div className="flex justify-around sticky top-16 z-30 bg-background/80 backdrop-blur-xl -mx-4 sm:-mx-6 px-4 sm:px-6">
+          <TabButton active={activeTab === "listings"} onClick={() => setActiveTab("listings")} icon={Grid} label="Listings" count={activeVehicles.length} />
+          <TabButton active={activeTab === "reels"} onClick={() => setActiveTab("reels")} icon={Film} label="Reels" count={reels.length} />
+          <TabButton active={activeTab === "stories"} onClick={() => setActiveTab("stories")} icon={Play} label="Stories" count={stories.length} />
+          <TabButton active={activeTab === "sold"} onClick={() => setActiveTab("sold")} icon={Tag} label="Sold" count={soldVehicles.length} />
+        </div>
+
+        <div className="mt-4">
+          {/* LISTINGS TAB */}
+          {activeTab === "listings" && (
+            <div>
+              {activeVehicles.length === 0 ? (
+                <EmptyState icon={Car} text="No active listings" />
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
+                  {activeVehicles.map((v) => (
+                    <ProfileVehicleCard key={v.id} v={v} isOwner={isOwnProfile} onDelete={deleteListing} onMarkSold={markAsSold} />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* REELS TAB */}
+          {activeTab === "reels" && (
+            <div>
+              {reels.length === 0 ? (
+                <EmptyState icon={Film} text="No reels posted" />
+              ) : (
+                <div className="grid grid-cols-3 gap-1 sm:gap-2">
+                  {reels.map((r) => (
+                    <Link key={r.id} to="/reels" className="group relative aspect-[9/16] rounded-lg overflow-hidden bg-charcoal">
+                      <video
+                        src={r.videoUrl}
+                        className="w-full h-full object-cover"
+                        muted
+                        playsInline
+                        preload="metadata"
+                        onMouseEnter={(e) => (e.currentTarget as HTMLVideoElement).play().catch(() => {})}
+                        onMouseLeave={(e) => { const vid = e.currentTarget as HTMLVideoElement; vid.pause(); vid.currentTime = 0; }}
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
+                      <div className="absolute bottom-1 left-1 right-1 flex items-center gap-2 text-[10px] text-white">
+                        <span className="flex items-center gap-0.5"><Heart className="h-3 w-3" />{r.likesCount || 0}</span>
+                        <span className="flex items-center gap-0.5"><Eye className="h-3 w-3" />{r.viewsCount || 0}</span>
+                      </div>
+                      <div className="absolute top-1 right-1 bg-black/60 rounded-full p-0.5">
+                        <Play className="h-3 w-3 text-white" />
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* STORIES TAB */}
+          {activeTab === "stories" && (
+            <div>
+              {stories.length === 0 ? (
+                <EmptyState icon={Play} text="No active stories" />
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
+                  {stories.map((s) => {
+                    const likeCount = s.likedBy?.length || 0;
+                    return (
+                      <div key={s.id} className="relative aspect-[9/16] rounded-xl overflow-hidden bg-black gold-border group cursor-pointer">
+                        <video
+                          src={s.videoUrl}
+                          className="w-full h-full object-cover"
+                          muted
+                          playsInline
+                          preload="metadata"
+                          onMouseEnter={(e) => (e.currentTarget as HTMLVideoElement).play().catch(() => {})}
+                          onMouseLeave={(e) => { const vid = e.currentTarget as HTMLVideoElement; vid.pause(); vid.currentTime = 0; }}
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
+                        <div className="absolute bottom-2 left-2 right-2">
+                          {s.caption && <p className="text-[10px] text-white/90 line-clamp-2 mb-1">{s.caption}</p>}
+                          <div className="flex items-center gap-1.5 text-[10px] text-white/70">
+                            <Heart className="h-3 w-3" />{likeCount}
+                            <span className="ml-auto">{new Date(s.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* SOLD TAB */}
+          {activeTab === "sold" && (
+            <div>
+              {soldVehicles.length === 0 ? (
+                <EmptyState icon={Tag} text="No sold listings" />
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
+                  {soldVehicles.map((v) => (
+                    <ProfileVehicleCard key={v.id} v={v} isOwner={isOwnProfile} onDelete={deleteListing} onMarkSold={markAsSold} />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Edit Profile Modal */}
+      <Dialog open={showEditProfile} onOpenChange={setShowEditProfile}>
+        <DialogContent className="max-w-md bg-background border-gold/40">
+          <DialogHeader>
+            <DialogTitle className="gold-text flex items-center gap-2">
+              <Pencil className="h-5 w-5" /> Edit Profile
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="text-xs uppercase tracking-widest text-muted-foreground mb-1.5 block">Profile Picture</label>
+              <div className="flex items-center gap-3">
+                <div className="h-16 w-16 rounded-full overflow-hidden gold-border bg-charcoal grid place-items-center">
+                  {editAvatar ? (
+                    <img src={URL.createObjectURL(editAvatar)} alt="" className="h-full w-full object-cover" />
+                  ) : profile?.avatar_url ? (
+                    <img src={profile.avatar_url} alt="" className="h-full w-full object-cover" />
+                  ) : (
+                    <span className="text-xl font-bold text-gold">{name.charAt(0)}</span>
+                  )}
+                </div>
+                <div>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => setEditAvatar(e.target.files?.[0] ?? null)}
+                    className="block w-full text-xs text-muted-foreground"
+                    disabled={!canChangeAvatar()}
+                  />
+                  {!canChangeAvatar() && (
+                    <p className="text-[10px] text-yellow-500 mt-1">Can change once per month</p>
+                  )}
+                </div>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs uppercase tracking-widest text-muted-foreground mb-1.5 block">First Name</label>
+                <Input
+                  value={editFirstName}
+                  onChange={(e) => setEditFirstName(e.target.value)}
+                  placeholder="First name"
+                  className="bg-charcoal"
+                />
+              </div>
+              <div>
+                <label className="text-xs uppercase tracking-widest text-muted-foreground mb-1.5 block">Last Name</label>
+                <Input
+                  value={editLastName}
+                  onChange={(e) => setEditLastName(e.target.value)}
+                  placeholder="Last name"
+                  className="bg-charcoal"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="text-xs uppercase tracking-widest text-muted-foreground mb-1.5 block">Phone Number</label>
+              <Input
+                value={editPhone}
+                onChange={(e) => setEditPhone(e.target.value)}
+                placeholder="Phone number"
+                className="bg-charcoal"
+              />
+            </div>
+            <div>
+              <label className="text-xs uppercase tracking-widest text-muted-foreground mb-1.5 block">Bio</label>
+              <Textarea
+                value={editBio}
+                onChange={(e) => setEditBio(e.target.value)}
+                placeholder="Tell buyers about yourself..."
+                className="bg-charcoal min-h-[80px]"
+                maxLength={200}
+              />
+              <p className="text-[10px] text-muted-foreground mt-1">{editBio.length}/200</p>
+            </div>
+            {profile?.is_showroom && (
+              <div>
+                <label className="text-xs uppercase tracking-widest text-muted-foreground mb-1.5 block">Showroom Name</label>
+                <Input
+                  value={editShowroomName}
+                  onChange={(e) => setEditShowroomName(e.target.value)}
+                  placeholder="Your showroom name"
+                  className="bg-charcoal"
+                />
+              </div>
+            )}
+            <Button variant="gold" className="w-full" disabled={savingProfile} onClick={saveProfile}>
+              {savingProfile ? "Saving..." : "Save Changes"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <PremiumPaywallModal open={paywallOpen} onOpenChange={setPaywallOpen} />
+
+      {/* Report Dialog */}
+      <Dialog open={showReportDialog} onOpenChange={setShowReportDialog}>
+        <DialogContent className="max-w-md bg-background border-gold/40">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive"><Flag className="h-5 w-5" /> Report Profile</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">Describe why you're reporting this profile. Admin will review it.</p>
+          <Textarea
+            value={reportReason}
+            onChange={(e) => setReportReason(e.target.value)}
+            placeholder="e.g. fake account, scam, misleading info..."
+            className="bg-charcoal min-h-[80px]"
+          />
+          <div className="flex gap-2">
+            <Button variant="destructive" onClick={handleReport} disabled={reporting}>
+              {reporting ? "Submitting..." : "Submit Report"}
+            </Button>
+            <Button variant="ghost" onClick={() => setShowReportDialog(false)}>Cancel</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function TabButton({ active, onClick, icon: Icon, label, count }: {
+  active: boolean;
+  onClick: () => void;
+  icon: React.ElementType;
+  label: string;
+  count: number;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex-1 flex flex-col items-center gap-1 py-3 transition relative ${
+        active ? "text-gold" : "text-muted-foreground hover:text-foreground"
+      }`}
+    >
+      <Icon className="h-5 w-5" />
+      <span className="text-xs font-medium">{label}</span>
+      {count > 0 && <span className="text-[10px] text-muted-foreground">{count}</span>}
+      {active && <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-12 h-0.5 gold-gradient rounded-full" />}
+    </button>
+  );
+}
+
+function EmptyState({ icon: Icon, text }: { icon: React.ElementType; text: string }) {
+  return (
+    <div className="text-center text-muted-foreground py-16">
+      <Icon className="h-12 w-12 mx-auto mb-3 text-muted-foreground/20" />
+      <p className="text-sm">{text}</p>
+    </div>
+  );
+}
+
+function ProfileVehicleCard({ v, isOwner, onDelete, onMarkSold }: {
+  v: Vehicle;
+  isOwner: boolean;
+  onDelete: (id: string) => void;
+  onMarkSold: (id: string) => void;
+}) {
+  const cover = v.photos?.[0] || v.images?.[0];
+  const price = v.price_type === "fixed" ? v.fixed_price : (v.current_highest_bid ?? v.starting_price);
+  return (
+    <div className="group relative rounded-lg overflow-hidden bg-charcoal border border-gold/10 hover:border-gold/30 transition">
+      <Link to="/vehicle/$id" params={{ id: v.id }}>
+        <div className="aspect-[4/3] overflow-hidden">
+          {cover ? (
+            <img src={cover} className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-500" alt={`${v.brand} ${v.model}`} loading="lazy" />
+          ) : (
+            <div className="h-full w-full grid place-items-center"><Car className="h-8 w-8 text-muted-foreground/20" /></div>
+          )}
+        </div>
+      </Link>
+      <div className="p-2">
+        <div className="text-xs font-medium truncate">{v.brand} {v.model}</div>
+        <div className="text-[10px] text-muted-foreground flex items-center gap-1 mt-0.5">
+          <span>{v.year}</span>
+          <span>·</span>
+          <span className="truncate">{v.wilaya}</span>
+        </div>
+        <div className="text-xs gold-text font-display font-bold mt-1">{formatDZD(price ?? 0)}</div>
+      </div>
+      {v.status === "sold" && (
+        <div className="absolute top-1 left-1 text-[9px] px-1.5 py-0.5 rounded-full bg-blue-500/90 text-white font-medium">SOLD</div>
+      )}
+      {isOwner && v.status !== "sold" && (
+        <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition">
+          <button onClick={() => onMarkSold(v.id)} className="h-6 w-6 rounded-full bg-black/70 grid place-items-center hover:bg-gold/80" title="Mark sold">
+            <Tag className="h-3 w-3 text-white" />
+          </button>
+          <button onClick={() => onDelete(v.id)} className="h-6 w-6 rounded-full bg-black/70 grid place-items-center hover:bg-red-500/80" title="Delete">
+            <Trash2 className="h-3 w-3 text-white" />
+          </button>
+        </div>
+      )}
+      {isOwner && v.status === "sold" && (
+        <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition">
+          <button onClick={() => onDelete(v.id)} className="h-6 w-6 rounded-full bg-black/70 grid place-items-center hover:bg-red-500/80" title="Delete">
+            <Trash2 className="h-3 w-3 text-white" />
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TrialExpiryBanner({ trialStartedAt }: { trialStartedAt: string }) {
+  const [hoursLeft, setHoursLeft] = useState(0);
+  const [showPaywall, setShowPaywall] = useState(false);
+
+  useEffect(() => {
+    const calc = () => {
+      const expiry = new Date(trialStartedAt).getTime() + 72 * 60 * 60 * 1000;
+      setHoursLeft(Math.max(0, (expiry - Date.now()) / (1000 * 60 * 60)));
+    };
+    calc();
+    const timer = setInterval(calc, 60_000);
+    return () => clearInterval(timer);
+  }, [trialStartedAt]);
+
+  const daysLeft = Math.ceil(hoursLeft / 24);
+  if (hoursLeft > 72) return null;
+
+  return (
+    <div className={`rounded-xl border p-4 mb-6 flex items-center justify-between ${daysLeft <= 1 ? "border-destructive bg-destructive/10" : "border-gold/40 bg-gold-soft/20"}`}>
+      <div className="flex items-center gap-3">
+        <AlertTriangle className={`h-5 w-5 ${daysLeft <= 1 ? "text-destructive" : "text-gold"}`} />
+        <div>
+          <div className="font-medium">{daysLeft <= 1 ? "Last day!" : `${Math.floor(hoursLeft)}h left`}</div>
+          <div className="text-xs text-muted-foreground">Upgrade to continue posting</div>
+        </div>
+      </div>
+      <Button variant="gold" size="sm" onClick={() => setShowPaywall(true)}><Tag className="h-4 w-4" /></Button>
+      <PremiumPaywallModal open={showPaywall} onOpenChange={setShowPaywall} />
+    </div>
+  );
+}
