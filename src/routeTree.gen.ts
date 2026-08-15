@@ -26,6 +26,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as VehicleIdRouteImport } from './routes/vehicle.$id'
 import { Route as SellerIdRouteImport } from './routes/seller.$id'
 import { Route as EditListingIdRouteImport } from './routes/edit-listing.$id'
+import { Route as CarIdRouteImport } from './routes/car.$id'
 
 const UnifiedInboxRoute = UnifiedInboxRouteImport.update({
   id: '/unified-inbox',
@@ -112,6 +113,11 @@ const EditListingIdRoute = EditListingIdRouteImport.update({
   path: '/edit-listing/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CarIdRoute = CarIdRouteImport.update({
+  id: '/car/$id',
+  path: '/car/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -128,6 +134,7 @@ export interface FileRoutesByFullPath {
   '/post-story': typeof PostStoryRoute
   '/reels': typeof ReelsRoute
   '/unified-inbox': typeof UnifiedInboxRoute
+  '/car/$id': typeof CarIdRoute
   '/edit-listing/$id': typeof EditListingIdRoute
   '/seller/$id': typeof SellerIdRoute
   '/vehicle/$id': typeof VehicleIdRoute
@@ -147,6 +154,7 @@ export interface FileRoutesByTo {
   '/post-story': typeof PostStoryRoute
   '/reels': typeof ReelsRoute
   '/unified-inbox': typeof UnifiedInboxRoute
+  '/car/$id': typeof CarIdRoute
   '/edit-listing/$id': typeof EditListingIdRoute
   '/seller/$id': typeof SellerIdRoute
   '/vehicle/$id': typeof VehicleIdRoute
@@ -167,6 +175,7 @@ export interface FileRoutesById {
   '/post-story': typeof PostStoryRoute
   '/reels': typeof ReelsRoute
   '/unified-inbox': typeof UnifiedInboxRoute
+  '/car/$id': typeof CarIdRoute
   '/edit-listing/$id': typeof EditListingIdRoute
   '/seller/$id': typeof SellerIdRoute
   '/vehicle/$id': typeof VehicleIdRoute
@@ -188,6 +197,7 @@ export interface FileRouteTypes {
     | '/post-story'
     | '/reels'
     | '/unified-inbox'
+    | '/car/$id'
     | '/edit-listing/$id'
     | '/seller/$id'
     | '/vehicle/$id'
@@ -207,6 +217,7 @@ export interface FileRouteTypes {
     | '/post-story'
     | '/reels'
     | '/unified-inbox'
+    | '/car/$id'
     | '/edit-listing/$id'
     | '/seller/$id'
     | '/vehicle/$id'
@@ -226,6 +237,7 @@ export interface FileRouteTypes {
     | '/post-story'
     | '/reels'
     | '/unified-inbox'
+    | '/car/$id'
     | '/edit-listing/$id'
     | '/seller/$id'
     | '/vehicle/$id'
@@ -246,6 +258,7 @@ export interface RootRouteChildren {
   PostStoryRoute: typeof PostStoryRoute
   ReelsRoute: typeof ReelsRoute
   UnifiedInboxRoute: typeof UnifiedInboxRoute
+  CarIdRoute: typeof CarIdRoute
   EditListingIdRoute: typeof EditListingIdRoute
   SellerIdRoute: typeof SellerIdRoute
   VehicleIdRoute: typeof VehicleIdRoute
@@ -372,6 +385,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof EditListingIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/car/$id': {
+      id: '/car/$id'
+      path: '/car/$id'
+      fullPath: '/car/$id'
+      preLoaderRoute: typeof CarIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -390,6 +410,7 @@ const rootRouteChildren: RootRouteChildren = {
   PostStoryRoute: PostStoryRoute,
   ReelsRoute: ReelsRoute,
   UnifiedInboxRoute: UnifiedInboxRoute,
+  CarIdRoute: CarIdRoute,
   EditListingIdRoute: EditListingIdRoute,
   SellerIdRoute: SellerIdRoute,
   VehicleIdRoute: VehicleIdRoute,

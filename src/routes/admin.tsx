@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
-import { Shield, Check, X, Eye, DollarSign, Ban, UserCheck, Crown, Users, Car, Clock, RefreshCw, Key, ChartBar as BarChart3, Activity, Tag, Megaphone, Settings, Copy, Trash2, Plus, Send, Receipt, Mail, UserX, Film, Play, Gauge, Fuel, Cog, MapPin, Calendar, FileText, Flag, ImageIcon, ZoomIn, ShieldCheck, Sparkles } from "lucide-react";
+import { Shield, Check, X, Eye, DollarSign, Ban, UserCheck, Crown, Users, Car, Clock, RefreshCw, Key, ChartBar as BarChart3, Activity, Tag, Megaphone, Settings, Copy, Trash2, Plus, Send, Receipt, Mail, UserX, Film, Play, Gauge, Fuel, Cog, MapPin, Calendar, FileText, Flag, Image as ImageIcon, ZoomIn, ShieldCheck, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { useState, useEffect, useCallback } from "react";
 import { formatDZD } from "@/lib/format";
@@ -15,6 +15,8 @@ import { ref, onValue, set, off, get, push, remove, update } from "firebase/data
 import { realtimeDb } from "@/lib/firebase";
 import { savePlatformSettings, fetchPlatformSettings } from "@/lib/supabase";
 import { SocialImageGenerator } from "@/components/SocialImageGenerator";
+import { SocialAutomationPanel } from "@/components/SocialAutomationPanel";
+import { getSupabase } from "@/lib/supabase";
 
 export const Route = createFileRoute("/admin")({
   head: () => ({ meta: [{ title: "Admin · GRAND Auto Luxe" }] }),
@@ -204,7 +206,7 @@ function AdminPage() {
         <TabsContent value="subscriptions"><SubscriptionsTab /></TabsContent>
         <TabsContent value="settings"><SettingsTab /></TabsContent>
         <TabsContent value="analytics"><AnalyticsTab /></TabsContent>
-        <TabsContent value="social"><SocialImageGenerator /></TabsContent>
+        <TabsContent value="social"><SocialAutomationPanel /><SocialImageGenerator /></TabsContent>
       </Tabs>
     </div>
   );
@@ -718,8 +720,37 @@ function ListingsTab() {
     return () => off(vehiclesRef);
   }, []);
 
+  const triggerSocialPublish = async (vehicle: FirebaseVehicle) => {
+    try {
+      const client = getSupabase();
+      if (!client) return;
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      if (!supabaseUrl || !anonKey) return;
+      await fetch(`${supabaseUrl}/functions/v1/social-publish`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${anonKey}` },
+        body: JSON.stringify({
+          vehicle_id: vehicle.id,
+          brand: vehicle.brand,
+          model: vehicle.model,
+          year: vehicle.year,
+          wilaya: vehicle.wilaya,
+          price_type: vehicle.price_type,
+          fixed_price: vehicle.fixed_price,
+          starting_price: vehicle.starting_price,
+          fuel_type: vehicle.fuel_type,
+          transmission: vehicle.transmission,
+          mileage: vehicle.mileage,
+          images: vehicle.images || [],
+          video_url: vehicle.video_url || null,
+        }),
+      });
+    } catch { /* non-blocking */ }
+  };
+
   const updateVehicleStatus = async (vehicle: FirebaseVehicle, status: "active" | "rejected" | "sold") => {
-    try { await set(ref(realtimeDb, `vehicles/${vehicle.id}/status`), status); setVehicles(vehicles.map((v) => v.id === vehicle.id ? { ...v, status } : v)); toast.success(`Vehicle ${status}`); if (reviewVehicle?.id === vehicle.id) setReviewVehicle({ ...reviewVehicle, status }); } catch (err) { toast.error("Failed to update vehicle"); }
+    try { await set(ref(realtimeDb, `vehicles/${vehicle.id}/status`), status); setVehicles(vehicles.map((v) => v.id === vehicle.id ? { ...v, status } : v)); toast.success(`Vehicle ${status}`); if (reviewVehicle?.id === vehicle.id) setReviewVehicle({ ...reviewVehicle, status }); if (status === "active") triggerSocialPublish(vehicle); } catch (err) { toast.error("Failed to update vehicle"); }
   };
 
   const deleteVehiclePermanent = async (vehicle: FirebaseVehicle) => {
