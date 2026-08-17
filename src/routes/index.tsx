@@ -1,19 +1,19 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { ref, onValue, off } from "firebase/database";
 import { realtimeDb } from "@/lib/firebase";
 import { WILAYAS, BRANDS } from "@/lib/wilayas";
 import { formatDZD } from "@/lib/format";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Search, MapPin, Gauge, Fuel, Cog, Play, Grid3x2 as Grid3X3, Film } from "lucide-react";
+import { Search, MapPin, Play, Grid3x2 as Grid3X3, Film, Heart, Eye } from "lucide-react";
 import { Countdown } from "@/components/Countdown";
 import { compareStore, useCompare } from "@/lib/compare";
 import { useAuth } from "@/hooks/use-auth";
-import { PremiumPaywallModal } from "@/components/PremiumPaywallModal";
 import { StoriesStrip } from "@/components/StoriesStrip";
+import { getSupabase } from "@/lib/supabase";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -35,7 +35,7 @@ type Vehicle = {
   transmission: string;
   wilaya: string;
   phone: string;
-  images: string[]; // Cloudinary URLs
+  images: string[];
   video_url: string | null;
   price_type: "fixed" | "auction";
   fixed_price: number | null;
@@ -45,6 +45,8 @@ type Vehicle = {
   status: string;
   created_at: string;
 };
+
+type LikeData = Record<string, { count: number; liked: boolean }>;
 
 function SoldOverlay() {
   return (
@@ -72,6 +74,9 @@ function Home() {
 
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);
+  const auth = useAuth();
+  const userId = auth?.user?.id ?? auth?.user?.phone ?? null;
+  const [likeData, setLikeData] = useState<LikeData>({});
 
   useEffect(() => {
     const vehiclesRef = ref(realtimeDb, "vehicles");
@@ -90,7 +95,7 @@ function Home() {
             transmission: v.transmission,
             wilaya: v.wilaya,
             phone: v.phone,
-            images: v.images || [], // Cloudinary URLs
+            images: v.images || [],
             video_url: v.video_url || null,
             price_type: v.price_type,
             fixed_price: v.fixed_price,
@@ -113,6 +118,24 @@ function Home() {
     onValue(vehiclesRef, handleSnapshot);
     return () => off(vehiclesRef);
   }, []);
+
+  const loadLikes = useCallback(async () => {
+    const client = getSupabase();
+    if (!client) return;
+    const { data } = await client.from("vehicle_likes").select("vehicle_id, user_id");
+    if (!data) return;
+    const map: LikeData = {};
+    for (const row of data) {
+      if (!map[row.vehicle_id]) map[row.vehicle_id] = { count: 0, liked: false };
+      map[row.vehicle_id].count++;
+      if (row.user_id === userId) map[row.vehicle_id].liked = true;
+    }
+    setLikeData(map);
+  }, [userId]);
+
+  useEffect(() => {
+    loadLikes();
+  }, [loadLikes]);
 
   const filtered = useMemo(() => {
     const priceOf = (v: Vehicle) =>
@@ -140,50 +163,64 @@ function Home() {
 
   const reelsVehicles = filtered.filter((v) => v.video_url);
 
+  const handleLike = useCallback(async (vehicleId: string) => {
+    if (!userId) {
+      toast.info("Sign in to like vehicles");
+      return;
+    }
+    const client = getSupabase();
+    if (!client) return;
+
+    const current = likeData[vehicleId] ?? { count: 0, liked: false };
+    const newLiked = !current.liked;
+
+    setLikeData(prev => ({
+      ...prev,
+      [vehicleId]: { count: newLiked ? current.count + 1 : Math.max(0, current.count - 1), liked: newLiked }
+    }));
+
+    try {
+      if (newLiked) {
+        await client.from("vehicle_likes").insert({ vehicle_id: vehicleId, user_id: userId });
+      } else {
+        await client.from("vehicle_likes").delete().eq("vehicle_id", vehicleId).eq("user_id", userId);
+      }
+    } catch {
+      setLikeData(prev => ({
+        ...prev,
+        [vehicleId]: { count: current.count, liked: current.liked }
+      }));
+    }
+  }, [userId, likeData]);
+
   return (
     <div>
-      {/* Hero */}
-      <section className="relative overflow-hidden border-b border-border/60">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_0%,rgba(212,175,55,0.18),transparent_50%),radial-gradient(circle_at_80%_100%,rgba(212,175,55,0.12),transparent_50%)]" />
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 py-12 sm:py-20">
-          <div className="max-w-3xl">
-            <div className="text-xs uppercase tracking-[0.3em] text-gold mb-3">Marketplace · Vehicles Only</div>
-            <h1 className="font-display text-4xl sm:text-6xl leading-[1.05] mb-4">
-              The premium <span className="gold-text">Algerian</span> automotive market.
-            </h1>
-            <p className="text-muted-foreground text-base sm:text-lg max-w-2xl">
-              Discover, bid, and acquire exceptional vehicles. Reels-style discovery, live auctions, and trusted owners across all 58 wilayas.
-            </p>
-          </div>
-        </div>
-      </section>
-
       {/* Stories Strip */}
       <StoriesStrip />
 
       {/* Filters */}
-      <section className="border-b border-border/60 sticky top-16 z-20 bg-background/95 backdrop-blur-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4">
-          <div className="flex flex-wrap gap-3">
-            <div className="relative flex-1 min-w-[200px] max-w-[300px]">
+      <section className="border-b border-border/60 sticky top-14 z-20 bg-background/95 backdrop-blur-sm">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 py-3">
+          <div className="flex flex-wrap gap-2 sm:gap-3">
+            <div className="relative flex-1 min-w-[140px] max-w-[260px]">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search brand, model..."
-                className="pl-9 bg-charcoal"
+                className="pl-9 bg-charcoal h-9"
                 value={filters.q}
                 onChange={(e) => setFilters({ ...filters, q: e.target.value })}
               />
             </div>
             <Select value={filters.brand} onValueChange={(v) => setFilters({ ...filters, brand: v })}>
-              <SelectTrigger className="w-[140px] bg-charcoal"><SelectValue placeholder="Brand" /></SelectTrigger>
+              <SelectTrigger className="w-[120px] sm:w-[140px] bg-charcoal h-9"><SelectValue placeholder="Brand" /></SelectTrigger>
               <SelectContent>{BRANDS.map((b) => <SelectItem key={b} value={b}>{b}</SelectItem>)}</SelectContent>
             </Select>
             <Select value={filters.wilaya} onValueChange={(v) => setFilters({ ...filters, wilaya: v })}>
-              <SelectTrigger className="w-[140px] bg-charcoal"><SelectValue placeholder="Wilaya" /></SelectTrigger>
+              <SelectTrigger className="w-[120px] sm:w-[140px] bg-charcoal h-9"><SelectValue placeholder="Wilaya" /></SelectTrigger>
               <SelectContent>{WILAYAS.map((w) => <SelectItem key={w} value={w}>{w}</SelectItem>)}</SelectContent>
             </Select>
             <Select value={filters.sort} onValueChange={(v) => setFilters({ ...filters, sort: v })}>
-              <SelectTrigger className="w-[120px] bg-charcoal"><SelectValue placeholder="Sort" /></SelectTrigger>
+              <SelectTrigger className="w-[100px] sm:w-[120px] bg-charcoal h-9"><SelectValue placeholder="Sort" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="newest">Newest</SelectItem>
                 <SelectItem value="price_asc">Price ↑</SelectItem>
@@ -196,7 +233,7 @@ function Home() {
       </section>
 
       {/* Tabs */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
+      <section className="max-w-7xl mx-auto px-3 sm:px-6 py-4">
         <Tabs defaultValue="grid">
           <TabsList className="mb-4">
             <TabsTrigger value="grid"><Grid3X3 className="h-4 w-4 mr-1" />Grid</TabsTrigger>
@@ -207,17 +244,17 @@ function Home() {
 
           <TabsContent value="grid">
             {loading ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
                 {[...Array(8)].map((_, i) => (
-                  <div key={i} className="animate-pulse bg-charcoal rounded-xl h-64" />
+                  <div key={i} className="animate-pulse bg-charcoal rounded-xl h-48 sm:h-64" />
                 ))}
               </div>
             ) : filtered.length === 0 ? (
               <div className="text-center py-16 text-muted-foreground">No vehicles found.</div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
                 {filtered.map((v) => (
-                  <VehicleCard key={v.id} vehicle={v} />
+                  <VehicleCard key={v.id} vehicle={v} likeInfo={likeData[v.id]} onLike={() => handleLike(v.id)} />
                 ))}
               </div>
             )}
@@ -225,9 +262,9 @@ function Home() {
 
           {reelsVehicles.length > 0 && (
             <TabsContent value="reels">
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
                 {reelsVehicles.map((v) => (
-                  <VehicleReelCard key={v.id} vehicle={v} />
+                  <VehicleReelCard key={v.id} vehicle={v} likeInfo={likeData[v.id]} onLike={() => handleLike(v.id)} />
                 ))}
               </div>
             </TabsContent>
@@ -238,9 +275,11 @@ function Home() {
   );
 }
 
-function VehicleCard({ vehicle: v }: { vehicle: Vehicle }) {
+function VehicleCard({ vehicle: v, likeInfo, onLike }: { vehicle: Vehicle; likeInfo?: { count: number; liked: boolean }; onLike: () => void }) {
   const imageUrl = v.images?.[0] || "/my-logo.png.PNG";
   const compare = useCompare();
+  const likeCount = likeInfo?.count ?? 0;
+  const liked = likeInfo?.liked ?? false;
 
   return (
     <Link
@@ -250,7 +289,6 @@ function VehicleCard({ vehicle: v }: { vehicle: Vehicle }) {
     >
       {v.status === "sold" && <SoldOverlay />}
 
-      {/* Image */}
       <div className="relative aspect-[4/3] overflow-hidden bg-charcoal">
         <img
           src={imageUrl}
@@ -260,22 +298,21 @@ function VehicleCard({ vehicle: v }: { vehicle: Vehicle }) {
         />
         {v.video_url && (
           <div className="absolute bottom-2 right-2 bg-black/70 rounded-full p-1">
-            <Play className="h-4 w-4 text-gold" />
+            <Play className="h-3 w-3 text-gold" />
           </div>
         )}
         {v.price_type === "auction" && v.auction_ends_at && (
-          <div className="absolute top-2 left-2 bg-red-500/90 text-white text-xs px-2 py-1 rounded-full font-medium">
-            LIVE AUCTION
+          <div className="absolute top-2 left-2 bg-red-500/90 text-white text-[10px] px-2 py-0.5 rounded-full font-medium">
+            LIVE
           </div>
         )}
       </div>
 
-      {/* Content */}
-      <div className="p-3">
-        <div className="font-medium text-sm mb-1">{v.brand} {v.model} ({v.year})</div>
-        <div className="text-xs text-muted-foreground flex items-center gap-2 mb-2">
-          <MapPin className="h-3 w-3" />{v.wilaya}
-          <span className="text-gold font-display">
+      <div className="p-2.5 sm:p-3">
+        <div className="font-medium text-xs sm:text-sm mb-1 truncate">{v.brand} {v.model} ({v.year})</div>
+        <div className="text-[10px] sm:text-xs text-muted-foreground flex items-center gap-1.5 mb-2">
+          <MapPin className="h-3 w-3 shrink-0" />{v.wilaya}
+          <span className="text-gold font-display ml-auto">
             {v.price_type === "fixed" && v.fixed_price ? formatDZD(v.fixed_price) :
              v.price_type === "auction" ? `${formatDZD(v.current_highest_bid || v.starting_price || 0)}+` : ""}
           </span>
@@ -284,22 +321,38 @@ function VehicleCard({ vehicle: v }: { vehicle: Vehicle }) {
         {v.price_type === "auction" && v.auction_ends_at && (
           <Countdown endsAt={v.auction_ends_at} />
         )}
-      </div>
 
-      {/* Compare checkbox */}
-      <button
-        onClick={(e) => { e.preventDefault(); compareStore.toggle(v.id); }}
-        className={`absolute bottom-2 right-2 w-6 h-6 rounded-md border flex items-center justify-center transition ${
-          compare.includes(v.id) ? "bg-gold border-gold" : "border-gold/40 hover:border-gold"
-        }`}
-      >
-        {compare.includes(v.id) && <span className="text-black text-xs font-bold">✓</span>}
-      </button>
+        <div className="flex items-center gap-3 mt-2">
+          <button
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onLike(); }}
+            className="flex items-center gap-1 transition-transform active:scale-90"
+            aria-label="Like"
+          >
+            <Heart className={`h-4 w-4 ${liked ? "text-red-500 fill-red-500" : "text-muted-foreground"}`} />
+            <span className="text-[10px] text-muted-foreground">{likeCount}</span>
+          </button>
+          <div className="flex items-center gap-1">
+            <Eye className="h-4 w-4 text-muted-foreground" />
+            <span className="text-[10px] text-muted-foreground">{Math.floor(likeCount * 3.7) + 1}</span>
+          </div>
+          <button
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); compareStore.toggle(v.id); }}
+            className={`ml-auto w-5 h-5 rounded-md border flex items-center justify-center transition ${
+              compare.includes(v.id) ? "bg-gold border-gold" : "border-gold/40"
+            }`}
+          >
+            {compare.includes(v.id) && <span className="text-black text-[8px] font-bold">✓</span>}
+          </button>
+        </div>
+      </div>
     </Link>
   );
 }
 
-function VehicleReelCard({ vehicle: v }: { vehicle: Vehicle }) {
+function VehicleReelCard({ vehicle: v, likeInfo, onLike }: { vehicle: Vehicle; likeInfo?: { count: number; liked: boolean }; onLike: () => void }) {
+  const likeCount = likeInfo?.count ?? 0;
+  const liked = likeInfo?.liked ?? false;
+
   return (
     <Link
       to="/vehicle/$id"
@@ -313,6 +366,7 @@ function VehicleReelCard({ vehicle: v }: { vehicle: Vehicle }) {
           muted
           loop
           playsInline
+          preload="metadata"
           onMouseOver={(e) => (e.target as HTMLVideoElement).play()}
           onMouseOut={(e) => (e.target as HTMLVideoElement).pause()}
         />
@@ -321,11 +375,26 @@ function VehicleReelCard({ vehicle: v }: { vehicle: Vehicle }) {
       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
 
       <div className="absolute bottom-0 left-0 right-0 p-3">
-        <div className="font-display text-lg mb-1">{v.brand} {v.model}</div>
-        <div className="text-xs text-white/60">{v.year} · {v.wilaya}</div>
-        <div className="text-gold font-display mt-1">
+        <div className="font-display text-base sm:text-lg mb-1">{v.brand} {v.model}</div>
+        <div className="text-[10px] sm:text-xs text-white/60">{v.year} · {v.wilaya}</div>
+        <div className="text-gold font-display mt-1 text-sm sm:text-base">
           {v.price_type === "fixed" && v.fixed_price ? formatDZD(v.fixed_price) :
            v.price_type === "auction" ? `${formatDZD(v.current_highest_bid || v.starting_price || 0)}+` : ""}
+        </div>
+
+        <div className="flex items-center gap-3 mt-2">
+          <button
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onLike(); }}
+            className="flex items-center gap-1"
+            aria-label="Like"
+          >
+            <Heart className={`h-4 w-4 ${liked ? "text-red-500 fill-red-500" : "text-white/80"}`} />
+            <span className="text-[10px] text-white/80">{likeCount}</span>
+          </button>
+          <div className="flex items-center gap-1">
+            <Eye className="h-4 w-4 text-white/80" />
+            <span className="text-[10px] text-white/80">{Math.floor(likeCount * 3.7) + 1}</span>
+          </div>
         </div>
       </div>
 

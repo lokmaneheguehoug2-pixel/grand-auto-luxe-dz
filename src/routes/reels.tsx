@@ -90,8 +90,8 @@ function ReelsPage() {
   }, []);
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] bg-black">
-      <div className="max-w-md mx-auto py-4 px-3 flex items-center justify-between sticky top-16 z-30 bg-gradient-to-b from-black/95 to-transparent">
+    <div className="min-h-[calc(100vh-3.5rem)] bg-black">
+      <div className="max-w-md mx-auto py-3 px-3 flex items-center justify-between sticky top-14 z-30 bg-gradient-to-b from-black/95 to-transparent">
         <div className="flex items-center gap-2">
           <Film className="h-5 w-5 text-gold" />
           <h1 className="font-display text-xl gold-text">Reels</h1>
@@ -118,7 +118,7 @@ function ReelsPage() {
       )}
 
       {!loading && reels.length > 0 && (
-        <div className="max-w-md mx-auto h-[calc(100vh-4rem-4rem)] overflow-y-scroll snap-y snap-mandatory no-scrollbar">
+        <div className="max-w-md mx-auto h-[calc(100vh-3.5rem-3.5rem)] overflow-y-scroll snap-y snap-mandatory no-scrollbar pb-16 md:pb-0">
           {reels.map((r) => (
             <ReelCard key={r.id} reel={r} currentUserId={user?.id} isAdmin={isAdmin} onRefresh={() => setLoading(true)} />
           ))}

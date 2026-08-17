@@ -151,6 +151,7 @@
   .snap-start { scroll-snap-align: start; }
   .no-scrollbar::-webkit-scrollbar { display: none; }
   .no-scrollbar { scrollbar-width: none; }
+  .safe-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }
 
   /* === Reels / Ken Burns animation keyframes === */
   @keyframes kenburns-top {
