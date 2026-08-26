@@ -51,11 +51,10 @@ function safeInit<T>(fn: () => T): T | null {
   }
 }
 
-export const auth = safeInit(() => getAuth(getApp())) as Auth;
-export const db = safeInit(() => getFirestore(getApp())) as Firestore;
-export const realtimeDb = safeInit(() => getDatabase(getApp())) as Database;
-export const storage = safeInit(() => getStorage(getApp())) as FirebaseStorage;
-
+export const auth = safeInit(() => getAuth(getApp()));
+export const db = safeInit(() => getFirestore(getApp()));
+export const realtimeDb = safeInit(() => getDatabase(getApp()));
+export const storage = safeInit(() => getStorage(getApp()));
 
 export const ADMIN_PHONES = ["0781606765", "781606765"];
 
