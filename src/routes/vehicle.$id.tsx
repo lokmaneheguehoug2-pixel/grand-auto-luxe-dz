@@ -3,8 +3,9 @@ import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { formatDZD } from "@/lib/format";
-import { Flag, Calendar, Gauge, Fuel, Cog, Gavel, Trophy, Phone, MessageCircle, Lock, Pencil, Trash2, MapPin, Crown, BadgeCheck, CircleCheck, RotateCcw } from "lucide-react";
+import { formatDZD, formatDZDArabic } from "@/lib/format";
+import { calculateDeal } from "@/lib/pricing";
+import { Flag, Calendar, Gauge, Fuel, Cog, Gavel, Trophy, Phone, MessageCircle, Lock, Pencil, Trash2, MapPin, Crown, BadgeCheck, CircleCheck, RotateCcw, Star, TrendingDown } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Countdown } from "@/components/Countdown";
 import { useState, useEffect } from "react";
@@ -91,6 +92,17 @@ function VehicleDetail() {
   const [reportReason, setReportReason] = useState("");
   const [reporting, setReporting] = useState(false);
   const [owner, setOwner] = useState<OwnerProfile | null>(null);
+  const [allVehicles, setAllVehicles] = useState<any[]>([]);
+
+  useEffect(() => {
+    const allRef = ref(realtimeDb, "vehicles");
+    const handleAll = (snap: { val: () => Record<string, any> | null }) => {
+      const data = snap.val();
+      if (data) setAllVehicles(Object.entries(data).map(([vid, val]) => ({ id: vid, ...val })));
+    };
+    onValue(allRef, handleAll);
+    return () => off(allRef);
+  }, []);
 
   useEffect(() => {
     const vehicleRef = ref(realtimeDb, `vehicles/${id}`);
@@ -328,11 +340,20 @@ function VehicleDetail() {
             <div className="text-sm text-muted-foreground mt-1">{v.year} · {v.wilaya}</div>
           </div>
           <div className="text-right">
+            {v.previous_price && v.previous_price > (v.fixed_price ?? 0) && (
+              <div className="text-sm text-muted-foreground line-through">{formatDZD(v.previous_price)}</div>
+            )}
             {v.price_type === "fixed" && v.fixed_price ? (
               <div className="text-2xl gold-text font-display">{formatDZD(v.fixed_price)}</div>
             ) : v.price_type === "auction" ? (
               <div className="text-2xl gold-text font-display">{formatDZD(v.current_highest_bid || v.starting_price || 0)}</div>
             ) : null}
+            <div className="text-[10px] text-muted-foreground">{formatDZDArabic(v.price_type === "fixed" ? (v.fixed_price ?? 0) : (v.current_highest_bid || v.starting_price || 0))}</div>
+            {v.previous_price && v.previous_price > (v.fixed_price ?? 0) && (
+              <div className="text-xs text-green-400 flex items-center gap-1 justify-end mt-1">
+                <TrendingDown className="h-3 w-3" /> Save {formatDZD(v.previous_price - (v.fixed_price ?? 0))}
+              </div>
+            )}
             {v.price_type === "auction" && <div className="text-xs text-muted-foreground uppercase tracking-widest">Current bid</div>}
             {v.price_type === "fixed" && <div className="text-xs text-muted-foreground uppercase tracking-widest">Price</div>}
           </div>
@@ -369,6 +390,23 @@ function VehicleDetail() {
             This vehicle has been sold.
           </div>
         )}
+
+        {/* Deal badge */}
+        {v.price_type === "fixed" && v.fixed_price && allVehicles.length > 0 && (() => {
+          const deal = calculateDeal(v.fixed_price, v.brand, v.model, v.year, allVehicles);
+          if (!deal) return null;
+          return (
+            <div className="mb-4">
+              <div className={`inline-flex items-center gap-1.5 text-xs px-3 py-1 rounded-full border ${deal.badgeClass}`} title={deal.tooltip}>
+                {deal.rating === "great" && <Star className="h-3.5 w-3.5" />}
+                <span className="font-medium">{deal.label}</span>
+                <span className="text-muted-foreground">·</span>
+                <span>{deal.labelAr}</span>
+              </div>
+              <p className="text-[10px] text-muted-foreground mt-1">{deal.tooltip}</p>
+            </div>
+          );
+        })()}
 
         {/* Specs */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">

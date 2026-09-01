@@ -1,233 +1,527 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
-import { WILAYAS } from "@/lib/wilayas";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useMemo, useState, useEffect, useCallback } from "react";
+import { WILAYAS, BRANDS } from "@/lib/wilayas";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, MapPin, Sparkles, Star } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ChevronLeft, MapPin, Sparkles, Star, Search, Store, Car, TrendingDown, Heart, Eye, Play } from "lucide-react";
+import { ref, onValue, off } from "firebase/database";
+import { realtimeDb } from "@/lib/firebase";
+import { formatDZD, formatDZDArabic, dzdToMillionCentimes, millionCentimesToDZD } from "@/lib/format";
+import { calculateDeal, type DealInfo } from "@/lib/pricing";
+import { useAuth } from "@/hooks/use-auth";
+import { getSupabase } from "@/lib/supabase";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/brands")({
   head: () => ({
     meta: [
-      { title: "Explore Brands — GRAND Auto Luxe" },
-      { name: "description", content: "Browse popular European, Chinese and Asian car brands and models available in Algeria with realistic Algerian Dinar pricing." },
-      { property: "og:title", content: "Explore Brands — GRAND Auto Luxe" },
-      { property: "og:description", content: "Premium catalogue of vehicles popular in the Algerian market." },
+      { title: "Discover — GRAND Auto Luxe" },
+      { name: "description", content: "Search vehicles, brands, and showrooms across Algeria. Smart pricing, budget filters, and real-time discovery." },
+      { property: "og:title", content: "Discover — GRAND Auto Luxe" },
+      { property: "og:description", content: "Premium vehicle and showroom discovery across all 58 wilayas." },
     ],
   }),
-  component: BrandsPage,
+  component: DiscoveryHub,
 });
 
-type Model = { name: string; trim?: string; priceDA: number; tag?: string };
-type Brand = { name: string; origin: string; tagline: string; models: Model[] };
+type Vehicle = {
+  id: string;
+  brand: string;
+  model: string;
+  year: number;
+  mileage: number;
+  fuel_type: string;
+  transmission: string;
+  wilaya: string;
+  phone: string;
+  sellerPhone: string;
+  sellerId: string;
+  images: string[];
+  video_url: string | null;
+  price_type: "fixed" | "auction";
+  fixed_price: number | null;
+  starting_price: number | null;
+  current_highest_bid: number | null;
+  auction_ends_at: string | null;
+  status: string;
+  created_at: string;
+  previous_price?: number | null;
+};
 
-const CATALOG: { group: string; brands: Brand[] }[] = [
-  {
-    group: "European & Luxury",
-    brands: [
-      { name: "Mercedes-Benz", origin: "Germany", tagline: "The best or nothing", models: [
-        { name: "G-Class", trim: "G63 AMG", priceDA: 95_000_000, tag: "Icon" },
-        { name: "C-Class", trim: "C200 AMG Line", priceDA: 18_500_000 },
-        { name: "E-Class", trim: "E300 Avantgarde", priceDA: 27_000_000 },
-      ]},
-      { name: "Volkswagen", origin: "Germany", tagline: "Das Auto", models: [
-        { name: "Golf 8", trim: "R-Line", priceDA: 9_800_000, tag: "Hot" },
-        { name: "Golf 7.5", trim: "Facelift", priceDA: 6_500_000 },
-        { name: "Polo", trim: "Beats", priceDA: 5_200_000 },
-      ]},
-      { name: "BMW", origin: "Germany", tagline: "Sheer driving pleasure", models: [
-        { name: "M4", trim: "Competition", priceDA: 42_000_000, tag: "Performance" },
-        { name: "Series 1", trim: "M Sport", priceDA: 12_500_000 },
-        { name: "X6", trim: "M Package", priceDA: 38_000_000 },
-      ]},
-      { name: "Audi", origin: "Germany", tagline: "Vorsprung durch Technik", models: [
-        { name: "A3", trim: "Sportback", priceDA: 11_200_000 },
-        { name: "Q3", trim: "Sportback", priceDA: 16_800_000 },
-        { name: "RS6", trim: "Avant", priceDA: 55_000_000, tag: "Beast" },
-      ]},
-      { name: "Porsche", origin: "Germany", tagline: "There is no substitute", models: [
-        { name: "Macan", trim: "Turbo", priceDA: 48_000_000 },
-        { name: "Cayenne", trim: "Coupé", priceDA: 62_000_000 },
-        { name: "911", trim: "Carrera", priceDA: 78_000_000, tag: "Legend" },
-      ]},
-      { name: "Seat", origin: "Spain", tagline: "Created in Barcelona", models: [
-        { name: "Ibiza", trim: "Highline", priceDA: 4_900_000 },
-        { name: "Leon", trim: "Cupra", priceDA: 8_900_000 },
-        { name: "Arona", trim: "Xperience", priceDA: 6_400_000 },
-      ]},
-    ],
-  },
-  {
-    group: "Chinese — Highly Popular in DZ",
-    brands: [
-      { name: "Geely", origin: "China", tagline: "Refined Chinese engineering", models: [
-        { name: "Coolray", trim: "Sport", priceDA: 4_350_000, tag: "Best Seller" },
-        { name: "Emgrand", trim: "Comfort", priceDA: 3_200_000 },
-        { name: "GX3 Pro", trim: "Premium", priceDA: 3_650_000 },
-      ]},
-      { name: "Chery", origin: "China", tagline: "Drive the change", models: [
-        { name: "Tiggo 2", trim: "Pro Luxury", priceDA: 2_750_000 },
-        { name: "Tiggo 4", trim: "Pro Elite", priceDA: 3_950_000, tag: "Value" },
-        { name: "Arrizo 5", trim: "Pro", priceDA: 3_100_000 },
-      ]},
-      { name: "Jetour", origin: "China", tagline: "Travel Plus", models: [
-        { name: "X70", trim: "Plus 7-seats", priceDA: 4_200_000 },
-        { name: "Dashing", trim: "AWD", priceDA: 4_800_000 },
-        { name: "X90", trim: "Plus", priceDA: 5_300_000 },
-      ]},
-      { name: "Changan", origin: "China", tagline: "Smart mobility", models: [
-        { name: "Alsvin", trim: "Lumiere", priceDA: 2_390_000 },
-        { name: "CS35", trim: "Plus", priceDA: 3_700_000 },
-        { name: "Uni-T", trim: "Sport", priceDA: 4_550_000, tag: "New" },
-      ]},
-    ],
-  },
-  {
-    group: "Asian Giants",
-    brands: [
-      { name: "Hyundai", origin: "South Korea", tagline: "New thinking. New possibilities.", models: [
-        { name: "Tucson", trim: "N-Line", priceDA: 7_900_000, tag: "Trending" },
-        { name: "Accent", trim: "Hatchback / Sedan", priceDA: 3_850_000 },
-        { name: "i10", trim: "GLS", priceDA: 2_650_000 },
-      ]},
-      { name: "Kia", origin: "South Korea", tagline: "Movement that inspires", models: [
-        { name: "Sportage", trim: "GT-Line", priceDA: 8_400_000 },
-        { name: "Seltos", trim: "EX+", priceDA: 6_200_000 },
-        { name: "Picanto", trim: "GT-Line", priceDA: 2_800_000 },
-      ]},
-      { name: "Toyota", origin: "Japan", tagline: "Let's go places", models: [
-        { name: "Hilux", trim: "Adventure", priceDA: 11_500_000, tag: "King" },
-        { name: "Land Cruiser", trim: "LC300", priceDA: 65_000_000, tag: "Flagship" },
-        { name: "Yaris", trim: "Premium", priceDA: 3_400_000 },
-      ]},
-    ],
-  },
+type Showroom = {
+  phone: string;
+  first_name: string;
+  last_name: string;
+  showroom_name: string;
+  wilaya: string;
+  bio?: string;
+  showroom_logo?: string;
+  subscription_status: string;
+};
+
+type FavoriteData = Record<string, boolean>;
+
+const BUDGET_PRESETS = [
+  { label: "Under 200M", labelAr: "أقل من 200 مليون", min: 0, max: 200 },
+  { label: "200M - 400M", labelAr: "200 - 400 مليون", min: 200, max: 400 },
+  { label: "400M+", labelAr: "أكثر من 400 مليون", min: 400, max: 10000 },
 ];
 
-function formatPrice(da: number) {
-  const da_str = da.toLocaleString("fr-FR");
-  const centimes_m = Math.round(da / 10_000); // 1 DA = 100 centimes, expressed in millions
-  return { da: `${da_str} DA`, centimes: `${centimes_m.toLocaleString("fr-FR")} Millions de Centimes` };
+function priceOf(v: Vehicle): number {
+  return v.price_type === "fixed" ? (v.fixed_price ?? 0) : (v.current_highest_bid ?? v.starting_price ?? 0);
 }
 
-function BrandsPage() {
-  const [wilaya, setWilaya] = useState<string>("Alger");
-  const [selectedBrand, setSelectedBrand] = useState<Brand | null>(null);
+function DiscoveryHub() {
+  const [searchTab, setSearchTab] = useState<"vehicles" | "showrooms">("vehicles");
+  const [query, setQuery] = useState("");
+  const [wilaya, setWilaya] = useState<string>("all");
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [showrooms, setShowrooms] = useState<Showroom[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [budgetMin, setBudgetMin] = useState(0);
+  const [budgetMax, setBudgetMax] = useState(10000);
+  const [activePreset, setActivePreset] = useState<number | null>(null);
+  const [favorites, setFavorites] = useState<FavoriteData>({});
+  const auth = useAuth();
+  const userId = auth?.user?.id ?? auth?.user?.phone ?? null;
 
-  const groupedBrands = useMemo(() => CATALOG, []);
+  useEffect(() => {
+    const vehiclesRef = ref(realtimeDb, "vehicles");
+    const handleSnapshot = (snapshot: { val: () => Record<string, any> | null }) => {
+      const data = snapshot.val();
+      if (data) {
+        const list: Vehicle[] = Object.entries(data)
+          .map(([id, v]) => ({
+            id,
+            brand: v.brand || "",
+            model: v.model || "",
+            year: v.year || 0,
+            mileage: v.mileage ?? 0,
+            fuel_type: v.fuel_type || "",
+            transmission: v.transmission || "",
+            wilaya: v.wilaya || "",
+            phone: v.phone || "",
+            sellerPhone: v.sellerPhone || "",
+            sellerId: v.sellerId || "",
+            images: v.images || [],
+            video_url: v.video_url || null,
+            price_type: v.price_type || "fixed",
+            fixed_price: v.fixed_price ?? null,
+            starting_price: v.starting_price ?? null,
+            current_highest_bid: v.current_highest_bid ?? null,
+            auction_ends_at: v.auction_ends_at ?? null,
+            status: v.status || "active",
+            created_at: v.created_at || "",
+            previous_price: v.previous_price ?? null,
+          }))
+          .filter((v) => v.status === "active" || v.status === "sold");
+        setVehicles(list);
+      } else {
+        setVehicles([]);
+      }
+      setLoading(false);
+    };
+    onValue(vehiclesRef, handleSnapshot);
+    return () => off(vehiclesRef);
+  }, []);
+
+  useEffect(() => {
+    const usersRef = ref(realtimeDb, "users");
+    const handleSnapshot = (snapshot: { val: () => Record<string, any> | null }) => {
+      const data = snapshot.val();
+      if (!data) {
+        setShowrooms([]);
+        return;
+      }
+      const list: Showroom[] = Object.entries(data)
+        .map(([phone, u]) => ({
+          phone,
+          first_name: u.first_name || "",
+          last_name: u.last_name || "",
+          showroom_name: u.showroom_name || "",
+          wilaya: u.wilaya || "",
+          bio: u.bio,
+          showroom_logo: u.showroom_logo,
+          subscription_status: u.subscription_status || "trial",
+        }))
+        .filter((u) => u.showroom_name && u.showroom_name.length > 0);
+      setShowrooms(list);
+    };
+    onValue(usersRef, handleSnapshot);
+    return () => off(usersRef);
+  }, []);
+
+  const loadFavorites = useCallback(async () => {
+    const client = getSupabase();
+    if (!client || !userId) return;
+    const { data } = await client.from("vehicle_favorites").select("vehicle_id").eq("user_id", userId);
+    if (!data) return;
+    const map: FavoriteData = {};
+    for (const row of data) map[row.vehicle_id] = true;
+    setFavorites(map);
+  }, [userId]);
+
+  useEffect(() => {
+    loadFavorites();
+  }, [loadFavorites]);
+
+  const handleFavorite = useCallback(async (vehicleId: string) => {
+    if (!userId) {
+      toast.info("Sign in to save vehicles");
+      return;
+    }
+    const client = getSupabase();
+    if (!client) return;
+    const isFav = favorites[vehicleId] ?? false;
+    setFavorites(prev => ({ ...prev, [vehicleId]: !isFav }));
+    try {
+      if (!isFav) {
+        await client.from("vehicle_favorites").insert({ vehicle_id: vehicleId, user_id: userId });
+      } else {
+        await client.from("vehicle_favorites").delete().eq("vehicle_id", vehicleId).eq("user_id", userId);
+      }
+    } catch {
+      setFavorites(prev => ({ ...prev, [vehicleId]: isFav }));
+    }
+  }, [userId, favorites]);
+
+  const applyPreset = (preset: typeof BUDGET_PRESETS[0] | null, idx: number) => {
+    if (preset === null) {
+      setActivePreset(null);
+      setBudgetMin(0);
+      setBudgetMax(10000);
+    } else {
+      setActivePreset(idx);
+      setBudgetMin(preset.min);
+      setBudgetMax(preset.max);
+    }
+  };
+
+  // Suggestions based on query
+  const suggestions = useMemo(() => {
+    if (!query || query.length < 2) return [];
+    if (searchTab === "vehicles") {
+      const brandMatches = BRANDS.filter(b => b.toLowerCase().includes(query.toLowerCase())).slice(0, 5);
+      const modelMatches = vehicles
+        .filter(v => `${v.brand} ${v.model}`.toLowerCase().includes(query.toLowerCase()))
+        .map(v => `${v.brand} ${v.model}`)
+        .filter((val, idx, arr) => arr.indexOf(val) === idx)
+        .slice(0, 5);
+      return [...brandMatches, ...modelMatches];
+    } else {
+      return showrooms
+        .filter(s => s.showroom_name.toLowerCase().includes(query.toLowerCase()))
+        .map(s => s.showroom_name)
+        .slice(0, 5);
+    }
+  }, [query, searchTab, vehicles, showrooms]);
+
+  const filteredVehicles = useMemo(() => {
+    const minDZD = millionCentimesToDZD(budgetMin);
+    const maxDZD = millionCentimesToDZD(budgetMax);
+
+    return vehicles.filter((v) => {
+      if (wilaya !== "all" && v.wilaya !== wilaya) return false;
+      if (query) {
+        const q = query.toLowerCase();
+        if (!`${v.brand} ${v.model}`.toLowerCase().includes(q)) return false;
+      }
+      const price = priceOf(v);
+      if (budgetMin > 0 && price < minDZD) return false;
+      if (budgetMax < 10000 && price > maxDZD) return false;
+      return true;
+    }).sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+  }, [vehicles, query, wilaya, budgetMin, budgetMax]);
+
+  const filteredShowrooms = useMemo(() => {
+    return showrooms.filter((s) => {
+      if (wilaya !== "all" && s.wilaya !== wilaya) return false;
+      if (query) {
+        const q = query.toLowerCase();
+        if (!s.showroom_name.toLowerCase().includes(q) &&
+            !s.wilaya.toLowerCase().includes(q) &&
+            !`${s.first_name} ${s.last_name}`.toLowerCase().includes(q)) return false;
+      }
+      return true;
+    });
+  }, [showrooms, query, wilaya]);
 
   return (
     <div className="relative">
-      {/* Glow background */}
-      <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_50%_-10%,rgba(212,175,55,0.18),transparent_55%),radial-gradient(circle_at_90%_30%,rgba(212,175,55,0.08),transparent_55%)]" />
+      <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_50%_-10%,rgba(212,175,55,0.15),transparent_55%),radial-gradient(circle_at_90%_30%,rgba(212,175,55,0.06),transparent_55%)]" />
 
-      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 py-10 sm:py-14">
-        {/* Hero */}
-        <div className="mb-8 sm:mb-12 flex flex-col md:flex-row md:items-end md:justify-between gap-6">
-          <div className="max-w-2xl">
-            <div className="inline-flex items-center gap-2 text-[11px] uppercase tracking-[0.3em] text-gold mb-3">
-              <Sparkles className="h-3.5 w-3.5" /> Catalogue · Algeria
-            </div>
-            <h1 className="font-display text-4xl sm:text-5xl leading-[1.05]">
-              Explore <span className="gold-text">premium brands</span> trusted across Algeria.
-            </h1>
-            <p className="mt-3 text-muted-foreground text-sm sm:text-base">
-              Curated European, Chinese and Asian line-ups with authentic Algerian market pricing.
-            </p>
+      <div className="relative max-w-7xl mx-auto px-3 sm:px-6 py-6 sm:py-10">
+        {/* Title */}
+        <div className="mb-5 sm:mb-6">
+          <div className="inline-flex items-center gap-2 text-[11px] uppercase tracking-[0.3em] text-gold mb-2">
+            <Sparkles className="h-3.5 w-3.5" /> Discovery Hub
           </div>
-
-          {/* Wilaya selector */}
-          <div className="w-full md:w-80">
-            <label className="text-[11px] uppercase tracking-[0.25em] text-gold mb-2 flex items-center gap-1.5"><MapPin className="h-3.5 w-3.5" /> Select Wilaya</label>
-            <Select value={wilaya} onValueChange={setWilaya}>
-              <SelectTrigger className="h-12 bg-charcoal border-gold/30 hover:border-gold/60 transition-colors gold-border">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="max-h-80 bg-charcoal border-gold/30">
-                {WILAYAS.map((w, i) => (
-                  <SelectItem key={w} value={w} className="focus:bg-gold-soft focus:text-foreground">
-                    <span className="text-gold/70 mr-2 text-xs tabular-nums">{String(i+1).padStart(2,"0")}</span>{w}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          <h1 className="font-display text-3xl sm:text-4xl leading-tight">
+            Find your next <span className="gold-text">premium vehicle</span>
+          </h1>
         </div>
 
-        {/* Brand grid OR Model detail */}
-        {!selectedBrand ? (
-          <div className="space-y-12 animate-fade-in">
-            {groupedBrands.map((group) => (
-              <section key={group.group}>
-                <div className="flex items-center gap-3 mb-5">
-                  <h2 className="font-display text-2xl">{group.group}</h2>
-                  <div className="flex-1 h-px bg-gradient-to-r from-gold/40 via-gold/10 to-transparent" />
-                </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-                  {group.brands.map((b) => (
-                    <button
-                      key={b.name}
-                      onClick={() => setSelectedBrand(b)}
-                      className="group relative text-left premium-card rounded-xl p-5 hover:gold-border transition-all hover-scale overflow-hidden"
-                    >
-                      <div className="absolute -top-12 -right-12 h-32 w-32 rounded-full bg-gold/10 blur-2xl group-hover:bg-gold/20 transition" />
-                      <div className="relative">
-                        <div className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground mb-1">{b.origin}</div>
-                        <div className="font-display text-xl gold-text">{b.name}</div>
-                        <p className="text-xs text-muted-foreground mt-2 line-clamp-2 italic">"{b.tagline}"</p>
-                        <div className="mt-4 flex items-center justify-between text-xs">
-                          <span className="text-muted-foreground">{b.models.length} models</span>
-                          <span className="text-gold font-semibold opacity-0 group-hover:opacity-100 transition">View →</span>
-                        </div>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </section>
+        {/* Unified Search Bar */}
+        <div className="relative mb-3">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+          <Input
+            placeholder="Search vehicles, brands, or showrooms..."
+            className="pl-12 h-12 bg-charcoal border-gold/30 text-base"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+          {suggestions.length > 0 && query.length >= 2 && (
+            <div className="absolute top-full left-0 right-0 z-30 mt-1 bg-charcoal border border-gold/30 rounded-lg shadow-xl overflow-hidden">
+              {suggestions.map((s) => (
+                <button
+                  key={s}
+                  onClick={() => setQuery(s)}
+                  className="w-full text-left px-4 py-2.5 text-sm hover:bg-gold-soft transition flex items-center gap-2"
+                >
+                  <Search className="h-3.5 w-3.5 text-gold/50" />
+                  {s}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Toggle Tabs */}
+        <Tabs value={searchTab} onValueChange={(v) => setSearchTab(v as "vehicles" | "showrooms")}>
+          <TabsList className="mb-3">
+            <TabsTrigger value="vehicles"><Car className="h-4 w-4 mr-1.5" />Vehicles</TabsTrigger>
+            <TabsTrigger value="showrooms"><Store className="h-4 w-4 mr-1.5" />Showrooms</TabsTrigger>
+          </TabsList>
+        </Tabs>
+
+        {/* Wilaya Filter */}
+        <div className="mb-4">
+          <Select value={wilaya} onValueChange={setWilaya}>
+            <SelectTrigger className="h-11 bg-charcoal border-gold/30 hover:border-gold/60 transition-colors w-full sm:w-80">
+              <MapPin className="h-4 w-4 text-gold mr-2 shrink-0" />
+              <SelectValue placeholder="Select Wilaya" />
+            </SelectTrigger>
+            <SelectContent className="max-h-80 bg-charcoal border-gold/30">
+              <SelectItem value="all" className="focus:bg-gold-soft">All Wilayas</SelectItem>
+              {WILAYAS.map((w, i) => (
+                <SelectItem key={w} value={w} className="focus:bg-gold-soft focus:text-foreground">
+                  <span className="text-gold/70 mr-2 text-xs tabular-nums">{String(i+1).padStart(2,"0")}</span>{w}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Budget Filter (vehicles only) */}
+        {searchTab === "vehicles" && (
+          <div className="mb-6 premium-card rounded-xl p-4 border border-gold/20">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-xs uppercase tracking-widest text-gold">Budget Range</span>
+              <span className="text-xs text-muted-foreground ml-auto">
+                {formatDZD(millionCentimesToDZD(budgetMin))} — {budgetMax >= 10000 ? "∞" : formatDZD(millionCentimesToDZD(budgetMax))}
+              </span>
+            </div>
+
+            {/* Preset chips */}
+            <div className="flex flex-wrap gap-2 mb-3">
+              <button
+                onClick={() => applyPreset(null, -1)}
+                className={`text-xs px-3 py-1.5 rounded-full border transition ${activePreset === null ? "bg-gold text-gold-foreground border-gold" : "border-gold/30 text-muted-foreground hover:border-gold/60"}`}
+              >
+                All
+              </button>
+              {BUDGET_PRESETS.map((p, idx) => (
+                <button
+                  key={p.label}
+                  onClick={() => applyPreset(p, idx)}
+                  className={`text-xs px-3 py-1.5 rounded-full border transition ${activePreset === idx ? "bg-gold text-gold-foreground border-gold" : "border-gold/30 text-muted-foreground hover:border-gold/60"}`}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Dual numeric inputs */}
+            <div className="flex items-center gap-3">
+              <div className="flex-1">
+                <label className="text-[10px] text-muted-foreground uppercase tracking-wider">Min (Million)</label>
+                <Input
+                  type="number"
+                  value={budgetMin || ""}
+                  onChange={(e) => { setBudgetMin(Number(e.target.value) || 0); setActivePreset(null); }}
+                  placeholder="0"
+                  className="bg-charcoal h-9 mt-1"
+                />
+              </div>
+              <span className="text-muted-foreground mt-4">—</span>
+              <div className="flex-1">
+                <label className="text-[10px] text-muted-foreground uppercase tracking-wider">Max (Million)</label>
+                <Input
+                  type="number"
+                  value={budgetMax >= 10000 ? "" : budgetMax}
+                  onChange={(e) => { setBudgetMax(Number(e.target.value) || 10000); setActivePreset(null); }}
+                  placeholder="No limit"
+                  className="bg-charcoal h-9 mt-1"
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Results */}
+        {loading ? (
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
+            {[...Array(8)].map((_, i) => (
+              <div key={i} className="animate-pulse bg-charcoal rounded-xl h-48 sm:h-56" />
             ))}
           </div>
-        ) : (
-          <div className="animate-fade-in">
-            <Button variant="gold-outline" size="sm" onClick={() => setSelectedBrand(null)} className="mb-6">
-              <ChevronLeft className="h-4 w-4" /> All brands
-            </Button>
-
-            <div className="premium-card rounded-2xl p-6 sm:p-8 mb-8 gold-border">
-              <div className="text-[11px] uppercase tracking-[0.3em] text-gold mb-2">{selectedBrand.origin} · Available in {wilaya}</div>
-              <h2 className="font-display text-4xl sm:text-5xl gold-text">{selectedBrand.name}</h2>
-              <p className="text-muted-foreground mt-2 italic">"{selectedBrand.tagline}"</p>
+        ) : searchTab === "vehicles" ? (
+          filteredVehicles.length === 0 ? (
+            <div className="text-center py-16 text-muted-foreground">
+              <Car className="h-12 w-12 mx-auto mb-3 text-gold/30" />
+              <p>No vehicles found. Try adjusting your filters.</p>
             </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-              {selectedBrand.models.map((m) => {
-                const p = formatPrice(m.priceDA);
-                return (
-                  <div key={m.name} className="premium-card rounded-xl p-6 hover:gold-border transition-all group">
-                    <div className="flex items-start justify-between mb-3">
-                      <div>
-                        <div className="font-display text-2xl">{m.name}</div>
-                        {m.trim && <div className="text-sm text-muted-foreground mt-0.5">{m.trim}</div>}
-                      </div>
-                      {m.tag && (
-                        <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wider px-2 py-1 rounded-full bg-gold text-gold-foreground font-bold">
-                          <Star className="h-3 w-3" />{m.tag}
-                        </span>
-                      )}
-                    </div>
-                    <div className="h-px bg-gradient-to-r from-gold/40 via-gold/10 to-transparent my-4" />
-                    <div className="space-y-1">
-                      <div className="gold-text font-display text-2xl font-bold tabular-nums">{p.da}</div>
-                      <div className="text-xs text-muted-foreground tabular-nums">≈ {p.centimes}</div>
-                    </div>
-                    <div className="mt-4 flex items-center gap-1.5 text-xs text-muted-foreground">
-                      <MapPin className="h-3 w-3 text-gold" /> Disponible à {wilaya}
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
+              {filteredVehicles.map((v) => (
+                <DiscoveryVehicleCard
+                  key={v.id}
+                  vehicle={v}
+                  allVehicles={vehicles}
+                  isFavorite={favorites[v.id] ?? false}
+                  onFavorite={() => handleFavorite(v.id)}
+                />
+              ))}
+            </div>
+          )
+        ) : filteredShowrooms.length === 0 ? (
+          <div className="text-center py-16 text-muted-foreground">
+            <Store className="h-12 w-12 mx-auto mb-3 text-gold/30" />
+            <p>No showrooms found. Try a different search.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredShowrooms.map((s) => (
+              <Link
+                key={s.phone}
+                to="/seller/$id"
+                params={{ id: s.phone }}
+                className="premium-card rounded-xl p-5 border border-gold/20 hover:gold-border transition-all group"
+              >
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="h-12 w-12 rounded-xl gold-border bg-charcoal grid place-items-center shrink-0 overflow-hidden">
+                    {s.showroom_logo ? (
+                      <img src={s.showroom_logo} alt={s.showroom_name} className="h-full w-full object-cover" />
+                    ) : (
+                      <Store className="h-6 w-6 text-gold" />
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="font-display text-lg gold-text truncate">{s.showroom_name}</div>
+                    <div className="text-xs text-muted-foreground flex items-center gap-1">
+                      <MapPin className="h-3 w-3" />{s.wilaya || "Algeria"}
                     </div>
                   </div>
-                );
-              })}
-            </div>
+                </div>
+                {s.bio && <p className="text-xs text-muted-foreground line-clamp-2">{s.bio}</p>}
+                <div className="mt-3 text-xs text-gold font-semibold opacity-0 group-hover:opacity-100 transition">View Showroom →</div>
+              </Link>
+            ))}
           </div>
         )}
       </div>
     </div>
+  );
+}
+
+function DiscoveryVehicleCard({ vehicle: v, allVehicles, isFavorite, onFavorite }: {
+  vehicle: Vehicle;
+  allVehicles: Vehicle[];
+  isFavorite: boolean;
+  onFavorite: () => void;
+}) {
+  const imageUrl = v.images?.[0] || "/my-logo.png.PNG";
+  const price = priceOf(v);
+  const deal = calculateDeal(price, v.brand, v.model, v.year, allVehicles);
+  const hasPriceDrop = v.previous_price && v.previous_price > price;
+  const savings = hasPriceDrop ? (v.previous_price! - price) : 0;
+
+  return (
+    <Link
+      to="/vehicle/$id"
+      params={{ id: v.id }}
+      className="group premium-card rounded-xl overflow-hidden border border-gold/20 block relative"
+    >
+      {v.status === "sold" && (
+        <div className="absolute inset-0 grid place-items-center bg-black/55 z-10 pointer-events-none">
+          <div className="rotate-[-12deg] border-2 border-gold bg-gold/20 px-4 py-1 rounded gold-glow">
+            <div className="font-display text-lg gold-shine font-bold">SOLD</div>
+          </div>
+        </div>
+      )}
+
+      <div className="relative aspect-[4/3] overflow-hidden bg-charcoal">
+        <img
+          src={imageUrl}
+          alt={`${v.brand} ${v.model}`}
+          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+          loading="lazy"
+        />
+        {v.video_url && (
+          <div className="absolute bottom-2 right-2 bg-black/70 rounded-full p-1">
+            <Play className="h-3 w-3 text-gold" />
+          </div>
+        )}
+        {v.price_type === "auction" && v.auction_ends_at && (
+          <div className="absolute top-2 left-2 bg-red-500/90 text-white text-[10px] px-2 py-0.5 rounded-full font-medium">
+            LIVE
+          </div>
+        )}
+
+        {/* Favorite heart */}
+        <button
+          onClick={(e) => { e.preventDefault(); e.stopPropagation(); onFavorite(); }}
+          className="absolute top-2 right-2 z-10"
+          aria-label="Save"
+        >
+          <Heart className={`h-5 w-5 ${isFavorite ? "text-red-500 fill-red-500" : "text-white/80"} drop-shadow-lg`} />
+        </button>
+      </div>
+
+      <div className="p-2.5 sm:p-3">
+        <div className="font-medium text-xs sm:text-sm mb-1 truncate">{v.brand} {v.model} ({v.year})</div>
+        <div className="text-[10px] sm:text-xs text-muted-foreground flex items-center gap-1.5 mb-2">
+          <MapPin className="h-3 w-3 shrink-0" />{v.wilaya}
+        </div>
+
+        {/* Deal badge */}
+        {deal && (
+          <div className="mb-2">
+            <div className={`inline-flex items-center gap-1 text-[9px] px-2 py-0.5 rounded-full border ${deal.badgeClass}`} title={deal.tooltip}>
+              {deal.rating === "great" && <Star className="h-2.5 w-2.5" />}
+              {deal.label} · {deal.labelAr}
+            </div>
+          </div>
+        )}
+
+        {/* Price with drop indicator */}
+        <div className="flex items-center gap-2">
+          {hasPriceDrop ? (
+            <div className="flex flex-col">
+              <span className="text-[10px] text-muted-foreground line-through">{formatDZD(v.previous_price)}</span>
+              <span className="text-gold font-display text-sm sm:text-base">{formatDZD(price)}</span>
+              <span className="text-[9px] text-green-400 flex items-center gap-0.5">
+                <TrendingDown className="h-2.5 w-2.5" /> Save {formatDZD(savings)}
+              </span>
+            </div>
+          ) : (
+            <span className="text-gold font-display text-sm sm:text-base">{formatDZD(price)}</span>
+          )}
+          <span className="text-[9px] text-muted-foreground mr-auto">{formatDZDArabic(price)}</span>
+        </div>
+      </div>
+    </Link>
   );
 }

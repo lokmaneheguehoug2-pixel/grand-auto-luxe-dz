@@ -3,11 +3,12 @@ import { useState, useMemo, useEffect, useCallback } from "react";
 import { ref, onValue, off } from "firebase/database";
 import { realtimeDb } from "@/lib/firebase";
 import { WILAYAS, BRANDS } from "@/lib/wilayas";
-import { formatDZD } from "@/lib/format";
+import { formatDZD, formatDZDArabic } from "@/lib/format";
+import { calculateDeal } from "@/lib/pricing";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Search, MapPin, Play, Grid3x2 as Grid3X3, Film, Heart, Eye } from "lucide-react";
+import { Search, MapPin, Play, Grid3x2 as Grid3X3, Film, Heart, Eye, Star, TrendingDown, Bookmark } from "lucide-react";
 import { Countdown } from "@/components/Countdown";
 import { compareStore, useCompare } from "@/lib/compare";
 import { useAuth } from "@/hooks/use-auth";
@@ -44,9 +45,15 @@ type Vehicle = {
   auction_ends_at: string | null;
   status: string;
   created_at: string;
+  previous_price?: number | null;
 };
 
 type LikeData = Record<string, { count: number; liked: boolean }>;
+type FavoriteData = Record<string, boolean>;
+
+function priceOf(v: Vehicle): number {
+  return v.price_type === "fixed" ? (v.fixed_price ?? 0) : (v.current_highest_bid ?? v.starting_price ?? 0);
+}
 
 function SoldOverlay() {
   return (
@@ -55,6 +62,32 @@ function SoldOverlay() {
         <div className="font-display text-2xl gold-shine font-bold tracking-widest">SOLD</div>
         <div className="text-[10px] text-gold text-center tracking-[0.3em]">مباع</div>
       </div>
+    </div>
+  );
+}
+
+function DealBadge({ vehicle: v, allVehicles }: { vehicle: Vehicle; allVehicles: Vehicle[] }) {
+  const deal = calculateDeal(priceOf(v), v.brand, v.model, v.year, allVehicles);
+  if (!deal) return null;
+  return (
+    <div className={`inline-flex items-center gap-0.5 text-[9px] px-1.5 py-0.5 rounded-full border ${deal.badgeClass}`} title={deal.tooltip}>
+      {deal.rating === "great" && <Star className="h-2.5 w-2.5" />}
+      {deal.label}
+    </div>
+  );
+}
+
+function PriceDropTag({ vehicle: v }: { vehicle: Vehicle }) {
+  const price = priceOf(v);
+  const hasDrop = v.previous_price && v.previous_price > price;
+  if (!hasDrop) return null;
+  const savings = v.previous_price! - price;
+  return (
+    <div className="flex items-center gap-1 text-[9px] text-green-400">
+      <TrendingDown className="h-2.5 w-2.5" />
+      <span className="line-through text-muted-foreground">{formatDZD(v.previous_price)}</span>
+      <span>→ {formatDZD(price)}</span>
+      <span className="text-green-400 font-medium">Save {formatDZD(savings)}</span>
     </div>
   );
 }
@@ -77,6 +110,7 @@ function Home() {
   const auth = useAuth();
   const userId = auth?.user?.id ?? auth?.user?.phone ?? null;
   const [likeData, setLikeData] = useState<LikeData>({});
+  const [favorites, setFavorites] = useState<FavoriteData>({});
 
   useEffect(() => {
     const vehiclesRef = ref(realtimeDb, "vehicles");
@@ -84,7 +118,7 @@ function Home() {
     const handleSnapshot = (snapshot: { val: () => Record<string, any> | null }) => {
       const data = snapshot.val();
       if (data) {
-        const list = Object.entries(data)
+        const list: Vehicle[] = Object.entries(data)
           .map(([id, v]) => ({
             id,
             brand: v.brand,
@@ -104,6 +138,7 @@ function Home() {
             auction_ends_at: v.auction_ends_at,
             status: v.status,
             created_at: v.created_at,
+            previous_price: v.previous_price ?? null,
           }))
           .filter((v) => v.status === "active" || v.status === "sold")
           .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
@@ -133,14 +168,22 @@ function Home() {
     setLikeData(map);
   }, [userId]);
 
+  const loadFavorites = useCallback(async () => {
+    const client = getSupabase();
+    if (!client || !userId) return;
+    const { data } = await client.from("vehicle_favorites").select("vehicle_id").eq("user_id", userId);
+    if (!data) return;
+    const map: FavoriteData = {};
+    for (const row of data) map[row.vehicle_id] = true;
+    setFavorites(map);
+  }, [userId]);
+
   useEffect(() => {
     loadLikes();
-  }, [loadLikes]);
+    loadFavorites();
+  }, [loadLikes, loadFavorites]);
 
   const filtered = useMemo(() => {
-    const priceOf = (v: Vehicle) =>
-      v.price_type === "fixed" ? (v.fixed_price ?? 0) : (v.current_highest_bid ?? v.starting_price ?? 0);
-
     const list = vehicles.filter((v) => {
       if (filters.q && !`${v.brand} ${v.model}`.toLowerCase().includes(filters.q.toLowerCase())) return false;
       if (filters.brand !== "all" && v.brand !== filters.brand) return false;
@@ -193,9 +236,28 @@ function Home() {
     }
   }, [userId, likeData]);
 
+  const handleFavorite = useCallback(async (vehicleId: string) => {
+    if (!userId) {
+      toast.info("Sign in to save vehicles");
+      return;
+    }
+    const client = getSupabase();
+    if (!client) return;
+    const isFav = favorites[vehicleId] ?? false;
+    setFavorites(prev => ({ ...prev, [vehicleId]: !isFav }));
+    try {
+      if (!isFav) {
+        await client.from("vehicle_favorites").insert({ vehicle_id: vehicleId, user_id: userId });
+      } else {
+        await client.from("vehicle_favorites").delete().eq("vehicle_id", vehicleId).eq("user_id", userId);
+      }
+    } catch {
+      setFavorites(prev => ({ ...prev, [vehicleId]: isFav }));
+    }
+  }, [userId, favorites]);
+
   return (
     <div>
-      {/* Stories Strip */}
       <StoriesStrip />
 
       {/* Filters */}
@@ -254,7 +316,15 @@ function Home() {
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
                 {filtered.map((v) => (
-                  <VehicleCard key={v.id} vehicle={v} likeInfo={likeData[v.id]} onLike={() => handleLike(v.id)} />
+                  <VehicleCard
+                    key={v.id}
+                    vehicle={v}
+                    allVehicles={vehicles}
+                    likeInfo={likeData[v.id]}
+                    isFavorite={favorites[v.id] ?? false}
+                    onLike={() => handleLike(v.id)}
+                    onFavorite={() => handleFavorite(v.id)}
+                  />
                 ))}
               </div>
             )}
@@ -264,7 +334,12 @@ function Home() {
             <TabsContent value="reels">
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
                 {reelsVehicles.map((v) => (
-                  <VehicleReelCard key={v.id} vehicle={v} likeInfo={likeData[v.id]} onLike={() => handleLike(v.id)} />
+                  <VehicleReelCard
+                    key={v.id}
+                    vehicle={v}
+                    likeInfo={likeData[v.id]}
+                    onLike={() => handleLike(v.id)}
+                  />
                 ))}
               </div>
             </TabsContent>
@@ -275,11 +350,20 @@ function Home() {
   );
 }
 
-function VehicleCard({ vehicle: v, likeInfo, onLike }: { vehicle: Vehicle; likeInfo?: { count: number; liked: boolean }; onLike: () => void }) {
+function VehicleCard({ vehicle: v, allVehicles, likeInfo, isFavorite, onLike, onFavorite }: {
+  vehicle: Vehicle;
+  allVehicles: Vehicle[];
+  likeInfo?: { count: number; liked: boolean };
+  isFavorite: boolean;
+  onLike: () => void;
+  onFavorite: () => void;
+}) {
   const imageUrl = v.images?.[0] || "/my-logo.png.PNG";
   const compare = useCompare();
   const likeCount = likeInfo?.count ?? 0;
   const liked = likeInfo?.liked ?? false;
+  const price = priceOf(v);
+  const hasPriceDrop = v.previous_price && v.previous_price > price;
 
   return (
     <Link
@@ -306,17 +390,39 @@ function VehicleCard({ vehicle: v, likeInfo, onLike }: { vehicle: Vehicle; likeI
             LIVE
           </div>
         )}
+
+        {/* Favorite bookmark */}
+        <button
+          onClick={(e) => { e.preventDefault(); e.stopPropagation(); onFavorite(); }}
+          className="absolute top-2 right-2 z-10"
+          aria-label="Save to watchlist"
+        >
+          <Bookmark className={`h-5 w-5 ${isFavorite ? "text-gold fill-gold" : "text-white/80"} drop-shadow-lg`} />
+        </button>
       </div>
 
       <div className="p-2.5 sm:p-3">
         <div className="font-medium text-xs sm:text-sm mb-1 truncate">{v.brand} {v.model} ({v.year})</div>
-        <div className="text-[10px] sm:text-xs text-muted-foreground flex items-center gap-1.5 mb-2">
+        <div className="text-[10px] sm:text-xs text-muted-foreground flex items-center gap-1.5 mb-1.5">
           <MapPin className="h-3 w-3 shrink-0" />{v.wilaya}
-          <span className="text-gold font-display ml-auto">
-            {v.price_type === "fixed" && v.fixed_price ? formatDZD(v.fixed_price) :
-             v.price_type === "auction" ? `${formatDZD(v.current_highest_bid || v.starting_price || 0)}+` : ""}
-          </span>
         </div>
+
+        {/* Deal badge */}
+        <div className="mb-1.5">
+          <DealBadge vehicle={v} allVehicles={allVehicles} />
+        </div>
+
+        {/* Price with drop */}
+        {hasPriceDrop ? (
+          <div className="mb-1.5">
+            <PriceDropTag vehicle={v} />
+          </div>
+        ) : (
+          <div className="flex items-baseline gap-1.5 mb-1.5">
+            <span className="text-gold font-display text-sm sm:text-base">{formatDZD(price)}</span>
+            <span className="text-[9px] text-muted-foreground">{formatDZDArabic(price)}</span>
+          </div>
+        )}
 
         {v.price_type === "auction" && v.auction_ends_at && (
           <Countdown endsAt={v.auction_ends_at} />
@@ -349,9 +455,14 @@ function VehicleCard({ vehicle: v, likeInfo, onLike }: { vehicle: Vehicle; likeI
   );
 }
 
-function VehicleReelCard({ vehicle: v, likeInfo, onLike }: { vehicle: Vehicle; likeInfo?: { count: number; liked: boolean }; onLike: () => void }) {
+function VehicleReelCard({ vehicle: v, likeInfo, onLike }: {
+  vehicle: Vehicle;
+  likeInfo?: { count: number; liked: boolean };
+  onLike: () => void;
+}) {
   const likeCount = likeInfo?.count ?? 0;
   const liked = likeInfo?.liked ?? false;
+  const price = priceOf(v);
 
   return (
     <Link
@@ -377,9 +488,9 @@ function VehicleReelCard({ vehicle: v, likeInfo, onLike }: { vehicle: Vehicle; l
       <div className="absolute bottom-0 left-0 right-0 p-3">
         <div className="font-display text-base sm:text-lg mb-1">{v.brand} {v.model}</div>
         <div className="text-[10px] sm:text-xs text-white/60">{v.year} · {v.wilaya}</div>
-        <div className="text-gold font-display mt-1 text-sm sm:text-base">
-          {v.price_type === "fixed" && v.fixed_price ? formatDZD(v.fixed_price) :
-           v.price_type === "auction" ? `${formatDZD(v.current_highest_bid || v.starting_price || 0)}+` : ""}
+        <div className="flex items-baseline gap-1.5 mt-1">
+          <span className="text-gold font-display text-sm sm:text-base">{formatDZD(price)}</span>
+          <span className="text-[9px] text-white/50">{formatDZDArabic(price)}</span>
         </div>
 
         <div className="flex items-center gap-3 mt-2">
