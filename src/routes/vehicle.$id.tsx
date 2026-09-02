@@ -5,10 +5,10 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { formatDZD, formatDZDArabic } from "@/lib/format";
 import { calculateDeal } from "@/lib/pricing";
-import { Flag, Calendar, Gauge, Fuel, Cog, Gavel, Trophy, Phone, MessageCircle, Lock, Pencil, Trash2, MapPin, Crown, BadgeCheck, CircleCheck, RotateCcw, Star, TrendingDown } from "lucide-react";
+import { Flag, Calendar, Gauge, Fuel, Cog, Gavel, Trophy, Phone, MessageCircle, Lock, Pencil, Trash2, MapPin, Crown, BadgeCheck, CircleCheck, RotateCcw, Star, TrendingDown, Heart, Eye, Bookmark } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Countdown } from "@/components/Countdown";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
 import { ChatDialog } from "@/components/ChatDialog";
@@ -16,6 +16,7 @@ import { AppointmentBooking } from "@/components/AppointmentBooking";
 import { PremiumPaywallModal } from "@/components/PremiumPaywallModal";
 import { ref, get, onValue, off, push, set, remove } from "firebase/database";
 import { realtimeDb } from "@/lib/firebase";
+import { getSupabase } from "@/lib/supabase";
 
 function normalizeAlgPhone(raw: string): string {
   const digits = (raw ?? "").replace(/\D/g, "");
@@ -93,6 +94,67 @@ function VehicleDetail() {
   const [reporting, setReporting] = useState(false);
   const [owner, setOwner] = useState<OwnerProfile | null>(null);
   const [allVehicles, setAllVehicles] = useState<any[]>([]);
+  const [viewCount, setViewCount] = useState(0);
+  const [inquiryCount, setInquiryCount] = useState(0);
+  const [isFavorited, setIsFavorited] = useState(false);
+
+  // Record a view when the page loads
+  useEffect(() => {
+    if (!id) return;
+    const client = getSupabase();
+    if (!client) return;
+    const viewerId = user?.id ?? user?.phone ?? null;
+    client.from("vehicle_views").insert({ vehicle_id: id, viewer_id: viewerId }).then(() => {
+      // Reload view count after recording
+      client.from("vehicle_views").select("vehicle_id", { count: "exact", head: true }).eq("vehicle_id", id).then(({ count }) => {
+        if (count !== null) setViewCount(count);
+      });
+    }).catch(() => { /* non-blocking */ });
+    // Also load initial view count
+    client.from("vehicle_views").select("vehicle_id", { count: "exact", head: true }).eq("vehicle_id", id).then(({ count }) => {
+      if (count !== null) setViewCount(count);
+    }).catch(() => { /* non-blocking */ });
+  }, [id, user?.id, user?.phone]);
+
+  // Load inquiry count and favorite status
+  useEffect(() => {
+    if (!id) return;
+    const client = getSupabase();
+    if (!client) return;
+    client.from("vehicle_inquiries").select("vehicle_id", { count: "exact", head: true }).eq("vehicle_id", id).then(({ count }) => {
+      if (count !== null) setInquiryCount(count);
+    }).catch(() => { /* non-blocking */ });
+
+    const uid = user?.id ?? user?.phone ?? null;
+    if (uid) {
+      client.from("vehicle_favorites").select("vehicle_id").eq("vehicle_id", id).eq("user_id", uid).maybeSingle().then(({ data }) => {
+        setIsFavorited(!!data);
+      }).catch(() => { /* non-blocking */ });
+    }
+  }, [id, user?.id, user?.phone]);
+
+  const recordInquiry = useCallback((type: "call" | "whatsapp" | "chat") => {
+    const client = getSupabase();
+    if (!client) return;
+    const inquirerId = user?.id ?? user?.phone ?? null;
+    client.from("vehicle_inquiries").insert({ vehicle_id: id, inquirer_id: inquirerId, inquiry_type: type }).then(() => {
+      setInquiryCount(prev => prev + 1);
+    }).catch(() => { /* non-blocking */ });
+  }, [id, user?.id, user?.phone]);
+
+  const toggleFavorite = useCallback(async () => {
+    if (!user) { toast.info("Sign in to save vehicles"); return; }
+    const client = getSupabase();
+    if (!client) return;
+    const uid = user.id ?? user.phone;
+    if (isFavorited) {
+      setIsFavorited(false);
+      try { await client.from("vehicle_favorites").delete().eq("vehicle_id", id).eq("user_id", uid); toast.info("Removed from watchlist"); } catch { setIsFavorited(true); }
+    } else {
+      setIsFavorited(true);
+      try { await client.from("vehicle_favorites").insert({ vehicle_id: id, user_id: uid }); toast.success("Added to watchlist — you'll be notified of price drops"); } catch { setIsFavorited(false); }
+    }
+  }, [user, isFavorited, id]);
 
   useEffect(() => {
     const allRef = ref(realtimeDb, "vehicles");
@@ -385,6 +447,26 @@ function VehicleDetail() {
           </div>
         )}
 
+        {/* Engagement Stats Bar */}
+        <div className="mb-4 flex items-center gap-4 flex-wrap">
+          <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+            <Eye className="h-4 w-4" /> {viewCount} views
+          </div>
+          <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+            <MessageCircle className="h-4 w-4" /> {inquiryCount} inquiries
+          </div>
+          <button
+            onClick={toggleFavorite}
+            className="flex items-center gap-1.5 text-sm transition-colors ml-auto"
+            aria-label="Toggle watchlist"
+          >
+            <Bookmark className={`h-5 w-5 ${isFavorited ? "text-gold fill-gold" : "text-muted-foreground"}`} />
+            <span className={isFavorited ? "text-gold" : "text-muted-foreground"}>
+              {isFavorited ? "Saved" : "Save to watchlist"}
+            </span>
+          </button>
+        </div>
+
         {v.status === "sold" && (
           <div className="mb-4 p-3 rounded-lg bg-blue-500/10 border border-blue-500/30 text-blue-400 text-sm font-medium">
             This vehicle has been sold.
@@ -475,18 +557,18 @@ function VehicleDetail() {
             </div>
           ) : canSeeContact ? (
             <div className="flex gap-2 flex-wrap">
-              <a href={`tel:${normalizeAlgPhone(v.phone)}`}>
+              <a href={`tel:${normalizeAlgPhone(v.phone)}`} onClick={() => recordInquiry("call")}>
                 <Button variant="outline" size="sm">
                   <Phone className="h-4 w-4 mr-2" /> Call
                 </Button>
               </a>
-              <a href={`https://wa.me/${toWhatsApp(v.phone)}`} target="_blank" rel="noopener noreferrer">
+              <a href={`https://wa.me/${toWhatsApp(v.phone)}`} target="_blank" rel="noopener noreferrer" onClick={() => recordInquiry("whatsapp")}>
                 <Button variant="outline" size="sm">
                   <MessageCircle className="h-4 w-4 mr-2" /> WhatsApp
                 </Button>
               </a>
               {user && !isSeller && (
-                <ChatDialog recipientId={v.sellerId} recipientPhone={v.sellerPhone} vehicleId={v.id} vehicleTitle={`${v.brand} ${v.model} (${v.year})`} />
+                <ChatDialog recipientId={v.sellerId} recipientPhone={v.sellerPhone} vehicleId={v.id} vehicleTitle={`${v.brand} ${v.model} (${v.year})`} onOpenChat={() => recordInquiry("chat")} />
               )}
             </div>
           ) : (

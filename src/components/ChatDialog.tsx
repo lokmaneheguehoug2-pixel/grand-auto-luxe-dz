@@ -34,6 +34,7 @@ export function ChatDialog({
   vehicleTitle,
   autoOpen = false,
   onClose,
+  onOpenChat,
 }: {
   vehicleId: string;
   sellerId?: string;
@@ -43,6 +44,7 @@ export function ChatDialog({
   vehicleTitle: string;
   autoOpen?: boolean;
   onClose?: () => void;
+  onOpenChat?: () => void;
 }) {
   const auth = useAuth();
   const user = auth?.user;
@@ -133,6 +135,7 @@ export function ChatDialog({
 
   const handleOpenChange = (v: boolean) => {
     setOpen(v);
+    if (v) onOpenChat?.();
     if (!v) onClose?.();
   };
 

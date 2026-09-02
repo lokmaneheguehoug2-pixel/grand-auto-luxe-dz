@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { ref, onValue, off } from "firebase/database";
 import { realtimeDb } from "@/lib/firebase";
 import { WILAYAS, BRANDS } from "@/lib/wilayas";
@@ -8,7 +8,7 @@ import { calculateDeal } from "@/lib/pricing";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Search, MapPin, Play, Grid3x2 as Grid3X3, Film, Heart, Eye, Star, TrendingDown, Bookmark } from "lucide-react";
+import { Search, MapPin, Play, Grid3x2 as Grid3X3, Film, Heart, Eye, Star, TrendingDown, Bookmark, Pin } from "lucide-react";
 import { Countdown } from "@/components/Countdown";
 import { compareStore, useCompare } from "@/lib/compare";
 import { useAuth } from "@/hooks/use-auth";
@@ -46,13 +46,24 @@ type Vehicle = {
   status: string;
   created_at: string;
   previous_price?: number | null;
+  pinned?: boolean;
 };
 
 type LikeData = Record<string, { count: number; liked: boolean }>;
 type FavoriteData = Record<string, boolean>;
+type ViewData = Record<string, number>;
 
 function priceOf(v: Vehicle): number {
   return v.price_type === "fixed" ? (v.fixed_price ?? 0) : (v.current_highest_bid ?? v.starting_price ?? 0);
+}
+
+function shuffle<T>(arr: T[]): T[] {
+  const copy = [...arr];
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
 }
 
 function SoldOverlay() {
@@ -111,6 +122,8 @@ function Home() {
   const userId = auth?.user?.id ?? auth?.user?.phone ?? null;
   const [likeData, setLikeData] = useState<LikeData>({});
   const [favorites, setFavorites] = useState<FavoriteData>({});
+  const [viewData, setViewData] = useState<ViewData>({});
+  const shuffleSeed = useRef<string>("");
 
   useEffect(() => {
     const vehiclesRef = ref(realtimeDb, "vehicles");
@@ -139,9 +152,9 @@ function Home() {
             status: v.status,
             created_at: v.created_at,
             previous_price: v.previous_price ?? null,
+            pinned: v.pinned ?? false,
           }))
-          .filter((v) => v.status === "active" || v.status === "sold")
-          .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+          .filter((v) => v.status === "active" || v.status === "sold");
 
         setVehicles(list);
       } else {
@@ -178,10 +191,23 @@ function Home() {
     setFavorites(map);
   }, [userId]);
 
+  const loadViews = useCallback(async () => {
+    const client = getSupabase();
+    if (!client) return;
+    const { data } = await client.from("vehicle_views").select("vehicle_id");
+    if (!data) return;
+    const map: ViewData = {};
+    for (const row of data) {
+      map[row.vehicle_id] = (map[row.vehicle_id] ?? 0) + 1;
+    }
+    setViewData(map);
+  }, []);
+
   useEffect(() => {
     loadLikes();
     loadFavorites();
-  }, [loadLikes, loadFavorites]);
+    loadViews();
+  }, [loadLikes, loadFavorites, loadViews]);
 
   const filtered = useMemo(() => {
     const list = vehicles.filter((v) => {
@@ -200,6 +226,19 @@ function Home() {
     if (filters.sort === "price_asc") list.sort((a, b) => priceOf(a) - priceOf(b));
     else if (filters.sort === "price_desc") list.sort((a, b) => priceOf(b) - priceOf(a));
     else if (filters.sort === "year_desc") list.sort((a, b) => b.year - a.year);
+    else {
+      // Default: pinned first, then randomized
+      const pinned = list.filter((v) => v.pinned);
+      const nonPinned = list.filter((v) => !v.pinned);
+
+      // Stable shuffle seed per filter change so order doesn't jump on every render
+      if (!shuffleSeed.current || shuffleSeed.current !== JSON.stringify(filters)) {
+        shuffleSeed.current = JSON.stringify(filters);
+      }
+
+      const shuffled = shuffle(nonPinned);
+      return [...pinned, ...shuffled];
+    }
 
     return list;
   }, [vehicles, filters]);
@@ -284,7 +323,7 @@ function Home() {
             <Select value={filters.sort} onValueChange={(v) => setFilters({ ...filters, sort: v })}>
               <SelectTrigger className="w-[100px] sm:w-[120px] bg-charcoal h-9"><SelectValue placeholder="Sort" /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="newest">Newest</SelectItem>
+                <SelectItem value="newest">Shuffled</SelectItem>
                 <SelectItem value="price_asc">Price ↑</SelectItem>
                 <SelectItem value="price_desc">Price ↓</SelectItem>
                 <SelectItem value="year_desc">Year ↓</SelectItem>
@@ -322,6 +361,7 @@ function Home() {
                     allVehicles={vehicles}
                     likeInfo={likeData[v.id]}
                     isFavorite={favorites[v.id] ?? false}
+                    viewCount={viewData[v.id] ?? 0}
                     onLike={() => handleLike(v.id)}
                     onFavorite={() => handleFavorite(v.id)}
                   />
@@ -338,6 +378,7 @@ function Home() {
                     key={v.id}
                     vehicle={v}
                     likeInfo={likeData[v.id]}
+                    viewCount={viewData[v.id] ?? 0}
                     onLike={() => handleLike(v.id)}
                   />
                 ))}
@@ -350,11 +391,12 @@ function Home() {
   );
 }
 
-function VehicleCard({ vehicle: v, allVehicles, likeInfo, isFavorite, onLike, onFavorite }: {
+function VehicleCard({ vehicle: v, allVehicles, likeInfo, isFavorite, viewCount, onLike, onFavorite }: {
   vehicle: Vehicle;
   allVehicles: Vehicle[];
   likeInfo?: { count: number; liked: boolean };
   isFavorite: boolean;
+  viewCount: number;
   onLike: () => void;
   onFavorite: () => void;
 }) {
@@ -380,6 +422,11 @@ function VehicleCard({ vehicle: v, allVehicles, likeInfo, isFavorite, onLike, on
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
           loading="lazy"
         />
+        {v.pinned && (
+          <div className="absolute top-2 left-2 bg-gold text-gold-foreground text-[9px] px-1.5 py-0.5 rounded-full font-bold flex items-center gap-0.5 z-10">
+            <Pin className="h-2.5 w-2.5" /> Pinned
+          </div>
+        )}
         {v.video_url && (
           <div className="absolute bottom-2 right-2 bg-black/70 rounded-full p-1">
             <Play className="h-3 w-3 text-gold" />
@@ -439,7 +486,7 @@ function VehicleCard({ vehicle: v, allVehicles, likeInfo, isFavorite, onLike, on
           </button>
           <div className="flex items-center gap-1">
             <Eye className="h-4 w-4 text-muted-foreground" />
-            <span className="text-[10px] text-muted-foreground">{Math.floor(likeCount * 3.7) + 1}</span>
+            <span className="text-[10px] text-muted-foreground">{viewCount}</span>
           </div>
           <button
             onClick={(e) => { e.preventDefault(); e.stopPropagation(); compareStore.toggle(v.id); }}
@@ -455,9 +502,10 @@ function VehicleCard({ vehicle: v, allVehicles, likeInfo, isFavorite, onLike, on
   );
 }
 
-function VehicleReelCard({ vehicle: v, likeInfo, onLike }: {
+function VehicleReelCard({ vehicle: v, likeInfo, viewCount, onLike }: {
   vehicle: Vehicle;
   likeInfo?: { count: number; liked: boolean };
+  viewCount: number;
   onLike: () => void;
 }) {
   const likeCount = likeInfo?.count ?? 0;
@@ -504,7 +552,7 @@ function VehicleReelCard({ vehicle: v, likeInfo, onLike }: {
           </button>
           <div className="flex items-center gap-1">
             <Eye className="h-4 w-4 text-white/80" />
-            <span className="text-[10px] text-white/80">{Math.floor(likeCount * 3.7) + 1}</span>
+            <span className="text-[10px] text-white/80">{viewCount}</span>
           </div>
         </div>
       </div>
