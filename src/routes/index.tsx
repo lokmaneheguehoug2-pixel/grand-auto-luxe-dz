@@ -489,10 +489,11 @@ function VehicleCard({ vehicle: v, allVehicles, likeInfo, isFavorite, viewCount,
             <span className="text-[10px] text-muted-foreground">{viewCount}</span>
           </div>
           <button
-            onClick={(e) => { e.preventDefault(); e.stopPropagation(); compareStore.toggle(v.id); }}
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); if (compare.includes(v.id) || compareStore.canAdd()) compareStore.toggle(v.id); }}
             className={`ml-auto w-5 h-5 rounded-md border flex items-center justify-center transition ${
-              compare.includes(v.id) ? "bg-gold border-gold" : "border-gold/40"
+              compare.includes(v.id) ? "bg-gold border-gold" : compareStore.canAdd() ? "border-gold/40 hover:border-gold" : "border-muted/30 opacity-40 cursor-not-allowed"
             }`}
+            title={compare.includes(v.id) ? "Remove from compare" : compareStore.canAdd() ? "Add to compare" : "Compare is full (4/4)"}
           >
             {compare.includes(v.id) && <span className="text-black text-[8px] font-bold">✓</span>}
           </button>

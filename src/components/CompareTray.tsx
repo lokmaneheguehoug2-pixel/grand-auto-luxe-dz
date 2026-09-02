@@ -1,8 +1,9 @@
 import { compareStore, useCompare } from "@/lib/compare";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { formatDZD } from "@/lib/format";
-import { Scale, X, Trash2, ToggleLeft, ToggleRight } from "lucide-react";
+import { formatDZD, formatDZDArabic } from "@/lib/format";
+import { calculateDeal } from "@/lib/pricing";
+import { Scale, X, Trash2, ToggleLeft, ToggleRight, Star, FileText, TrendingDown } from "lucide-react";
 import { useState, useEffect } from "react";
 import { realtimeDb } from "@/lib/firebase";
 import { ref, get } from "firebase/database";
@@ -25,27 +26,48 @@ type Vehicle = {
   fixed_price?: number;
   current_highest_bid?: number;
   starting_price?: number;
+  previous_price?: number | null;
 };
 
 export function CompareTray() {
   const ids = useCompare();
   const [open, setOpen] = useState(false);
+
   if (ids.length === 0) return null;
 
   return (
     <>
-      <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 premium-card gold-border rounded-2xl px-3 sm:px-4 py-2.5 sm:py-3 flex items-center gap-2 sm:gap-3 shadow-[0_10px_40px_-10px_rgba(212,175,55,0.6)] backdrop-blur-xl bg-background/85 max-w-[95vw]">
-        <div className="flex items-center gap-1.5 sm:gap-2 text-[10px] sm:text-xs uppercase tracking-widest text-gold whitespace-nowrap">
-          <Scale className="h-4 w-4 shrink-0" /> <span className="hidden sm:inline">Compare ·</span> {ids.length}/4
+      {/* Compact centered comparison trigger */}
+      <div
+        className="fixed z-40 premium-card gold-border rounded-2xl px-3 sm:px-4 py-2.5 sm:py-3 flex items-center gap-2 sm:gap-3 shadow-[0_10px_40px_-10px_rgba(212,175,55,0.5)] backdrop-blur-xl bg-background/90"
+        style={{ top: "50%", left: "50%", transform: "translate(-50%, -50%)" }}
+      >
+        <div className="flex items-center gap-1.5 text-[10px] sm:text-xs uppercase tracking-widest text-gold whitespace-nowrap">
+          <Scale className="h-4 w-4 shrink-0" />
+          <span className="hidden sm:inline">Compare ·</span> {ids.length}/4
         </div>
-        <Button variant="gold" size="sm" disabled={ids.length < 2} onClick={() => setOpen(true)} className="text-xs sm:text-sm">Compare</Button>
-        <Button variant="ghost" size="icon" className="h-7 w-7 sm:h-8 sm:w-8 shrink-0" onClick={() => compareStore.clear()}>
+        <Button
+          variant="gold"
+          size="sm"
+          disabled={ids.length < 2}
+          onClick={() => setOpen(true)}
+          className="text-xs sm:text-sm"
+        >
+          Start Comparison
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7 sm:h-8 sm:w-8 shrink-0"
+          onClick={() => compareStore.clear()}
+        >
           <Trash2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-destructive" />
         </Button>
       </div>
 
+      {/* Full comparison modal */}
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="sm:max-w-5xl max-w-[95vw] bg-background border-gold/40 p-0 overflow-hidden">
+        <DialogContent className="sm:max-w-6xl max-w-[95vw] bg-background border-gold/40 p-0 overflow-hidden">
           <DialogHeader className="px-4 sm:px-5 pt-4 sm:pt-5 pb-3 border-b border-border/60">
             <DialogTitle className="font-display text-lg sm:text-xl gold-text flex items-center gap-2">
               <Scale className="h-5 w-5 text-gold" /> Luxury Compare
@@ -59,34 +81,117 @@ export function CompareTray() {
 }
 
 const ROWS: Array<{ label: string; key: keyof Vehicle; format?: (v: unknown) => string }> = [
-  { label: "Year", key: "year", format: (v) => v ? String(v) : "—" },
-  { label: "Mileage", key: "mileage", format: (v) => v ? `${Number(v).toLocaleString()} km` : "—" },
-  { label: "Fuel", key: "fuel_type", format: (v) => v ? String(v) : "—" },
-  { label: "Transmission", key: "transmission", format: (v) => v ? String(v) : "—" },
-  { label: "Engine", key: "engine_type", format: (v) => v ? String(v) : "—" },
-  { label: "Wilaya", key: "wilaya", format: (v) => v ? String(v) : "—" },
-  { label: "Condition", key: "paint_condition", format: (v) => v ? String(v) : "—" },
+  { label: "Year", key: "year", format: (v) => (v ? String(v) : "—") },
+  { label: "Mileage", key: "mileage", format: (v) => (v ? `${Number(v).toLocaleString()} km` : "—") },
+  { label: "Fuel", key: "fuel_type", format: (v) => (v ? String(v) : "—") },
+  { label: "Transmission", key: "transmission", format: (v) => (v ? String(v) : "—") },
+  { label: "Engine", key: "engine_type", format: (v) => (v ? String(v) : "—") },
+  { label: "Wilaya", key: "wilaya", format: (v) => (v ? String(v) : "—") },
+  { label: "Condition", key: "paint_condition", format: (v) => (v ? String(v) : "—") },
 ];
 
 function priceOf(v: Vehicle): number {
   return v.price_type === "fixed"
-    ? (v.fixed_price ?? 0)
-    : (v.current_highest_bid ?? v.starting_price ?? 0);
+    ? v.fixed_price ?? 0
+    : v.current_highest_bid ?? v.starting_price ?? 0;
+}
+
+function DealIndicator({ v, allVehicles }: { v: Vehicle; allVehicles: Vehicle[] }) {
+  const price = priceOf(v);
+  const deal = calculateDeal(price, v.brand, v.model, v.year, allVehicles);
+  if (!deal) return <span className="text-xs text-muted-foreground">—</span>;
+  return (
+    <div className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full border ${deal.badgeClass}`} title={deal.tooltip}>
+      {deal.rating === "great" && <Star className="h-2.5 w-2.5" />}
+      <span className="font-medium">{deal.label}</span>
+      {deal.diffPercent !== 0 && (
+        <span className="text-muted-foreground text-[9px]">
+          {deal.diffPercent > 0 ? "+" : ""}{deal.diffPercent.toFixed(0)}%
+        </span>
+      )}
+    </div>
+  );
+}
+
+function PriceDropIndicator({ v }: { v: Vehicle }) {
+  const price = priceOf(v);
+  const hasDrop = v.previous_price && v.previous_price > price;
+  if (!hasDrop) return null;
+  const savings = v.previous_price! - price;
+  return (
+    <div className="flex items-center gap-1 text-[10px] text-green-400 mt-0.5">
+      <TrendingDown className="h-2.5 w-2.5" />
+      <span className="line-through text-muted-foreground">{formatDZD(v.previous_price)}</span>
+      <span>Save {formatDZD(savings)}</span>
+    </div>
+  );
+}
+
+function DocumentsStatus({ v }: { v: Vehicle }) {
+  const status = v.documents_status;
+  if (!status) return <span className="text-xs text-muted-foreground">—</span>;
+  const isClean = status.toLowerCase().includes("clean") || status.toLowerCase().includes("ok") || status.toLowerCase().includes("yes");
+  return (
+    <div className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full border ${
+      isClean
+        ? "bg-green-500/15 text-green-400 border-green-500/40"
+        : "bg-zinc-500/15 text-zinc-300 border-zinc-500/40"
+    }`}>
+      <FileText className="h-2.5 w-2.5" />
+      <span className="font-medium">{status}</span>
+    </div>
+  );
 }
 
 function CompareTable({ ids }: { ids: string[] }) {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [allVehicles, setAllVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [highlight, setHighlight] = useState(false);
 
   useEffect(() => {
     async function load() {
-      if (!realtimeDb) { setLoading(false); setError("Database unavailable"); return; }
+      if (!realtimeDb) {
+        setLoading(false);
+        setError("Database unavailable");
+        return;
+      }
       setLoading(true);
       setError(null);
       const loaded: Vehicle[] = [];
       try {
+        // Load all vehicles for deal calculation
+        const allSnap = await get(ref(realtimeDb, "vehicles"));
+        const all: Vehicle[] = [];
+        if (allSnap.exists()) {
+          const data = allSnap.val() as Record<string, any>;
+          for (const [vid, val] of Object.entries(data)) {
+            all.push({
+              id: vid,
+              brand: val.brand || "",
+              model: val.model || "",
+              year: val.year || 0,
+              mileage: val.mileage || 0,
+              fuel_type: val.fuel_type || "",
+              transmission: val.transmission || "",
+              engine_type: val.engine_type,
+              wilaya: val.wilaya || "",
+              paint_condition: val.paint_condition,
+              documents_status: val.documents_status,
+              photos: val.photos || [],
+              images: val.images || [],
+              price_type: val.price_type || "fixed",
+              fixed_price: val.fixed_price,
+              current_highest_bid: val.current_highest_bid,
+              starting_price: val.starting_price,
+              previous_price: val.previous_price ?? null,
+              status: val.status || "active",
+            });
+          }
+        }
+        setAllVehicles(all);
+
         for (const id of ids) {
           const snap = await get(ref(realtimeDb, `vehicles/${id}`));
           if (snap.exists()) {
@@ -109,6 +214,7 @@ function CompareTable({ ids }: { ids: string[] }) {
               fixed_price: data.fixed_price,
               current_highest_bid: data.current_highest_bid,
               starting_price: data.starting_price,
+              previous_price: data.previous_price ?? null,
             });
           }
         }
@@ -126,23 +232,27 @@ function CompareTable({ ids }: { ids: string[] }) {
   if (error) return <div className="py-10 text-center text-destructive text-sm">{error}</div>;
   if (vehicles.length === 0) return <div className="py-10 text-center text-muted-foreground text-sm">No vehicles found.</div>;
 
-  const differingLabels = highlight ? new Set(
-    ROWS.filter((row) => {
-      const values = vehicles.map((v) => {
-        const val = v[row.key];
-        return row.format ? row.format(val) : String(val ?? "—");
-      });
-      return new Set(values).size > 1;
-    }).map((r) => r.label)
-  ) : new Set<string>();
+  const differingLabels = highlight
+    ? new Set(
+        ROWS.filter((row) => {
+          const values = vehicles.map((v) => {
+            const val = v[row.key];
+            return row.format ? row.format(val) : String(val ?? "—");
+          });
+          return new Set(values).size > 1;
+        }).map((r) => r.label)
+      )
+    : new Set<string>();
 
   const priceValues = vehicles.map((v) => priceOf(v));
   const priceDiffers = highlight && new Set(priceValues).size > 1;
   const maxPrice = Math.max(...priceValues);
+  const minPrice = Math.min(...priceValues.filter((p) => p > 0));
 
   return (
-    <div className="overflow-x-auto">
-      <div className="flex items-center justify-end gap-2 px-4 sm:px-5 py-2 border-b border-border/40">
+    <div className="overflow-x-auto max-h-[70vh]">
+      {/* Highlight toggle */}
+      <div className="flex items-center justify-end gap-2 px-4 sm:px-5 py-2 border-b border-border/40 sticky top-0 bg-background z-20">
         <span className="text-xs text-muted-foreground">Highlight differences</span>
         <button onClick={() => setHighlight(!highlight)} className="text-gold">
           {highlight ? <ToggleRight className="h-6 w-6" /> : <ToggleLeft className="h-6 w-6" />}
@@ -157,7 +267,7 @@ function CompareTable({ ids }: { ids: string[] }) {
               Vehicle
             </th>
             {vehicles.map((v) => (
-              <th key={v.id} className="px-3 py-2 align-bottom min-w-[140px] lg:min-w-[160px]">
+              <th key={v.id} className="px-3 py-2 align-bottom min-w-[140px] lg:min-w-[170px]">
                 <div className="relative">
                   <div className="aspect-[4/3] rounded-lg overflow-hidden bg-charcoal mb-2 relative">
                     {(v.photos?.[0] || v.images?.[0]) && (
@@ -178,21 +288,52 @@ function CompareTable({ ids }: { ids: string[] }) {
           </tr>
         </thead>
         <tbody>
+          {/* Price row */}
           <tr className={`border-b border-border/40 ${priceDiffers ? "bg-gold/10" : ""}`}>
             <td className="px-3 py-2.5 text-xs uppercase tracking-widest text-muted-foreground font-medium sticky left-0 bg-background z-10">
               Price
             </td>
             {vehicles.map((v) => {
               const p = priceOf(v);
-              const isBest = highlight && priceDiffers && p === maxPrice && p > 0;
+              const isBest = highlight && priceDiffers && p === minPrice && p > 0;
               return (
-                <td key={v.id} className={`px-3 py-2.5 ${isBest ? "text-gold font-display font-bold" : "font-medium"}`}>
-                  {p ? formatDZD(p) : "—"}
-                  {isBest && <span className="text-[10px] text-gold/70 ml-1">★ Best</span>}
+                <td key={v.id} className="px-3 py-2.5">
+                  <div className={isBest ? "text-green-400 font-display font-bold" : "font-medium"}>
+                    {p ? formatDZD(p) : "—"}
+                    {isBest && <span className="text-[10px] text-green-400/70 ml-1">★ Best</span>}
+                  </div>
+                  <div className="text-[9px] text-muted-foreground">{p ? formatDZDArabic(p) : ""}</div>
+                  <PriceDropIndicator v={v} />
                 </td>
               );
             })}
           </tr>
+
+          {/* Market Deal row */}
+          <tr className="border-b border-border/40">
+            <td className="px-3 py-2.5 text-xs uppercase tracking-widest text-muted-foreground font-medium sticky left-0 bg-background z-10">
+              Market Deal
+            </td>
+            {vehicles.map((v) => (
+              <td key={v.id} className="px-3 py-2.5">
+                <DealIndicator v={v} allVehicles={allVehicles} />
+              </td>
+            ))}
+          </tr>
+
+          {/* Documents row */}
+          <tr className="border-b border-border/40">
+            <td className="px-3 py-2.5 text-xs uppercase tracking-widest text-muted-foreground font-medium sticky left-0 bg-background z-10">
+              Documents
+            </td>
+            {vehicles.map((v) => (
+              <td key={v.id} className="px-3 py-2.5">
+                <DocumentsStatus v={v} />
+              </td>
+            ))}
+          </tr>
+
+          {/* Standard spec rows */}
           {ROWS.map((r) => {
             const isDiff = differingLabels.has(r.label);
             return (
@@ -239,19 +380,46 @@ function CompareTable({ ids }: { ids: string[] }) {
         </div>
 
         {/* Price row */}
-        <div className={`flex items-center gap-2 px-3 py-2.5 ${priceDiffers ? "bg-gold/10" : ""}`}>
-          <div className="w-20 shrink-0 text-[10px] uppercase tracking-widest text-muted-foreground font-medium">Price</div>
+        <div className={`flex items-start gap-2 px-3 py-2.5 ${priceDiffers ? "bg-gold/10" : ""}`}>
+          <div className="w-20 shrink-0 text-[10px] uppercase tracking-widest text-muted-foreground font-medium pt-0.5">Price</div>
           <div className="flex gap-2 flex-1 overflow-x-auto no-scrollbar">
             {vehicles.map((v) => {
               const p = priceOf(v);
-              const isBest = highlight && priceDiffers && p === maxPrice && p > 0;
+              const isBest = highlight && priceDiffers && p === minPrice && p > 0;
               return (
-                <div key={v.id} className={`min-w-[80px] text-xs ${isBest ? "text-gold font-bold" : "font-medium"}`}>
-                  {p ? formatDZD(p) : "—"}
-                  {isBest && <span className="text-[9px] text-gold/70 ml-0.5">★</span>}
+                <div key={v.id} className="min-w-[80px]">
+                  <div className={`text-xs ${isBest ? "text-green-400 font-bold" : "font-medium"}`}>
+                    {p ? formatDZD(p) : "—"}
+                    {isBest && <span className="text-[9px] text-green-400/70 ml-0.5">★</span>}
+                  </div>
+                  <PriceDropIndicator v={v} />
                 </div>
               );
             })}
+          </div>
+        </div>
+
+        {/* Market Deal row */}
+        <div className="flex items-start gap-2 px-3 py-2.5">
+          <div className="w-20 shrink-0 text-[10px] uppercase tracking-widest text-muted-foreground font-medium pt-0.5">Deal</div>
+          <div className="flex gap-2 flex-1 overflow-x-auto no-scrollbar">
+            {vehicles.map((v) => (
+              <div key={v.id} className="min-w-[80px]">
+                <DealIndicator v={v} allVehicles={allVehicles} />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Documents row */}
+        <div className="flex items-start gap-2 px-3 py-2.5">
+          <div className="w-20 shrink-0 text-[10px] uppercase tracking-widest text-muted-foreground font-medium pt-0.5">Docs</div>
+          <div className="flex gap-2 flex-1 overflow-x-auto no-scrollbar">
+            {vehicles.map((v) => (
+              <div key={v.id} className="min-w-[80px]">
+                <DocumentsStatus v={v} />
+              </div>
+            ))}
           </div>
         </div>
 
@@ -266,7 +434,9 @@ function CompareTable({ ids }: { ids: string[] }) {
                   const val = v[r.key];
                   const formatted = r.format ? r.format(val) : String(val ?? "—");
                   return (
-                    <div key={v.id} className="min-w-[80px] text-xs">{formatted}</div>
+                    <div key={v.id} className="min-w-[80px] text-xs">
+                      {formatted}
+                    </div>
                   );
                 })}
               </div>

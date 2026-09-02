@@ -28,9 +28,9 @@ export const compareStore = {
   toggle: (id: string) => {
     if (ids.includes(id)) ids = ids.filter((x) => x !== id);
     else if (ids.length < MAX_COMPARE) ids = [...ids, id];
-    else ids = [...ids.slice(1), id];
     emit();
   },
+  canAdd: () => ids.length < MAX_COMPARE,
   clear: () => {
     ids = [];
     emit();
