@@ -55,6 +55,12 @@ type LikeData = Record<string, { count: number; liked: boolean }>;
 type FavoriteData = Record<string, boolean>;
 type ViewData = Record<string, number>;
 
+type MaybeVehicle = Vehicle | null | undefined;
+
+function isValidVehicle(value: MaybeVehicle): value is Vehicle {
+  return Boolean(value && typeof value === "object" && typeof value.id === "string" && value.id.length > 0);
+}
+
 function priceOf(v: Vehicle): number {
   return v.price_type === "fixed" ? (v.fixed_price ?? 0) : (v.current_highest_bid ?? v.starting_price ?? 0);
 }
@@ -217,6 +223,7 @@ function HomeContent() {
         }
 
         const list: Vehicle[] = Object.entries(data)
+          .filter(([, raw]) => Boolean(raw && typeof raw === "object"))
           .map(([id, raw]) => {
             if (!raw || typeof raw !== "object") return null;
             const v = raw as Record<string, unknown>;
@@ -325,8 +332,8 @@ function HomeContent() {
   }, [loadLikes, loadFavorites, loadViews]);
 
   const filtered = useMemo(() => {
-    const list = vehicles.filter((vehicle): vehicle is Vehicle => {
-      if (!vehicle || typeof vehicle !== "object") return false;
+    const list = (Array.isArray(vehicles) ? vehicles : []).filter((vehicle): vehicle is Vehicle => {
+      if (!isValidVehicle(vehicle)) return false;
       const v = vehicle;
       const brand = typeof v.brand === "string" ? v.brand : "";
       const model = typeof v.model === "string" ? v.model : "";
@@ -369,13 +376,9 @@ function HomeContent() {
     return list;
   }, [vehicles, filters]);
 
-  const reelsVehicles = filtered.filter(
-    (vehicle): vehicle is Vehicle =>
-      Boolean(vehicle) &&
-      typeof vehicle === "object" &&
-      typeof vehicle.video_url === "string" &&
-      vehicle.video_url.length > 0,
-  );
+  const reelsVehicles = (Array.isArray(filtered) ? filtered : [])
+    .filter(isValidVehicle)
+    .filter((vehicle) => typeof vehicle.video_url === "string" && vehicle.video_url.length > 0);
 
   const handleLike = useCallback(async (vehicleId: string) => {
     if (!userId) {
@@ -484,16 +487,16 @@ function HomeContent() {
               <div className="text-center py-16 text-muted-foreground">No vehicles found.</div>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
-                {filtered.map((v) => (
-                  <VehicleRenderBoundary key={v.id}>
+                {(Array.isArray(filtered) ? filtered : []).filter(isValidVehicle).map((v, index) => (
+                  <VehicleRenderBoundary key={v?.id || `vehicle-${index}`}>
                     <VehicleCard
                       vehicle={v}
                       allVehicles={vehicles}
-                      likeInfo={likeData[v.id]}
-                      isFavorite={favorites[v.id] ?? false}
-                      viewCount={viewData[v.id] ?? 0}
-                      onLike={() => handleLike(v.id)}
-                      onFavorite={() => handleFavorite(v.id)}
+                    likeInfo={v?.id ? likeData[v.id] : undefined}
+                    isFavorite={v?.id ? favorites[v.id] ?? false : false}
+                    viewCount={v?.id ? viewData[v.id] ?? 0 : 0}
+                    onLike={() => v?.id && handleLike(v.id)}
+                    onFavorite={() => v?.id && handleFavorite(v.id)}
                     />
                   </VehicleRenderBoundary>
                 ))}
@@ -504,13 +507,13 @@ function HomeContent() {
           {reelsVehicles.length > 0 && (
             <TabsContent value="reels">
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
-                {reelsVehicles.map((v) => (
-                  <VehicleRenderBoundary key={v.id}>
+                {(Array.isArray(reelsVehicles) ? reelsVehicles : []).filter(isValidVehicle).map((v, index) => (
+                  <VehicleRenderBoundary key={v?.id || `reel-${index}`}>
                     <VehicleReelCard
                       vehicle={v}
-                      likeInfo={likeData[v.id]}
-                      viewCount={viewData[v.id] ?? 0}
-                      onLike={() => handleLike(v.id)}
+                      likeInfo={v?.id ? likeData[v.id] : undefined}
+                      viewCount={v?.id ? viewData[v.id] ?? 0 : 0}
+                      onLike={() => v?.id && handleLike(v.id)}
                     />
                   </VehicleRenderBoundary>
                 ))}
