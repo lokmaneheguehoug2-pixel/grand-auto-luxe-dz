@@ -17,6 +17,7 @@ import { PremiumPaywallModal } from "@/components/PremiumPaywallModal";
 import { ref, get, onValue, off, push, set, remove } from "firebase/database";
 import { realtimeDb } from "@/lib/firebase";
 import { getSupabase } from "@/lib/supabase";
+import { isVerifiedShowroom, supabaseSucceeded } from "@/lib/listing-interactions";
 
 function normalizeAlgPhone(raw: string): string {
   const digits = (raw ?? "").replace(/\D/g, "");
@@ -151,10 +152,12 @@ function VehicleDetail() {
     const uid = user.id ?? user.phone;
     if (isFavorited) {
       setIsFavorited(false);
-      try { await client.from("vehicle_favorites").delete().eq("vehicle_id", id).eq("user_id", uid); toast.info("Removed from watchlist"); } catch { setIsFavorited(true); }
+      const result = await client.from("vehicle_favorites").delete().eq("vehicle_id", id).eq("user_id", uid);
+      if (supabaseSucceeded(result)) toast.info("Removed from watchlist"); else throw result.error;
     } else {
       setIsFavorited(true);
-      try { await client.from("vehicle_favorites").insert({ vehicle_id: id, user_id: uid }); toast.success("Added to watchlist — you'll be notified of price drops"); } catch { setIsFavorited(false); }
+      const result = await client.from("vehicle_favorites").insert({ vehicle_id: id, user_id: uid });
+      if (supabaseSucceeded(result)) toast.success("Added to watchlist — you'll be notified of price drops"); else throw result.error;
     }
   }, [user, isFavorited, id]);
 
@@ -313,7 +316,7 @@ function VehicleDetail() {
   const isSeller = user?.id === v.sellerId;
   const isWinner = user?.id === v.current_highest_bidder;
   const canSeeContact = access === "active" || isSeller;
-  const ownerVerified = owner?.is_showroom && owner?.subscription_status === "active" && owner?.subscription_until && new Date(owner.subscription_until) > new Date();
+  const ownerVerified = isVerifiedShowroom(owner);
   const ownerName = owner
     ? (owner.showroom_name || `${owner.first_name ?? ""} ${owner.last_name ?? ""}`.trim() || "Seller")
     : "Seller";

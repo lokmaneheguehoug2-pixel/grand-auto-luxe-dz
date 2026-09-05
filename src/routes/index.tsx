@@ -14,6 +14,7 @@ import { compareStore, useCompare } from "@/lib/compare";
 import { useAuth } from "@/hooks/use-auth";
 import { StoriesStrip } from "@/components/StoriesStrip";
 import { getSupabase } from "@/lib/supabase";
+import { supabaseSucceeded } from "@/lib/listing-interactions";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/")({
@@ -177,7 +178,7 @@ function Home() {
       setLoading(false);
     };
 
-    const vehiclesRef = ref(getFirebaseDb(), 'vehicles');
+    const vehiclesRef = ref(realtimeDb, "vehicles");
 onValue(vehiclesRef, handleSnapshot);
 return () => off(vehiclesRef);
 }, []);
@@ -281,11 +282,10 @@ return () => off(vehiclesRef);
     }));
 
     try {
-      if (newLiked) {
-        await client.from("vehicle_likes").insert({ vehicle_id: vehicleId, user_id: userId });
-      } else {
-        await client.from("vehicle_likes").delete().eq("vehicle_id", vehicleId).eq("user_id", userId);
-      }
+      const result = newLiked
+        ? await client.from("vehicle_likes").insert({ vehicle_id: vehicleId, user_id: userId })
+        : await client.from("vehicle_likes").delete().eq("vehicle_id", vehicleId).eq("user_id", userId);
+      if (!supabaseSucceeded(result)) throw result.error;
     } catch {
       setLikeData(prev => ({
         ...prev,
@@ -304,11 +304,10 @@ return () => off(vehiclesRef);
     const isFav = favorites[vehicleId] ?? false;
     setFavorites(prev => ({ ...prev, [vehicleId]: !isFav }));
     try {
-      if (!isFav) {
-        await client.from("vehicle_favorites").insert({ vehicle_id: vehicleId, user_id: userId });
-      } else {
-        await client.from("vehicle_favorites").delete().eq("vehicle_id", vehicleId).eq("user_id", userId);
-      }
+      const result = !isFav
+        ? await client.from("vehicle_favorites").insert({ vehicle_id: vehicleId, user_id: userId })
+        : await client.from("vehicle_favorites").delete().eq("vehicle_id", vehicleId).eq("user_id", userId);
+      if (!supabaseSucceeded(result)) throw result.error;
     } catch {
       setFavorites(prev => ({ ...prev, [vehicleId]: isFav }));
     }

@@ -12,6 +12,7 @@ import { formatDZD, formatDZDArabic, dzdToMillionCentimes, millionCentimesToDZD 
 import { calculateDeal, type DealInfo } from "@/lib/pricing";
 import { useAuth } from "@/hooks/use-auth";
 import { getSupabase } from "@/lib/supabase";
+import { supabaseSucceeded } from "@/lib/listing-interactions";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/brands")({
@@ -228,11 +229,10 @@ function DiscoveryHub() {
       [vehicleId]: { count: newLiked ? current.count + 1 : Math.max(0, current.count - 1), liked: newLiked }
     }));
     try {
-      if (newLiked) {
-        await client.from("vehicle_likes").insert({ vehicle_id: vehicleId, user_id: userId });
-      } else {
-        await client.from("vehicle_likes").delete().eq("vehicle_id", vehicleId).eq("user_id", userId);
-      }
+      const result = newLiked
+        ? await client.from("vehicle_likes").insert({ vehicle_id: vehicleId, user_id: userId })
+        : await client.from("vehicle_likes").delete().eq("vehicle_id", vehicleId).eq("user_id", userId);
+      if (!supabaseSucceeded(result)) throw result.error;
     } catch {
       setLikeData(prev => ({ ...prev, [vehicleId]: { count: current.count, liked: current.liked } }));
     }
@@ -248,11 +248,10 @@ function DiscoveryHub() {
     const isFav = favorites[vehicleId] ?? false;
     setFavorites(prev => ({ ...prev, [vehicleId]: !isFav }));
     try {
-      if (!isFav) {
-        await client.from("vehicle_favorites").insert({ vehicle_id: vehicleId, user_id: userId });
-      } else {
-        await client.from("vehicle_favorites").delete().eq("vehicle_id", vehicleId).eq("user_id", userId);
-      }
+      const result = !isFav
+        ? await client.from("vehicle_favorites").insert({ vehicle_id: vehicleId, user_id: userId })
+        : await client.from("vehicle_favorites").delete().eq("vehicle_id", vehicleId).eq("user_id", userId);
+      if (!supabaseSucceeded(result)) throw result.error;
     } catch {
       setFavorites(prev => ({ ...prev, [vehicleId]: isFav }));
     }
