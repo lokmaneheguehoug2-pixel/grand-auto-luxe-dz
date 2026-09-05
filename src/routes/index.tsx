@@ -205,7 +205,16 @@ function HomeContent() {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);
   const auth = useAuth();
-  const userId = auth?.user?.id ?? auth?.user?.phone ?? null;
+  const [guestId] = useState(() => {
+    if (typeof window === "undefined") return "guest-preview";
+    const key = "grand-auto-luxe-guest-id";
+    const existing = window.localStorage.getItem(key);
+    if (existing) return existing;
+    const created = `guest-${crypto.randomUUID?.() ?? `${Date.now()}-${Math.random()}`}`;
+    window.localStorage.setItem(key, created);
+    return created;
+  });
+  const userId = auth?.user?.id ?? auth?.user?.phone ?? guestId;
   const [likeData, setLikeData] = useState<LikeData>({});
   const [favorites, setFavorites] = useState<FavoriteData>({});
   const [viewData, setViewData] = useState<ViewData>({});
@@ -312,7 +321,15 @@ function HomeContent() {
 
   const loadFavorites = useCallback(async () => {
     const client = getSupabase();
-    if (!client || !userId) return;
+    if (!client || !userId) {
+      if (typeof window !== "undefined") {
+        const saved = JSON.parse(window.localStorage.getItem("grand-auto-luxe-saved") || "[]") as unknown;
+        const map: FavoriteData = {};
+        if (Array.isArray(saved)) saved.forEach((id) => { if (typeof id === "string") map[id] = true; });
+        setFavorites(map);
+      }
+      return;
+    }
     const { data } = await client.from("vehicle_favorites").select("vehicle_id").eq("user_id", userId).throwOnError();
     if (!Array.isArray(data)) return;
     const map: FavoriteData = {};
@@ -387,11 +404,21 @@ function HomeContent() {
     .filter(isValidVehicle)
     .filter((vehicle) => typeof vehicle.video_url === "string" && vehicle.video_url.length > 0);
 
-  const handleLike = useCallback(async (vehicleId: string) => {
-    if (!userId) {
-      toast.info("Sign in to like vehicles");
-      return;
+  const handleView = useCallback(async (vehicleId: string) => {
+    if (!vehicleId) return;
+    setViewData((previous) => ({ ...previous, [vehicleId]: (previous[vehicleId] ?? 0) + 1 }));
+    const client = getSupabase();
+    if (!client) return;
+    try {
+      const result = await client.from("vehicle_views").insert({ vehicle_id: vehicleId, viewer_id: userId });
+      if (!supabaseSucceeded(result)) throw result.error;
+    } catch (error) {
+      setViewData((previous) => ({ ...previous, [vehicleId]: Math.max(0, (previous[vehicleId] ?? 1) - 1) }));
+      console.error("[v0] Failed to record vehicle view", error);
     }
+  }, [userId]);
+
+  const handleLike = useCallback(async (vehicleId: string) => {
     const client = getSupabase();
     if (!client) return;
 
@@ -417,14 +444,25 @@ function HomeContent() {
   }, [userId, likeData]);
 
   const handleFavorite = useCallback(async (vehicleId: string) => {
-    if (!userId) {
-      toast.info("Sign in to save vehicles");
+    const client = getSupabase();
+    if (!client) {
+      const next = !favorites[vehicleId];
+      setFavorites((previous) => ({ ...previous, [vehicleId]: next }));
+      if (typeof window !== "undefined") {
+        const saved = JSON.parse(window.localStorage.getItem("grand-auto-luxe-saved") || "[]") as unknown;
+        const ids = Array.isArray(saved) ? saved.filter((id): id is string => typeof id === "string") : [];
+        const updated = next ? [...new Set([...ids, vehicleId])] : ids.filter((id) => id !== vehicleId);
+        window.localStorage.setItem("grand-auto-luxe-saved", JSON.stringify(updated));
+      }
       return;
     }
-    const client = getSupabase();
-    if (!client) return;
     const isFav = favorites[vehicleId] ?? false;
     setFavorites(prev => ({ ...prev, [vehicleId]: !isFav }));
+    if (typeof window !== "undefined") {
+      const saved = JSON.parse(window.localStorage.getItem("grand-auto-luxe-saved") || "[]") as unknown;
+      const ids = Array.isArray(saved) ? saved.filter((id): id is string => typeof id === "string") : [];
+      window.localStorage.setItem("grand-auto-luxe-saved", JSON.stringify(!isFav ? [...new Set([...ids, vehicleId])] : ids.filter((id) => id !== vehicleId)));
+    }
     try {
       const result = !isFav
         ? await client.from("vehicle_favorites").insert({ vehicle_id: vehicleId, user_id: userId })
@@ -503,7 +541,8 @@ function HomeContent() {
                     isFavorite={v?.id ? favorites[v.id] ?? false : false}
                     viewCount={v?.id ? viewData[v.id] ?? 0 : 0}
                     onLike={() => v?.id && handleLike(v.id)}
-                    onFavorite={() => v?.id && handleFavorite(v.id)}
+                      onFavorite={() => v?.id && handleFavorite(v.id)}
+                      onView={() => v?.id && handleView(v.id)}
                     />
                   </VehicleRenderBoundary>
                 ))}
@@ -521,6 +560,7 @@ function HomeContent() {
                       likeInfo={v?.id ? likeData[v.id] : undefined}
                       viewCount={v?.id ? viewData[v.id] ?? 0 : 0}
                       onLike={() => v?.id && handleLike(v.id)}
+                      onView={() => v?.id && handleView(v.id)}
                     />
                   </VehicleRenderBoundary>
                 ))}
@@ -533,7 +573,7 @@ function HomeContent() {
   );
 }
 
-function VehicleCard({ vehicle: v, allVehicles, likeInfo, isFavorite, viewCount, onLike, onFavorite }: {
+function VehicleCard({ vehicle: v, allVehicles, likeInfo, isFavorite, viewCount, onLike, onFavorite, onView }: {
   vehicle: Vehicle;
   allVehicles: Vehicle[];
   likeInfo?: { count: number; liked: boolean };
@@ -541,6 +581,7 @@ function VehicleCard({ vehicle: v, allVehicles, likeInfo, isFavorite, viewCount,
   viewCount: number;
   onLike: () => void;
   onFavorite: () => void;
+  onView: () => void;
 }) {
   const fallbackImage = "/my-logo.png.PNG";
   const imageUrl = Array.isArray(v?.images) && typeof v.images[0] === "string" && v.images[0].length > 0 ? v.images[0] : fallbackImage;
@@ -555,7 +596,8 @@ function VehicleCard({ vehicle: v, allVehicles, likeInfo, isFavorite, viewCount,
       to="/vehicle/$id"
       params={{ id: v.id }}
       className="group premium-card rounded-xl overflow-hidden border border-gold/20 block relative"
-    >
+      onClick={onView}
+  >
       {v.status === "sold" && <SoldOverlay />}
 
       <div className="relative aspect-[4/3] overflow-hidden bg-charcoal">
@@ -650,11 +692,12 @@ function VehicleCard({ vehicle: v, allVehicles, likeInfo, isFavorite, viewCount,
   );
 }
 
-function VehicleReelCard({ vehicle: v, likeInfo, viewCount, onLike }: {
+function VehicleReelCard({ vehicle: v, likeInfo, viewCount, onLike, onView }: {
   vehicle: Vehicle;
   likeInfo?: { count: number; liked: boolean };
   viewCount: number;
   onLike: () => void;
+  onView: () => void;
 }) {
   const likeCount = likeInfo?.count ?? 0;
   const liked = likeInfo?.liked ?? false;
@@ -667,7 +710,8 @@ function VehicleReelCard({ vehicle: v, likeInfo, viewCount, onLike }: {
       to="/vehicle/$id"
       params={{ id: v.id }}
       className="group rounded-xl overflow-hidden border border-gold/20 block relative aspect-[9/16] bg-charcoal"
-    >
+      onClick={onView}
+  >
       {videoUrl ? (
         <video
           src={videoUrl}
