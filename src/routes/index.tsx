@@ -221,16 +221,26 @@ function Home() {
       return;
     }
 
-    const firebaseVehiclesRef = ref(realtimeDb, "vehicles");
-    onValue(firebaseVehiclesRef, handleSnapshot);
-    return () => off(firebaseVehiclesRef);
+    let firebaseVehiclesRef: ReturnType<typeof ref> | null = null;
+    try {
+      firebaseVehiclesRef = ref(realtimeDb, "vehicles");
+      onValue(firebaseVehiclesRef, handleSnapshot);
+    } catch (error) {
+      console.error("[v0] Failed to subscribe to Firebase vehicles", error);
+      setVehicles([]);
+      setLoading(false);
+    }
+
+    return () => {
+      if (firebaseVehiclesRef) off(firebaseVehiclesRef);
+    };
   }, []);
 
 
   const loadLikes = useCallback(async () => {
     const client = getSupabase();
     if (!client) return;
-    const { data } = await client.from("vehicle_likes").select("vehicle_id, user_id");
+    const { data } = await client.from("vehicle_likes").select("vehicle_id, user_id").throwOnError();
     if (!Array.isArray(data)) return;
     const map: LikeData = {};
     for (const row of data) {
@@ -245,7 +255,7 @@ function Home() {
   const loadFavorites = useCallback(async () => {
     const client = getSupabase();
     if (!client || !userId) return;
-    const { data } = await client.from("vehicle_favorites").select("vehicle_id").eq("user_id", userId);
+    const { data } = await client.from("vehicle_favorites").select("vehicle_id").eq("user_id", userId).throwOnError();
     if (!Array.isArray(data)) return;
     const map: FavoriteData = {};
     for (const row of data) {
@@ -257,7 +267,7 @@ function Home() {
   const loadViews = useCallback(async () => {
     const client = getSupabase();
     if (!client) return;
-    const { data } = await client.from("vehicle_views").select("vehicle_id");
+    const { data } = await client.from("vehicle_views").select("vehicle_id").throwOnError();
     if (!Array.isArray(data)) return;
     const map: ViewData = {};
     for (const row of data) {
@@ -268,9 +278,7 @@ function Home() {
   }, []);
 
   useEffect(() => {
-    loadLikes();
-    loadFavorites();
-    loadViews();
+    void Promise.allSettled([loadLikes(), loadFavorites(), loadViews()]);
   }, [loadLikes, loadFavorites, loadViews]);
 
   const filtered = useMemo(() => {
