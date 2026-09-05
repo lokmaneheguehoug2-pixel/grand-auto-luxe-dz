@@ -177,9 +177,11 @@ function Home() {
       setLoading(false);
     };
 
-    onValue(vehiclesRef, handleSnapshot);
-    return () => off(vehiclesRef);
-  }, []);
+    const vehiclesRef = ref(getFirebaseDb(), 'vehicles');
+onValue(vehiclesRef, handleSnapshot);
+return () => off(vehiclesRef);
+}, []);
+
 
   const loadLikes = useCallback(async () => {
     const client = getSupabase();
