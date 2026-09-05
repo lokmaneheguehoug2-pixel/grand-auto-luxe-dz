@@ -160,7 +160,10 @@ function SoldOverlay() {
 }
 
 function DealBadge({ vehicle: v, allVehicles }: { vehicle: Vehicle; allVehicles: Vehicle[] }) {
-  const deal = calculateDeal(priceOf(v), v.brand, v.model, v.year, allVehicles);
+  const safeVehicle = isValidVehicle(v) ? v : null;
+  const safeVehicles = (Array.isArray(allVehicles) ? allVehicles : []).filter(isValidVehicle);
+  if (!safeVehicle) return null;
+  const deal = calculateDeal(priceOf(safeVehicle), safeVehicle.brand, safeVehicle.model, safeVehicle.year, safeVehicles);
   if (!deal) return null;
   return (
     <div className={`inline-flex items-center gap-0.5 text-[9px] px-1.5 py-0.5 rounded-full border ${deal.badgeClass}`} title={deal.tooltip}>
@@ -171,6 +174,7 @@ function DealBadge({ vehicle: v, allVehicles }: { vehicle: Vehicle; allVehicles:
 }
 
 function PriceDropTag({ vehicle: v }: { vehicle: Vehicle }) {
+  if (!isValidVehicle(v)) return null;
   const price = priceOf(v);
   const hasDrop = v.previous_price && v.previous_price > price;
   if (!hasDrop) return null;
@@ -282,7 +286,11 @@ function HomeContent() {
     }
 
     return () => {
-      if (firebaseVehiclesRef) off(firebaseVehiclesRef);
+      try {
+        if (firebaseVehiclesRef) off(firebaseVehiclesRef);
+      } catch (error) {
+        console.error("[v0] Failed to clean up Firebase vehicle listener", error);
+      }
     };
   }, []);
 
@@ -488,7 +496,7 @@ function HomeContent() {
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
                 {(Array.isArray(filtered) ? filtered : []).filter(isValidVehicle).map((v, index) => (
-                  <VehicleRenderBoundary key={v?.id || `vehicle-${index}`}>
+                  <VehicleRenderBoundary key={v?.id ? `car-${v.id}` : `car-index-${index}`}>
                     <VehicleCard
                       vehicle={v}
                       allVehicles={vehicles}
@@ -508,7 +516,7 @@ function HomeContent() {
             <TabsContent value="reels">
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
                 {(Array.isArray(reelsVehicles) ? reelsVehicles : []).filter(isValidVehicle).map((v, index) => (
-                  <VehicleRenderBoundary key={v?.id || `reel-${index}`}>
+                  <VehicleRenderBoundary key={v?.id ? `car-${v.id}` : `car-index-${index}`}>
                     <VehicleReelCard
                       vehicle={v}
                       likeInfo={v?.id ? likeData[v.id] : undefined}
@@ -536,7 +544,7 @@ function VehicleCard({ vehicle: v, allVehicles, likeInfo, isFavorite, viewCount,
   onFavorite: () => void;
 }) {
   const fallbackImage = "/my-logo.png.PNG";
-  const imageUrl = Array.isArray(v.images) && typeof v.images[0] === "string" && v.images[0].length > 0 ? v.images[0] : fallbackImage;
+  const imageUrl = Array.isArray(v?.images) && typeof v.images[0] === "string" && v.images[0].length > 0 ? v.images[0] : fallbackImage;
   const compare = useCompare();
   const likeCount = likeInfo?.count ?? 0;
   const liked = likeInfo?.liked ?? false;
@@ -652,8 +660,8 @@ function VehicleReelCard({ vehicle: v, likeInfo, viewCount, onLike }: {
   const likeCount = likeInfo?.count ?? 0;
   const liked = likeInfo?.liked ?? false;
   const price = priceOf(v);
-  const videoUrl = typeof v.video_url === "string" && v.video_url.length > 0 ? v.video_url : null;
-  const imageUrl = Array.isArray(v.images) && typeof v.images[0] === "string" && v.images[0].length > 0 ? v.images[0] : "/my-logo.png.PNG";
+  const videoUrl = typeof v?.video_url === "string" && v.video_url.length > 0 ? v.video_url : null;
+  const imageUrl = Array.isArray(v?.images) && typeof v.images[0] === "string" && v.images[0].length > 0 ? v.images[0] : "/my-logo.png.PNG";
 
   return (
     <Link
@@ -682,7 +690,10 @@ function VehicleReelCard({ vehicle: v, likeInfo, viewCount, onLike }: {
           alt={`${v.brand} ${v.model}`}
           className="w-full h-full object-cover"
           onError={(event) => {
-            event.currentTarget.src = "/my-logo.png.PNG";
+            const image = event.currentTarget;
+            if (image.dataset.fallbackApplied === "true") return;
+            image.dataset.fallbackApplied = "true";
+            image.src = "/my-logo.png.PNG";
           }}
         />
       )}
