@@ -18,6 +18,7 @@ import { ref, get, set, remove, onValue, off, push } from "firebase/database";
 import { uploadImageToCloudinary } from "@/lib/cloudinary";
 import { ChatDialog } from "@/components/ChatDialog";
 import { getSupabase } from "@/lib/supabase";
+import { isActivePaidSubscription, isVerifiedShowroom } from "@/lib/listing-interactions";
 
 export const Route = createFileRoute("/seller/$id")({
   head: () => ({ meta: [{ title: "Profile · GRAND Auto Luxe" }] }),
@@ -239,11 +240,8 @@ function SellerProfile() {
     load();
   }, [id]);
 
-  const subscriptionActive = profile?.subscription_status === "active" &&
-    profile?.subscription_until &&
-    new Date(profile.subscription_until) > new Date();
-  // Blue verification badge is strictly for showroom accounts with active paid subscription
-  const verified = profile?.is_showroom && subscriptionActive;
+  const subscriptionActive = isActivePaidSubscription(profile);
+  const verified = isVerifiedShowroom(profile);
 
   const daysUntilExpiry = profile?.subscription_until
     ? Math.ceil((new Date(profile.subscription_until).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
@@ -374,8 +372,8 @@ function SellerProfile() {
     const client = getSupabase();
     if (!client || !user) return;
     const uid = user?.id ?? user?.phone;
-    client.from("vehicle_favorites").select("vehicle_id").eq("user_id", uid).then(({ data }) => {
-      if (!data || data.length === 0) { setSavedVehicles([]); return; }
+    client.from("vehicle_favorites").select("vehicle_id").eq("user_id", uid).then(({ data, error }) => {
+      if (error || !data || data.length === 0) { setSavedVehicles([]); return; }
       const favIds = data.map((d) => d.vehicle_id);
       const vehiclesRef = ref(realtimeDb, "vehicles");
       get(vehiclesRef).then((snap) => {
