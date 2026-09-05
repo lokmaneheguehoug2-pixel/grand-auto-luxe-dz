@@ -369,14 +369,13 @@ function HomeContent() {
       const pinned = list.filter((v) => v.pinned);
       const nonPinned = list.filter((v) => !v.pinned);
 
-      // Seed from vehicle IDs so shuffle is stable across re-renders
-      // but changes when the underlying vehicle set changes
-      const seed = nonPinned.map((v) => v.id).sort().join(",");
-      if (shuffleSeed.current !== seed) {
-        shuffleSeed.current = seed;
+      // Generate one random seed per vehicle-set change so the initial feed is shuffled
+      // without reshuffling on every render caused by filters or engagement updates.
+      const vehicleSetKey = nonPinned.map((vehicle) => vehicle.id).sort().join(",");
+      if (!shuffleSeed.current.startsWith(`${vehicleSetKey}:`)) {
+        shuffleSeed.current = `${vehicleSetKey}:${Math.random()}`;
       }
 
-      // Deterministic shuffle based on seed
       const shuffled = seededShuffle(nonPinned, shuffleSeed.current);
       return [...pinned, ...shuffled];
     }

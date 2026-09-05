@@ -195,19 +195,57 @@ function VehicleDetail() {
   }, [user, hasLiked, id]);
 
   useEffect(() => {
-    const handleAll = (snap: { val: () => Record<string, any> | null }) => {
-      const data = snap.val();
-      if (data) setAllVehicles(Object.entries(data).map(([vid, val]) => ({ id: vid, ...val })));
+    const allRef = ref(realtimeDb, "vehicles");
+    const handleAll = (snap: { exists?: () => boolean; val: () => unknown }) => {
+      try {
+        if (snap.exists && !snap.exists()) {
+          setAllVehicles([]);
+          return;
+        }
+        const data = snap.val();
+        if (!data || typeof data !== "object" || Array.isArray(data)) {
+          setAllVehicles([]);
+          return;
+        }
+        const list = Object.entries(data)
+          .filter(([, value]) => value && typeof value === "object")
+          .map(([vid, value]) => ({ id: vid, ...(value as Record<string, unknown>) }));
+        setAllVehicles(list);
+      } catch (error) {
+        console.error("[v0] Failed to load related vehicles", error);
+        setAllVehicles([]);
+      }
     };
-    onValue(allRef, handleAll);
-    return () => off(allRef);
+    try {
+      onValue(allRef, handleAll);
+    } catch (error) {
+      console.error("[v0] Failed to subscribe to related vehicles", error);
+      setAllVehicles([]);
+    }
+    return () => {
+      try { off(allRef); } catch (error) { console.error("[v0] Failed to clean up related vehicles", error); }
+    };
   }, []);
 
   useEffect(() => {
-    const vehicleRef = ref(realtimeDb, `vehicles/${id}`);
-    const handleSnapshot = (snapshot: { val: () => (Vehicle & { [key: string]: any }) | null }) => {
+    if (typeof id !== "string" || id.trim().length === 0) {
+      setV(null);
+      return;
+    }
+
+    let vehicleRef: ReturnType<typeof ref> | null = null;
+    const handleSnapshot = (snapshot: { exists?: () => boolean; val: () => unknown }) => {
       try {
-        const data = snapshot.val();
+        if (snapshot.exists && !snapshot.exists()) {
+          setV(null);
+          return;
+        }
+        const raw = snapshot.val();
+        if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+          setV(null);
+          return;
+        }
+        const data = raw as Record<string, any>;
         if (data) {
           setV({
             ...data,
@@ -237,8 +275,16 @@ function VehicleDetail() {
         setV(null);
       }
     };
-    onValue(vehicleRef, handleSnapshot);
-    return () => off(vehicleRef);
+    try {
+      vehicleRef = ref(realtimeDb, `vehicles/${id}`);
+      onValue(vehicleRef, handleSnapshot);
+    } catch (error) {
+      console.error("[v0] Failed to subscribe to vehicle detail", error);
+      setV(null);
+    }
+    return () => {
+      try { if (vehicleRef) off(vehicleRef); } catch (error) { console.error("[v0] Failed to clean up vehicle detail", error); }
+    };
   }, [id]);
 
   useEffect(() => {
@@ -569,7 +615,7 @@ function VehicleDetail() {
             {bids.length > 0 && (
               <div className="mt-3 space-y-1">
                 <div className="text-xs uppercase tracking-widest text-muted-foreground mb-1">Bid History</div>
-                {bids.slice(0, 5).map((b) => (
+                {bids.filter((bid): bid is Bid => Boolean(bid && bid.id)).map((b) => (
                   <div key={b.id} className="text-sm flex justify-between">
                     <span>{b.bidderName}</span>
                     <span className="text-gold">{formatDZD(b.amount)}</span>
