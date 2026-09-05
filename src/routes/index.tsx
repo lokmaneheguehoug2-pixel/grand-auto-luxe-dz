@@ -99,6 +99,49 @@ class VehicleRenderBoundary extends Component<{ children: ReactNode }, { hasErro
   }
 }
 
+type HomeErrorBoundaryState = {
+  error: Error | null;
+};
+
+class HomeErrorBoundary extends Component<{ children: ReactNode }, HomeErrorBoundaryState> {
+  state: HomeErrorBoundaryState = { error: null };
+
+  static getDerivedStateFromError(error: Error): HomeErrorBoundaryState {
+    return { error };
+  }
+
+  componentDidCatch(error: Error) {
+    console.error("EXACT RUNTIME ERROR:", error);
+  }
+
+  render() {
+    if (!this.state.error) return this.props.children;
+
+    const errorMessage = this.state.error.message || "Unknown runtime error";
+    const errorStack = this.state.error.stack || "No stack trace available.";
+
+    return (
+      <main className="min-h-screen bg-background px-4 py-10 text-foreground">
+        <section className="mx-auto max-w-5xl rounded-xl border border-red-500/40 bg-charcoal p-5 shadow-lg sm:p-8">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-red-400">Exact runtime error</p>
+          <h1 className="mb-5 text-2xl font-bold text-red-300">The home page crashed</h1>
+          <pre className="max-h-[70vh] overflow-auto whitespace-pre-wrap break-words rounded-lg border border-border bg-background p-4 font-mono text-sm leading-relaxed text-foreground">
+            {`Message:\n${errorMessage}\n\nStack trace:\n${errorStack}`}
+          </pre>
+        </section>
+      </main>
+    );
+  }
+}
+
+function Home() {
+  return (
+    <HomeErrorBoundary>
+      <HomeContent />
+    </HomeErrorBoundary>
+  );
+}
+
 function SoldOverlay() {
   return (
     <div className="absolute inset-0 grid place-items-center bg-black/55 backdrop-blur-[2px] z-10 pointer-events-none">
@@ -136,7 +179,7 @@ function PriceDropTag({ vehicle: v }: { vehicle: Vehicle }) {
   );
 }
 
-function Home() {
+function HomeContent() {
   const [filters, setFilters] = useState({
     q: "",
     brand: "all",
