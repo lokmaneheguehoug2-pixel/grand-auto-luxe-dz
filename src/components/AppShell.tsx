@@ -83,6 +83,7 @@ export function AppShell() {
             <NavButton icon={Home} label="Home" to="/" active={isActive("/")} />
             <NavButton icon={Search} label="Search" to="/brands" active={isActive("/brands")} />
             <NavButton icon={Plus} label="Add" to="/post" active={isActive("/post")} accent />
+            {user && <NavButton icon={MessageSquare} label="Messages" to="/messages" active={isActive("/messages")} />}
             <NavButton icon={Film} label="Reels" to="/reels" active={isActive("/reels")} />
             {user ? (
               <NavButton icon={User2} label="Profile" to="/seller/$id" params={{ id: user.phone }} active={isActive("/seller")} />

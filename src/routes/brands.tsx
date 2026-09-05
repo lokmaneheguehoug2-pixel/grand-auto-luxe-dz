@@ -62,6 +62,23 @@ type Showroom = {
 };
 
 type FavoriteData = Record<string, boolean>;
+type LikeData = Record<string, { count: number; liked: boolean }>;
+type ViewData = Record<string, number>;
+
+function seededShuffle<T>(arr: T[], seed: string): T[] {
+  if (arr.length <= 1) return [...arr];
+  const copy = [...arr];
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) {
+    hash = ((hash << 5) - hash + seed.charCodeAt(i)) | 0;
+  }
+  for (let i = copy.length - 1; i > 0; i--) {
+    hash = (hash * 9301 + 49297) % 233280;
+    const j = Math.floor((hash / 233280) * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
+}
 
 const BUDGET_PRESETS = [
   { label: "Under 200M", labelAr: "أقل من 200 مليون", min: 0, max: 200 },
@@ -84,6 +101,8 @@ function DiscoveryHub() {
   const [budgetMax, setBudgetMax] = useState(10000);
   const [activePreset, setActivePreset] = useState<number | null>(null);
   const [favorites, setFavorites] = useState<FavoriteData>({});
+  const [likeData, setLikeData] = useState<LikeData>({});
+  const [viewData, setViewData] = useState<ViewData>({});
   const auth = useAuth();
   const userId = auth?.user?.id ?? auth?.user?.phone ?? null;
 
@@ -163,9 +182,61 @@ function DiscoveryHub() {
     setFavorites(map);
   }, [userId]);
 
+  const loadLikes = useCallback(async () => {
+    const client = getSupabase();
+    if (!client) return;
+    const { data } = await client.from("vehicle_likes").select("vehicle_id, user_id");
+    if (!data) return;
+    const map: LikeData = {};
+    for (const row of data) {
+      if (!map[row.vehicle_id]) map[row.vehicle_id] = { count: 0, liked: false };
+      map[row.vehicle_id].count++;
+      if (row.user_id === userId) map[row.vehicle_id].liked = true;
+    }
+    setLikeData(map);
+  }, [userId]);
+
+  const loadViews = useCallback(async () => {
+    const client = getSupabase();
+    if (!client) return;
+    const { data } = await client.from("vehicle_views").select("vehicle_id");
+    if (!data) return;
+    const map: ViewData = {};
+    for (const row of data) {
+      map[row.vehicle_id] = (map[row.vehicle_id] ?? 0) + 1;
+    }
+    setViewData(map);
+  }, []);
+
   useEffect(() => {
     loadFavorites();
-  }, [loadFavorites]);
+    loadLikes();
+    loadViews();
+  }, [loadFavorites, loadLikes, loadViews]);
+
+  const handleLike = useCallback(async (vehicleId: string) => {
+    if (!userId) {
+      toast.info("Sign in to like vehicles");
+      return;
+    }
+    const client = getSupabase();
+    if (!client) return;
+    const current = likeData[vehicleId] ?? { count: 0, liked: false };
+    const newLiked = !current.liked;
+    setLikeData(prev => ({
+      ...prev,
+      [vehicleId]: { count: newLiked ? current.count + 1 : Math.max(0, current.count - 1), liked: newLiked }
+    }));
+    try {
+      if (newLiked) {
+        await client.from("vehicle_likes").insert({ vehicle_id: vehicleId, user_id: userId });
+      } else {
+        await client.from("vehicle_likes").delete().eq("vehicle_id", vehicleId).eq("user_id", userId);
+      }
+    } catch {
+      setLikeData(prev => ({ ...prev, [vehicleId]: { count: current.count, liked: current.liked } }));
+    }
+  }, [userId, likeData]);
 
   const handleFavorite = useCallback(async (vehicleId: string) => {
     if (!userId) {
@@ -232,7 +303,10 @@ function DiscoveryHub() {
       if (budgetMin > 0 && price < minDZD) return false;
       if (budgetMax < 10000 && price > maxDZD) return false;
       return true;
-    }).sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+    });
+    // Randomized order instead of newest-first
+    const seed = list.map((v) => v.id).sort().join(",");
+    return seededShuffle(list, seed);
   }, [vehicles, query, wilaya, budgetMin, budgetMax]);
 
   const filteredShowrooms = useMemo(() => {
@@ -391,6 +465,9 @@ function DiscoveryHub() {
                   vehicle={v}
                   allVehicles={vehicles}
                   isFavorite={favorites[v.id] ?? false}
+                  likeInfo={likeData[v.id]}
+                  viewCount={viewData[v.id] ?? 0}
+                  onLike={() => handleLike(v.id)}
                   onFavorite={() => handleFavorite(v.id)}
                 />
               ))}
@@ -436,10 +513,13 @@ function DiscoveryHub() {
   );
 }
 
-function DiscoveryVehicleCard({ vehicle: v, allVehicles, isFavorite, onFavorite }: {
+function DiscoveryVehicleCard({ vehicle: v, allVehicles, isFavorite, likeInfo, viewCount, onLike, onFavorite }: {
   vehicle: Vehicle;
   allVehicles: Vehicle[];
   isFavorite: boolean;
+  likeInfo?: { count: number; liked: boolean };
+  viewCount: number;
+  onLike: () => void;
   onFavorite: () => void;
 }) {
   const imageUrl = v.images?.[0] || "/my-logo.png.PNG";
@@ -447,6 +527,8 @@ function DiscoveryVehicleCard({ vehicle: v, allVehicles, isFavorite, onFavorite 
   const deal = calculateDeal(price, v.brand, v.model, v.year, allVehicles);
   const hasPriceDrop = v.previous_price && v.previous_price > price;
   const savings = hasPriceDrop ? (v.previous_price! - price) : 0;
+  const likeCount = likeInfo?.count ?? 0;
+  const liked = likeInfo?.liked ?? false;
 
   return (
     <Link
@@ -520,6 +602,21 @@ function DiscoveryVehicleCard({ vehicle: v, allVehicles, isFavorite, onFavorite 
             <span className="text-gold font-display text-sm sm:text-base">{formatDZD(price)}</span>
           )}
           <span className="text-[9px] text-muted-foreground mr-auto">{formatDZDArabic(price)}</span>
+        </div>
+
+        <div className="flex items-center gap-3 mt-2">
+          <button
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onLike(); }}
+            className="flex items-center gap-1 transition-transform active:scale-90"
+            aria-label="Like"
+          >
+            <Heart className={`h-4 w-4 ${liked ? "text-red-500 fill-red-500" : "text-muted-foreground"}`} />
+            <span className="text-[10px] text-muted-foreground">{likeCount}</span>
+          </button>
+          <div className="flex items-center gap-1">
+            <Eye className="h-4 w-4 text-muted-foreground" />
+            <span className="text-[10px] text-muted-foreground">{viewCount}</span>
+          </div>
         </div>
       </div>
     </Link>

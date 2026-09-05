@@ -66,6 +66,21 @@ function shuffle<T>(arr: T[]): T[] {
   return copy;
 }
 
+function seededShuffle<T>(arr: T[], seed: string): T[] {
+  if (arr.length <= 1) return [...arr];
+  const copy = [...arr];
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) {
+    hash = ((hash << 5) - hash + seed.charCodeAt(i)) | 0;
+  }
+  for (let i = copy.length - 1; i > 0; i--) {
+    hash = (hash * 9301 + 49297) % 233280;
+    const j = Math.floor((hash / 233280) * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
+}
+
 function SoldOverlay() {
   return (
     <div className="absolute inset-0 grid place-items-center bg-black/55 backdrop-blur-[2px] z-10 pointer-events-none">
@@ -126,7 +141,6 @@ function Home() {
   const shuffleSeed = useRef<string>("");
 
   useEffect(() => {
-    const vehiclesRef = ref(realtimeDb, "vehicles");
 
     const handleSnapshot = (snapshot: { val: () => Record<string, any> | null }) => {
       const data = snapshot.val();
@@ -227,16 +241,19 @@ function Home() {
     else if (filters.sort === "price_desc") list.sort((a, b) => priceOf(b) - priceOf(a));
     else if (filters.sort === "year_desc") list.sort((a, b) => b.year - a.year);
     else {
-      // Default: pinned first, then randomized
+      // Default: pinned first, then randomized with a stable seed
       const pinned = list.filter((v) => v.pinned);
       const nonPinned = list.filter((v) => !v.pinned);
 
-      // Stable shuffle seed per filter change so order doesn't jump on every render
-      if (!shuffleSeed.current || shuffleSeed.current !== JSON.stringify(filters)) {
-        shuffleSeed.current = JSON.stringify(filters);
+      // Seed from vehicle IDs so shuffle is stable across re-renders
+      // but changes when the underlying vehicle set changes
+      const seed = nonPinned.map((v) => v.id).sort().join(",");
+      if (shuffleSeed.current !== seed) {
+        shuffleSeed.current = seed;
       }
 
-      const shuffled = shuffle(nonPinned);
+      // Deterministic shuffle based on seed
+      const shuffled = seededShuffle(nonPinned, shuffleSeed.current);
       return [...pinned, ...shuffled];
     }
 

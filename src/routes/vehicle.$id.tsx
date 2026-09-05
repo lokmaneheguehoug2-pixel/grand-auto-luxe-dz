@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { formatDZD, formatDZDArabic } from "@/lib/format";
 import { calculateDeal } from "@/lib/pricing";
-import { Flag, Calendar, Gauge, Fuel, Cog, Gavel, Trophy, Phone, MessageCircle, Lock, Pencil, Trash2, MapPin, Crown, BadgeCheck, CircleCheck, RotateCcw, Star, TrendingDown, Heart, Eye, Bookmark } from "lucide-react";
+import { Flag, Calendar, Gauge, Fuel, Cog, Gavel, Trophy, Phone, MessageCircle, Lock, Pencil, Trash2, MapPin, Crown, CircleCheck, RotateCcw, Star, TrendingDown, Heart, Eye, Bookmark } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Countdown } from "@/components/Countdown";
 import { useState, useEffect, useCallback } from "react";
@@ -97,6 +97,8 @@ function VehicleDetail() {
   const [viewCount, setViewCount] = useState(0);
   const [inquiryCount, setInquiryCount] = useState(0);
   const [isFavorited, setIsFavorited] = useState(false);
+  const [likeCount, setLikeCount] = useState(0);
+  const [hasLiked, setHasLiked] = useState(false);
 
   // Record a view when the page loads
   useEffect(() => {
@@ -156,8 +158,40 @@ function VehicleDetail() {
     }
   }, [user, isFavorited, id]);
 
+  // Load like count and liked status
   useEffect(() => {
-    const allRef = ref(realtimeDb, "vehicles");
+    if (!id) return;
+    const client = getSupabase();
+    if (!client) return;
+    client.from("vehicle_likes").select("vehicle_id, user_id").eq("vehicle_id", id).then(({ data }) => {
+      if (!data) return;
+      setLikeCount(data.length);
+      const uid = user?.id ?? user?.phone ?? null;
+      if (uid) setHasLiked(data.some((row) => row.user_id === uid));
+    }).catch(() => { /* non-blocking */ });
+  }, [id, user?.id, user?.phone]);
+
+  const toggleLike = useCallback(async () => {
+    if (!user) { toast.info("Sign in to like vehicles"); return; }
+    const client = getSupabase();
+    if (!client) return;
+    const uid = user.id ?? user.phone;
+    const newLiked = !hasLiked;
+    setHasLiked(newLiked);
+    setLikeCount(prev => newLiked ? prev + 1 : Math.max(0, prev - 1));
+    try {
+      if (newLiked) {
+        await client.from("vehicle_likes").insert({ vehicle_id: id, user_id: uid });
+      } else {
+        await client.from("vehicle_likes").delete().eq("vehicle_id", id).eq("user_id", uid);
+      }
+    } catch {
+      setHasLiked(!newLiked);
+      setLikeCount(prev => newLiked ? Math.max(0, prev - 1) : prev + 1);
+    }
+  }, [user, hasLiked, id]);
+
+  useEffect(() => {
     const handleAll = (snap: { val: () => Record<string, any> | null }) => {
       const data = snap.val();
       if (data) setAllVehicles(Object.entries(data).map(([vid, val]) => ({ id: vid, ...val })));
@@ -449,6 +483,14 @@ function VehicleDetail() {
 
         {/* Engagement Stats Bar */}
         <div className="mb-4 flex items-center gap-4 flex-wrap">
+          <button
+            onClick={toggleLike}
+            className="flex items-center gap-1.5 text-sm transition-transform active:scale-90"
+            aria-label="Like"
+          >
+            <Heart className={`h-5 w-5 ${hasLiked ? "text-red-500 fill-red-500" : "text-muted-foreground"}`} />
+            <span className={hasLiked ? "text-red-500" : "text-muted-foreground"}>{likeCount}</span>
+          </button>
           <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
             <Eye className="h-4 w-4" /> {viewCount} views
           </div>
@@ -614,7 +656,6 @@ function VehicleDetail() {
                       <path d="M9.5 21l-1.7-3.3L4 16l3.8-1.7L9.5 11l1.7 3.3L15 16l-3.8 1.7L9.5 21zM18 14l-1-2-1 2-2 1 2 1 1 2 1-2 2-1-2-1zM14.5 6l-1.3-2.5L12 6l-2.5 1.3L12 8.5l1.2 2.5L14.5 8.5l2.5-1.2L14.5 6z" />
                     </svg>
                   )}
-                  {ownerVerified && !owner.is_showroom && <BadgeCheck className="h-5 w-5 text-blue-400 shrink-0" />}
                 </div>
                 {owner.bio && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{owner.bio}</p>}
                 <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2">

@@ -6,7 +6,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { ChatDialog } from "@/components/ChatDialog";
 import { PremiumPaywallModal } from "@/components/PremiumPaywallModal";
 import { Button } from "@/components/ui/button";
-import { MessageCircle, Inbox, Lock } from "lucide-react";
+import { MessageCircle, Inbox, Lock, Send, Mail } from "lucide-react";
 
 export const Route = createFileRoute("/messages")({
   head: () => ({ meta: [{ title: "Messages · GRAND Auto Luxe" }] }),
@@ -42,6 +42,7 @@ function MessagesPage() {
   const [threads, setThreads] = useState<Thread[]>([]);
   const [active, setActive] = useState<{ vehicleId: string; sellerId: string; title: string } | null>(null);
   const [showPaywall, setShowPaywall] = useState(false);
+  const [messageFilter, setMessageFilter] = useState<"inbox" | "sent">("inbox");
 
   useEffect(() => {
     if (!user) return;
@@ -62,13 +63,14 @@ function MessagesPage() {
         (m) => m.senderId === user.id || m.recipientId === user.id
       );
 
-      // Group by (vehicleId, otherId)
-      const map = new Map<string, Thread>();
+      // Group by (vehicleId, otherId) — track direction
+      const map = new Map<string, Thread & { isSent: boolean }>();
 
       for (const m of myMessages) {
         const otherId = m.senderId === user.id ? m.recipientId : m.senderId;
         const key = `${m.vehicleId}|${otherId}`;
         const isUnread = !m.readAt && m.recipientId === user.id;
+        const isSent = m.senderId === user.id;
 
         const existing = map.get(key);
         if (!existing) {
@@ -78,11 +80,13 @@ function MessagesPage() {
             lastBody: m.body,
             lastAt: m.createdAt,
             unread: isUnread ? 1 : 0,
+            isSent,
           });
         } else {
           if (new Date(m.createdAt) > new Date(existing.lastAt)) {
             existing.lastBody = m.body;
             existing.lastAt = m.createdAt;
+            existing.isSent = isSent;
           }
           if (isUnread) {
             existing.unread += 1;
@@ -152,6 +156,11 @@ function MessagesPage() {
     );
   }
 
+  const filteredThreads = threads.filter((t) => {
+    if (messageFilter === "inbox") return !(t as any).isSent;
+    return (t as any).isSent;
+  });
+
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8">
       <div className="flex items-center gap-3 mb-6">
@@ -164,16 +173,32 @@ function MessagesPage() {
         </div>
       </div>
 
-      {threads.length === 0 ? (
+      {/* Inbox / Sent sub-tabs */}
+      <div className="flex gap-2 mb-4">
+        <button
+          onClick={() => setMessageFilter("inbox")}
+          className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium transition ${messageFilter === "inbox" ? "bg-gold text-gold-foreground" : "bg-charcoal text-muted-foreground border border-gold/20 hover:border-gold/40"}`}
+        >
+          <Mail className="h-4 w-4" /> الرسائل المستقبلة
+        </button>
+        <button
+          onClick={() => setMessageFilter("sent")}
+          className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium transition ${messageFilter === "sent" ? "bg-gold text-gold-foreground" : "bg-charcoal text-muted-foreground border border-gold/20 hover:border-gold/40"}`}
+        >
+          <Send className="h-4 w-4" /> الرسائل المبعوثة
+        </button>
+      </div>
+
+      {filteredThreads.length === 0 ? (
         <div className="text-center py-20 premium-card gold-border rounded-2xl">
           <MessageCircle className="h-10 w-10 mx-auto mb-3 text-gold/60" />
           <p className="text-muted-foreground text-sm">
-            لا توجد محادثات بعد. ابدأ من صفحة أي سيارة.
+            {messageFilter === "inbox" ? "لا توجد رسائل مستقبلة." : "لا توجد رسائل بعثت بها."}
           </p>
         </div>
       ) : (
         <div className="space-y-2">
-          {threads.map((t) => (
+          {filteredThreads.map((t) => (
             <button
               key={`${t.vehicleId}-${t.otherId}`}
               onClick={() => setActive({

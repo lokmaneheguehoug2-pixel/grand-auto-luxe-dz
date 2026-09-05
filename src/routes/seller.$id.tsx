@@ -2,9 +2,9 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useAuth } from "@/hooks/use-auth";
 import { formatDZD } from "@/lib/format";
 import {
-  BadgeCheck, Car, MapPin, Gauge, Crown, AlertTriangle, Tag, Calendar,
+  Car, MapPin, Gauge, Crown, AlertTriangle, Tag, Calendar,
   Instagram, Phone, MessageCircle, Camera, Pencil, Trash2, Film, Heart,
-  Lock, Grid, Play, Eye, Flag, Clock,
+  Lock, Grid, Play, Eye, Flag, Clock, Bookmark,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PremiumPaywallModal } from "@/components/PremiumPaywallModal";
@@ -17,6 +17,7 @@ import { realtimeDb } from "@/lib/firebase";
 import { ref, get, set, remove, onValue, off, push } from "firebase/database";
 import { uploadImageToCloudinary } from "@/lib/cloudinary";
 import { ChatDialog } from "@/components/ChatDialog";
+import { getSupabase } from "@/lib/supabase";
 
 export const Route = createFileRoute("/seller/$id")({
   head: () => ({ meta: [{ title: "Profile · GRAND Auto Luxe" }] }),
@@ -93,7 +94,8 @@ function SellerProfile() {
   const [reels, setReels] = useState<Reel[]>([]);
   const [stories, setStories] = useState<Story[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"listings" | "reels" | "stories" | "sold">("listings");
+  const [activeTab, setActiveTab] = useState<"listings" | "reels" | "stories" | "sold" | "saved">("listings");
+  const [savedVehicles, setSavedVehicles] = useState<Vehicle[]>([]);
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [editBio, setEditBio] = useState("");
   const [editFirstName, setEditFirstName] = useState("");
@@ -237,11 +239,11 @@ function SellerProfile() {
     load();
   }, [id]);
 
-  const verified = profile?.is_showroom || (
-    profile?.subscription_status === "active" &&
+  const subscriptionActive = profile?.subscription_status === "active" &&
     profile?.subscription_until &&
-    new Date(profile.subscription_until) > new Date()
-  );
+    new Date(profile.subscription_until) > new Date();
+  // Blue verification badge is strictly for showroom accounts with active paid subscription
+  const verified = profile?.is_showroom && subscriptionActive;
 
   const daysUntilExpiry = profile?.subscription_until
     ? Math.ceil((new Date(profile.subscription_until).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
@@ -365,6 +367,27 @@ function SellerProfile() {
 
   const activeVehicles = vehicles.filter((v) => v.status === "active" || !v.status);
   const soldVehicles = vehicles.filter((v) => v.status === "sold");
+
+  // Load saved vehicles when saved tab is opened
+  useEffect(() => {
+    if (!isOwnProfile || activeTab !== "saved") return;
+    const client = getSupabase();
+    if (!client || !user) return;
+    const uid = user.id ?? user.phone;
+    client.from("vehicle_favorites").select("vehicle_id").eq("user_id", uid).then(({ data }) => {
+      if (!data || data.length === 0) { setSavedVehicles([]); return; }
+      const favIds = data.map((d) => d.vehicle_id);
+      const vehiclesRef = ref(realtimeDb, "vehicles");
+      get(vehiclesRef).then((snap) => {
+        if (!snap.exists()) { setSavedVehicles([]); return; }
+        const allV = snap.val() as Record<string, any>;
+        const saved = favIds
+          .map((vid) => allV[vid] ? { ...allV[vid], id: vid } : null)
+          .filter(Boolean) as Vehicle[];
+        setSavedVehicles(saved);
+      }).catch(() => setSavedVehicles([]));
+    }).catch(() => setSavedVehicles([]));
+  }, [isOwnProfile, activeTab, user]);
   const canSeeContact = !!user && (access === "active" || isOwnProfile || isAdmin);
 
   if (loading) {
@@ -436,15 +459,19 @@ function SellerProfile() {
 
       {/* ===== PROFILE HEADER (TikTok-style centered) ===== */}
       <div className="flex flex-col items-center text-center">
-        {/* Avatar - large, circular */}
+        {/* Avatar - large, circular, interactive */}
         <div className="relative shrink-0 mb-4">
-          <div className="h-28 w-28 sm:h-32 sm:w-32 rounded-full overflow-hidden gold-gradient grid place-items-center text-4xl font-display text-gold-foreground shadow-[0_0_40px_rgba(212,175,55,0.3)]">
+          <button
+            onClick={() => isOwnProfile ? setShowEditProfile(true) : undefined}
+            className="h-28 w-28 sm:h-32 sm:w-32 rounded-full overflow-hidden gold-gradient grid place-items-center text-4xl font-display text-gold-foreground shadow-[0_0_40px_rgba(212,175,55,0.3)] transition-transform hover:scale-105 cursor-pointer"
+            title={isOwnProfile ? "Edit profile" : "View profile"}
+          >
             {profile.avatar_url ? (
               <img src={profile.avatar_url} alt={name} className="h-full w-full object-cover" />
             ) : (
               <span>{name.charAt(0).toUpperCase()}</span>
             )}
-          </div>
+          </button>
           {isOwnProfile && (
             <button
               onClick={() => setShowEditProfile(true)}
@@ -466,9 +493,7 @@ function SellerProfile() {
               </svg>
             </span>
           )}
-          {verified && !profile?.is_showroom && (
-            <BadgeCheck className="h-6 w-6 text-blue-400 shrink-0" />
-          )}
+
         </div>
 
         {/* Username */}
@@ -584,6 +609,7 @@ function SellerProfile() {
           <TabButton active={activeTab === "reels"} onClick={() => setActiveTab("reels")} icon={Film} label="Reels" count={reels.length} />
           <TabButton active={activeTab === "stories"} onClick={() => setActiveTab("stories")} icon={Play} label="Stories" count={stories.length} />
           <TabButton active={activeTab === "sold"} onClick={() => setActiveTab("sold")} icon={Tag} label="Sold" count={soldVehicles.length} />
+          {isOwnProfile && <TabButton active={activeTab === "saved"} onClick={() => setActiveTab("saved")} icon={Bookmark} label="Saved" count={savedVehicles.length} />}
         </div>
 
         <div className="mt-4">
@@ -680,6 +706,21 @@ function SellerProfile() {
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
                   {soldVehicles.map((v) => (
                     <ProfileVehicleCard key={v.id} v={v} isOwner={isOwnProfile} onDelete={deleteListing} onMarkSold={markAsSold} />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* SAVED TAB */}
+          {activeTab === "saved" && isOwnProfile && (
+            <div>
+              {savedVehicles.length === 0 ? (
+                <EmptyState icon={Bookmark} text="No saved vehicles yet" />
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
+                  {savedVehicles.map((v) => (
+                    <ProfileVehicleCard key={v.id} v={v} isOwner={false} onDelete={() => {}} onMarkSold={() => {}} />
                   ))}
                 </div>
               )}
