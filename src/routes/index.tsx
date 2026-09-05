@@ -178,10 +178,16 @@ function Home() {
       setLoading(false);
     };
 
-    const vehiclesRef = ref(realtimeDb, "vehicles");
-onValue(vehiclesRef, handleSnapshot);
-return () => off(vehiclesRef);
-}, []);
+    if (!realtimeDb) {
+      setVehicles([]);
+      setLoading(false);
+      return;
+    }
+
+    const firebaseVehiclesRef = ref(realtimeDb, "vehicles");
+    onValue(firebaseVehiclesRef, handleSnapshot);
+    return () => off(firebaseVehiclesRef);
+  }, []);
 
 
   const loadLikes = useCallback(async () => {
