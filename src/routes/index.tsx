@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState, useMemo, useEffect, useCallback, useRef } from "react";
+import { Component, useState, useMemo, useEffect, useCallback, useRef } from "react";
+import type { ReactNode } from "react";
 import { ref, onValue, off } from "firebase/database";
 import { realtimeDb } from "@/lib/firebase";
 import { WILAYAS, BRANDS } from "@/lib/wilayas";
@@ -82,6 +83,22 @@ function seededShuffle<T>(arr: T[], seed: string): T[] {
   return copy;
 }
 
+class VehicleRenderBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
+  state = { hasError: false };
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: unknown) {
+    console.error("[v0] Skipping corrupted vehicle card", error);
+  }
+
+  render() {
+    return this.state.hasError ? null : this.props.children;
+  }
+}
+
 function SoldOverlay() {
   return (
     <div className="absolute inset-0 grid place-items-center bg-black/55 backdrop-blur-[2px] z-10 pointer-events-none">
@@ -143,39 +160,59 @@ function Home() {
 
   useEffect(() => {
 
-    const handleSnapshot = (snapshot: { val: () => Record<string, any> | null }) => {
-      const data = snapshot.val();
-      if (data) {
+    const handleSnapshot = (snapshot: { exists?: () => boolean; val: () => unknown }) => {
+      try {
+        if (snapshot.exists && !snapshot.exists()) {
+          setVehicles([]);
+          return;
+        }
+
+        const data = snapshot.val();
+        if (!data || typeof data !== "object" || Array.isArray(data)) {
+          setVehicles([]);
+          return;
+        }
+
         const list: Vehicle[] = Object.entries(data)
-          .map(([id, v]) => ({
-            id,
-            brand: v.brand,
-            model: v.model,
-            year: v.year,
-            mileage: v.mileage,
-            fuel_type: v.fuel_type,
-            transmission: v.transmission,
-            wilaya: v.wilaya,
-            phone: v.phone,
-            images: v.images || [],
-            video_url: v.video_url || null,
-            price_type: v.price_type,
-            fixed_price: v.fixed_price,
-            starting_price: v.starting_price,
-            current_highest_bid: v.current_highest_bid,
-            auction_ends_at: v.auction_ends_at,
-            status: v.status,
-            created_at: v.created_at,
-            previous_price: v.previous_price ?? null,
-            pinned: v.pinned ?? false,
-          }))
-          .filter((v) => v.status === "active" || v.status === "sold");
+          .map(([id, raw]) => {
+            if (!raw || typeof raw !== "object") return null;
+            const v = raw as Record<string, unknown>;
+            const images = Array.isArray(v.images)
+              ? v.images.filter((image): image is string => typeof image === "string" && image.length > 0)
+              : [];
+            const videoUrl = typeof v.video_url === "string" && v.video_url.length > 0 ? v.video_url : null;
+            return {
+              id,
+              brand: typeof v.brand === "string" ? v.brand : "Unknown",
+              model: typeof v.model === "string" ? v.model : "Vehicle",
+              year: Number.isFinite(Number(v.year)) ? Number(v.year) : 0,
+              mileage: Number.isFinite(Number(v.mileage)) ? Number(v.mileage) : 0,
+              fuel_type: typeof v.fuel_type === "string" ? v.fuel_type : "Unknown",
+              transmission: typeof v.transmission === "string" ? v.transmission : "Unknown",
+              wilaya: typeof v.wilaya === "string" ? v.wilaya : "Algeria",
+              phone: typeof v.phone === "string" ? v.phone : "",
+              images,
+              video_url: videoUrl,
+              price_type: v.price_type === "auction" ? "auction" : "fixed",
+              fixed_price: Number.isFinite(Number(v.fixed_price)) ? Number(v.fixed_price) : null,
+              starting_price: Number.isFinite(Number(v.starting_price)) ? Number(v.starting_price) : null,
+              current_highest_bid: Number.isFinite(Number(v.current_highest_bid)) ? Number(v.current_highest_bid) : null,
+              auction_ends_at: typeof v.auction_ends_at === "string" ? v.auction_ends_at : null,
+              status: typeof v.status === "string" ? v.status : "active",
+              created_at: typeof v.created_at === "string" ? v.created_at : new Date().toISOString(),
+              previous_price: Number.isFinite(Number(v.previous_price)) ? Number(v.previous_price) : null,
+              pinned: v.pinned === true,
+            } satisfies Vehicle;
+          })
+          .filter((vehicle): vehicle is Vehicle => vehicle !== null && (vehicle.status === "active" || vehicle.status === "sold"));
 
         setVehicles(list);
-      } else {
+      } catch (error) {
+        console.error("[v0] Failed to sanitize Firebase vehicles", error);
         setVehicles([]);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
 
     if (!realtimeDb) {
@@ -194,9 +231,10 @@ function Home() {
     const client = getSupabase();
     if (!client) return;
     const { data } = await client.from("vehicle_likes").select("vehicle_id, user_id");
-    if (!data) return;
+    if (!Array.isArray(data)) return;
     const map: LikeData = {};
     for (const row of data) {
+      if (!row || typeof row.vehicle_id !== "string") continue;
       if (!map[row.vehicle_id]) map[row.vehicle_id] = { count: 0, liked: false };
       map[row.vehicle_id].count++;
       if (row.user_id === userId) map[row.vehicle_id].liked = true;
@@ -208,9 +246,11 @@ function Home() {
     const client = getSupabase();
     if (!client || !userId) return;
     const { data } = await client.from("vehicle_favorites").select("vehicle_id").eq("user_id", userId);
-    if (!data) return;
+    if (!Array.isArray(data)) return;
     const map: FavoriteData = {};
-    for (const row of data) map[row.vehicle_id] = true;
+    for (const row of data) {
+      if (row && typeof row.vehicle_id === "string") map[row.vehicle_id] = true;
+    }
     setFavorites(map);
   }, [userId]);
 
@@ -218,9 +258,10 @@ function Home() {
     const client = getSupabase();
     if (!client) return;
     const { data } = await client.from("vehicle_views").select("vehicle_id");
-    if (!data) return;
+    if (!Array.isArray(data)) return;
     const map: ViewData = {};
     for (const row of data) {
+      if (!row || typeof row.vehicle_id !== "string") continue;
       map[row.vehicle_id] = (map[row.vehicle_id] ?? 0) + 1;
     }
     setViewData(map);
@@ -234,13 +275,19 @@ function Home() {
 
   const filtered = useMemo(() => {
     const list = vehicles.filter((v) => {
-      if (filters.q && !`${v.brand} ${v.model}`.toLowerCase().includes(filters.q.toLowerCase())) return false;
-      if (filters.brand !== "all" && v.brand !== filters.brand) return false;
-      if (filters.fuel !== "all" && v.fuel_type !== filters.fuel) return false;
-      if (filters.trans !== "all" && v.transmission !== filters.trans) return false;
-      if (filters.wilaya !== "all" && v.wilaya !== filters.wilaya) return false;
-      if (filters.year && v.year !== Number(filters.year)) return false;
-      const price = priceOf(v);
+      const brand = typeof v.brand === "string" ? v.brand : "";
+      const model = typeof v.model === "string" ? v.model : "";
+      const fuel = typeof v.fuel_type === "string" ? v.fuel_type : "";
+      const transmission = typeof v.transmission === "string" ? v.transmission : "";
+      const wilaya = typeof v.wilaya === "string" ? v.wilaya : "";
+      const query = typeof filters.q === "string" ? filters.q.trim().toLowerCase() : "";
+      if (query && !`${brand} ${model}`.toLowerCase().includes(query)) return false;
+      if (filters.brand !== "all" && brand !== filters.brand) return false;
+      if (filters.fuel !== "all" && fuel !== filters.fuel) return false;
+      if (filters.trans !== "all" && transmission !== filters.trans) return false;
+      if (filters.wilaya !== "all" && wilaya !== filters.wilaya) return false;
+      if (filters.year && Number.isFinite(Number(filters.year)) && v.year !== Number(filters.year)) return false;
+      const price = Number.isFinite(priceOf(v)) ? priceOf(v) : 0;
       if (filters.min && price < Number(filters.min)) return false;
       if (filters.max && price > Number(filters.max)) return false;
       return true;
@@ -379,16 +426,17 @@ function Home() {
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
                 {filtered.map((v) => (
-                  <VehicleCard
-                    key={v.id}
-                    vehicle={v}
-                    allVehicles={vehicles}
-                    likeInfo={likeData[v.id]}
-                    isFavorite={favorites[v.id] ?? false}
-                    viewCount={viewData[v.id] ?? 0}
-                    onLike={() => handleLike(v.id)}
-                    onFavorite={() => handleFavorite(v.id)}
-                  />
+                  <VehicleRenderBoundary key={v.id}>
+                    <VehicleCard
+                      vehicle={v}
+                      allVehicles={vehicles}
+                      likeInfo={likeData[v.id]}
+                      isFavorite={favorites[v.id] ?? false}
+                      viewCount={viewData[v.id] ?? 0}
+                      onLike={() => handleLike(v.id)}
+                      onFavorite={() => handleFavorite(v.id)}
+                    />
+                  </VehicleRenderBoundary>
                 ))}
               </div>
             )}
@@ -398,13 +446,14 @@ function Home() {
             <TabsContent value="reels">
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
                 {reelsVehicles.map((v) => (
-                  <VehicleReelCard
-                    key={v.id}
-                    vehicle={v}
-                    likeInfo={likeData[v.id]}
-                    viewCount={viewData[v.id] ?? 0}
-                    onLike={() => handleLike(v.id)}
-                  />
+                  <VehicleRenderBoundary key={v.id}>
+                    <VehicleReelCard
+                      vehicle={v}
+                      likeInfo={likeData[v.id]}
+                      viewCount={viewData[v.id] ?? 0}
+                      onLike={() => handleLike(v.id)}
+                    />
+                  </VehicleRenderBoundary>
                 ))}
               </div>
             </TabsContent>
@@ -424,7 +473,8 @@ function VehicleCard({ vehicle: v, allVehicles, likeInfo, isFavorite, viewCount,
   onLike: () => void;
   onFavorite: () => void;
 }) {
-  const imageUrl = v.images?.[0] || "/my-logo.png.PNG";
+  const fallbackImage = "/my-logo.png.PNG";
+  const imageUrl = Array.isArray(v.images) && typeof v.images[0] === "string" && v.images[0].length > 0 ? v.images[0] : fallbackImage;
   const compare = useCompare();
   const likeCount = likeInfo?.count ?? 0;
   const liked = likeInfo?.liked ?? false;
@@ -445,6 +495,10 @@ function VehicleCard({ vehicle: v, allVehicles, likeInfo, isFavorite, viewCount,
           alt={`${v.brand} ${v.model}`}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
           loading="lazy"
+          onError={(event) => {
+            if (event.currentTarget.src.endsWith(fallbackImage)) return;
+            event.currentTarget.src = fallbackImage;
+          }}
         />
         {v.pinned && (
           <div className="absolute top-2 left-2 bg-gold text-gold-foreground text-[9px] px-1.5 py-0.5 rounded-full font-bold flex items-center gap-0.5 z-10">
@@ -536,6 +590,8 @@ function VehicleReelCard({ vehicle: v, likeInfo, viewCount, onLike }: {
   const likeCount = likeInfo?.count ?? 0;
   const liked = likeInfo?.liked ?? false;
   const price = priceOf(v);
+  const videoUrl = typeof v.video_url === "string" && v.video_url.length > 0 ? v.video_url : null;
+  const imageUrl = Array.isArray(v.images) && typeof v.images[0] === "string" && v.images[0].length > 0 ? v.images[0] : "/my-logo.png.PNG";
 
   return (
     <Link
@@ -543,16 +599,29 @@ function VehicleReelCard({ vehicle: v, likeInfo, viewCount, onLike }: {
       params={{ id: v.id }}
       className="group rounded-xl overflow-hidden border border-gold/20 block relative aspect-[9/16] bg-charcoal"
     >
-      {v.video_url && (
+      {videoUrl ? (
         <video
-          src={v.video_url}
+          src={videoUrl}
+          poster={imageUrl}
           className="w-full h-full object-cover"
           muted
           loop
           playsInline
           preload="metadata"
-          onMouseOver={(e) => (e.target as HTMLVideoElement).play()}
-          onMouseOut={(e) => (e.target as HTMLVideoElement).pause()}
+          onError={(event) => {
+            event.currentTarget.style.display = "none";
+          }}
+          onMouseOver={(event) => { void event.currentTarget.play().catch(() => undefined); }}
+          onMouseOut={(event) => event.currentTarget.pause()}
+        />
+      ) : (
+        <img
+          src={imageUrl}
+          alt={`${v.brand} ${v.model}`}
+          className="w-full h-full object-cover"
+          onError={(event) => {
+            event.currentTarget.src = "/my-logo.png.PNG";
+          }}
         />
       )}
 
