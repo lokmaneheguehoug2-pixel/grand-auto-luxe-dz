@@ -373,7 +373,7 @@ function SellerProfile() {
     if (!isOwnProfile || activeTab !== "saved") return;
     const client = getSupabase();
     if (!client || !user) return;
-    const uid = user.id ?? user.phone;
+    const uid = user?.id ?? user?.phone;
     client.from("vehicle_favorites").select("vehicle_id").eq("user_id", uid).then(({ data }) => {
       if (!data || data.length === 0) { setSavedVehicles([]); return; }
       const favIds = data.map((d) => d.vehicle_id);

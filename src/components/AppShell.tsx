@@ -86,7 +86,7 @@ export function AppShell() {
             {user && <NavButton icon={MessageSquare} label="Messages" to="/messages" active={isActive("/messages")} />}
             <NavButton icon={Film} label="Reels" to="/reels" active={isActive("/reels")} />
             {user ? (
-              <NavButton icon={User2} label="Profile" to="/seller/$id" params={{ id: user.phone }} active={isActive("/seller")} />
+              <NavButton icon={User2} label="Profile" to="/seller/$id" params={{ id: user?.phone ?? user?.id ?? "" }} active={isActive("/seller")} />
             ) : (
               <NavButton icon={User2} label="Sign in" to="/auth" active={isActive("/auth")} />
             )}
@@ -101,7 +101,7 @@ export function AppShell() {
           <Button asChild variant="ghost" size="sm"><Link to="/brands"><Search className="h-4 w-4" /> Discover</Link></Button>
           <Button asChild variant="gold-outline" size="sm"><Link to="/post"><Plus className="h-4 w-4" /> List Vehicle</Link></Button>
           <Button asChild variant="ghost" size="sm"><Link to="/reels"><Film className="h-4 w-4" /> Reels</Link></Button>
-          {user && <Button asChild variant="ghost" size="sm"><Link to="/seller/$id" params={{ id: user.phone }}><User2 className="h-4 w-4" /> Profile</Link></Button>}
+          {user && <Button asChild variant="ghost" size="sm"><Link to="/seller/$id" params={{ id: user?.phone ?? user?.id ?? "" }}><User2 className="h-4 w-4" /> Profile</Link></Button>}
           {user && (
             <Button asChild variant="ghost" size="icon" className="relative">
               <Link to="/messages" aria-label="Messages">
