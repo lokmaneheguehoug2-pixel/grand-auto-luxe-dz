@@ -325,7 +325,9 @@ function HomeContent() {
   }, [loadLikes, loadFavorites, loadViews]);
 
   const filtered = useMemo(() => {
-    const list = vehicles.filter((v) => {
+    const list = vehicles.filter((vehicle): vehicle is Vehicle => {
+      if (!vehicle || typeof vehicle !== "object") return false;
+      const v = vehicle;
       const brand = typeof v.brand === "string" ? v.brand : "";
       const model = typeof v.model === "string" ? v.model : "";
       const fuel = typeof v.fuel_type === "string" ? v.fuel_type : "";
@@ -367,7 +369,13 @@ function HomeContent() {
     return list;
   }, [vehicles, filters]);
 
-  const reelsVehicles = filtered.filter((v) => v.video_url);
+  const reelsVehicles = filtered.filter(
+    (vehicle): vehicle is Vehicle =>
+      Boolean(vehicle) &&
+      typeof vehicle === "object" &&
+      typeof vehicle.video_url === "string" &&
+      vehicle.video_url.length > 0,
+  );
 
   const handleLike = useCallback(async (vehicleId: string) => {
     if (!userId) {
