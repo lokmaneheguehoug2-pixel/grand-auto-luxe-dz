@@ -7,9 +7,11 @@ import { WILAYAS, BRANDS } from "@/lib/wilayas";
 import { formatDZD, formatDZDArabic } from "@/lib/format";
 import { calculateDeal } from "@/lib/pricing";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Search, MapPin, Play, Grid3x2 as Grid3X3, Film, Heart, Eye, Star, TrendingDown, Bookmark, Pin, Bell } from "lucide-react";
+import { Search, MapPin, Play, Grid3x2 as Grid3X3, Film, Heart, Eye, Star, TrendingDown, Bookmark, Pin, Bell, MessageCircle } from "lucide-react";
 import { Countdown } from "@/components/Countdown";
 import { compareStore, useCompare } from "@/lib/compare";
 import { useAuth } from "@/hooks/use-auth";
@@ -141,9 +143,16 @@ class HomeErrorBoundary extends Component<{ children: ReactNode }, HomeErrorBoun
           <pre className="max-h-[70vh] overflow-auto whitespace-pre-wrap break-words rounded-lg border border-border bg-background p-4 font-mono text-sm leading-relaxed text-foreground">
             {`Message:\n${errorMessage}\n\nStack trace:\n${errorStack}`}
           </pre>
-        </section>
-      </main>
-    );
+      </section>
+      <Dialog open={commentVehicleId !== null} onOpenChange={(open) => { if (!open) setCommentVehicleId(null); }}>
+        <DialogContent className="max-w-md bg-background border-gold/40">
+          <DialogHeader><DialogTitle>Comments</DialogTitle></DialogHeader>
+          <div className="max-h-64 overflow-y-auto space-y-2">{commentVehicleId && (comments[commentVehicleId] ?? []).length > 0 ? (comments[commentVehicleId] ?? []).map((comment) => <div key={comment.id} className="rounded-lg bg-charcoal px-3 py-2 text-sm">{comment.text}</div>) : <p className="text-sm text-muted-foreground">No comments yet.</p>}</div>
+          <div className="flex gap-2"><Input value={commentText} onChange={(event) => setCommentText(event.target.value)} placeholder="Write a comment" onKeyDown={(event) => { if (event.key === "Enter" && !event.nativeEvent.isComposing && event.keyCode !== 229) submitFeedComment(); }} /><Button type="button" variant="gold" disabled={!commentText.trim()} onClick={submitFeedComment}>Post</Button></div>
+        </DialogContent>
+      </Dialog>
+    </main>
+  );
   }
 }
 
@@ -230,6 +239,9 @@ function HomeContent() {
   const [localViews, incrementLocalView] = useDemoCounterMap(demoKeys.views);
   const [localPinned] = useDemoSet(demoKeys.pinned);
   const [localAlerts, toggleLocalAlert] = useDemoSet(demoKeys.alerts);
+  const [commentVehicleId, setCommentVehicleId] = useState<string | null>(null);
+  const [commentText, setCommentText] = useState("");
+  const [comments, setComments] = useState<Record<string, Array<{ id: string; text: string }>>>({});
   const shuffleSeed = useRef<string>("");
 
   useEffect(() => {
@@ -435,6 +447,23 @@ function HomeContent() {
     .filter(isValidVehicle)
     .filter((vehicle) => typeof vehicle.video_url === "string" && vehicle.video_url.length > 0);
 
+  const openComments = useCallback((vehicleId: string) => {
+    setCommentVehicleId(vehicleId);
+    setCommentText("");
+    try {
+      const stored = JSON.parse(window.localStorage.getItem(`grand-auto-luxe-comments-${vehicleId}`) || "[]") as unknown;
+      setComments((current) => ({ ...current, [vehicleId]: Array.isArray(stored) ? stored.filter((item): item is { id: string; text: string } => Boolean(item && typeof item === "object" && "id" in item && "text" in item)) : [] }));
+    } catch { setComments((current) => ({ ...current, [vehicleId]: [] })); }
+  }, []);
+
+  const submitFeedComment = useCallback(() => {
+    if (!commentVehicleId || !commentText.trim()) return;
+    const next = [...(comments[commentVehicleId] ?? []), { id: `${Date.now()}-${Math.random()}`, text: commentText.trim() }];
+    setComments((current) => ({ ...current, [commentVehicleId]: next }));
+    setCommentText("");
+    try { window.localStorage.setItem(`grand-auto-luxe-comments-${commentVehicleId}`, JSON.stringify(next)); } catch { /* optional storage */ }
+  }, [commentText, commentVehicleId, comments]);
+
   const handleView = useCallback(async (vehicleId: string) => {
     if (!vehicleId) return;
     setViewData((previous) => ({ ...previous, [vehicleId]: (previous[vehicleId] ?? localViews[vehicleId] ?? 0) + 1 }));
@@ -584,6 +613,8 @@ function HomeContent() {
                       onView={() => v?.id && handleView(v.id)}
                       priceAlert={v?.id ? localAlerts.has(v.id) : false}
                       onPriceAlert={() => v?.id && toggleLocalAlert(v.id)}
+                      commentCount={v?.id ? comments[v.id]?.length ?? 0 : 0}
+                      onComments={() => v?.id && openComments(v.id)}
                     />
                   </VehicleRenderBoundary>
                 ))}
@@ -614,7 +645,7 @@ function HomeContent() {
   );
 }
 
-function VehicleCard({ vehicle: v, allVehicles, likeInfo, isFavorite, viewCount, onLike, onFavorite, onView, priceAlert, onPriceAlert }: {
+function VehicleCard({ vehicle: v, allVehicles, likeInfo, isFavorite, viewCount, onLike, onFavorite, onView, priceAlert, onPriceAlert, commentCount, onComments }: {
   vehicle: Vehicle;
   allVehicles: Vehicle[];
   likeInfo?: { count: number; liked: boolean };
@@ -625,6 +656,8 @@ function VehicleCard({ vehicle: v, allVehicles, likeInfo, isFavorite, viewCount,
   onView: () => void;
   priceAlert: boolean;
   onPriceAlert: () => void;
+  commentCount: number;
+  onComments: () => void;
 }) {
   const fallbackImage = "/my-logo.png.PNG";
   const imageUrl = Array.isArray(v?.images) && typeof v.images[0] === "string" && v.images[0].length > 0 ? v.images[0] : fallbackImage;
@@ -719,8 +752,11 @@ function VehicleCard({ vehicle: v, allVehicles, likeInfo, isFavorite, viewCount,
           </button>
           <div className="flex items-center gap-1">
             <Eye className="h-4 w-4 text-muted-foreground" />
-            <span className="text-[10px] text-muted-foreground">{viewCount}</span>
+            <span className="text-[10px] text-muted-foreground">{viewCount || 0}</span>
           </div>
+          <button type="button" onClick={(event) => { event.preventDefault(); event.stopPropagation(); onComments(); }} className="flex items-center gap-1 text-muted-foreground hover:text-gold" aria-label="Comments">
+            <MessageCircle className="h-4 w-4" /><span className="text-[10px]">{commentCount || 0}</span>
+          </button>
           <button
             onClick={(e) => { e.preventDefault(); e.stopPropagation(); if (compare.includes(v.id) || compareStore.canAdd()) compareStore.toggle(v.id); }}
             className={`ml-auto w-5 h-5 rounded-md border flex items-center justify-center transition ${

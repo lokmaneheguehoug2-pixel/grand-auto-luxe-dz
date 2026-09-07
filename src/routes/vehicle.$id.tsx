@@ -110,10 +110,15 @@ function VehicleDetail() {
   const [isFavorited, setIsFavorited] = useState(false);
   const [likeCount, setLikeCount] = useState(0);
   const [hasLiked, setHasLiked] = useState(false);
+  const [commentOpen, setCommentOpen] = useState(false);
+  const [commentText, setCommentText] = useState("");
+  const [comments, setComments] = useState<Array<{ id: string; text: string; createdAt: string }>>([]);
+  const viewedVehicleRef = useRef<string | null>(null);
 
-  // Record a view when the page loads
+  // Record one view per vehicle page open.
   useEffect(() => {
-    if (!id) return;
+    if (!id || viewedVehicleRef.current === id) return;
+    viewedVehicleRef.current = id;
     let cancelled = false;
     const localKey = `grand-auto-luxe-views-${id}`;
     let localCount = 0;
@@ -136,6 +141,25 @@ function VehicleDetail() {
     }).catch(() => { /* non-blocking */     }).finally(() => { cancelled = true; });
     return () => { cancelled = true; };
   }, [id, viewerId]);
+
+  useEffect(() => {
+    if (!id) return;
+    try {
+      const saved = JSON.parse(window.localStorage.getItem(`grand-auto-luxe-comments-${id}`) || "[]") as unknown;
+      setComments(Array.isArray(saved) ? saved.filter((item): item is { id: string; text: string; createdAt: string } => Boolean(item && typeof item === "object" && "id" in item && "text" in item && "createdAt" in item)) : []);
+    } catch {
+      setComments([]);
+    }
+  }, [id]);
+
+  const submitComment = useCallback(() => {
+    const text = commentText.trim();
+    if (!id || !text) return;
+    const next = [...comments, { id: `${Date.now()}-${Math.random()}`, text, createdAt: new Date().toISOString() }];
+    setComments(next);
+    setCommentText("");
+    try { window.localStorage.setItem(`grand-auto-luxe-comments-${id}`, JSON.stringify(next)); } catch { /* optional storage */ }
+  }, [commentText, comments, id]);
 
   // Load inquiry count and favorite status
   useEffect(() => {
@@ -565,6 +589,9 @@ function VehicleDetail() {
           <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
             <Eye className="h-4 w-4" /> {viewCount} views
           </div>
+          <button type="button" onClick={() => setCommentOpen(true)} className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-gold">
+            <MessageCircle className="h-4 w-4" /> {comments.length} comments
+          </button>
           <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
             <MessageCircle className="h-4 w-4" /> {inquiryCount} inquiries
           </div>
@@ -750,6 +777,16 @@ function VehicleDetail() {
           </Button>
         </div>
       )}
+
+      <Dialog open={commentOpen} onOpenChange={setCommentOpen}>
+        <DialogContent className="max-w-md bg-background border-gold/40">
+          <DialogHeader><DialogTitle>Comments</DialogTitle></DialogHeader>
+          <div className="max-h-64 overflow-y-auto space-y-2">
+            {comments.length === 0 ? <p className="text-sm text-muted-foreground">No comments yet.</p> : comments.map((comment) => <div key={comment.id} className="rounded-lg bg-charcoal px-3 py-2 text-sm">{comment.text}</div>)}
+          </div>
+          <div className="flex gap-2"><Input value={commentText} onChange={(event) => setCommentText(event.target.value)} placeholder="Write a comment" onKeyDown={(event) => { if (event.key === "Enter" && !event.nativeEvent.isComposing && event.keyCode !== 229) submitComment(); }} /><Button type="button" variant="gold" onClick={submitComment} disabled={!commentText.trim()}>Post</Button></div>
+        </DialogContent>
+      </Dialog>
 
       {/* Report Dialog */}
       <Dialog open={showReportDialog} onOpenChange={setShowReportDialog}>
