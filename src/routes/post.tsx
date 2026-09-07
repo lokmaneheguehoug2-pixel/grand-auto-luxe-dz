@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Progress } from "@/components/ui/progress";
 import { Loader2, Upload, X, Car, GripVertical, ImagePlus, Check } from "lucide-react";
 import { WILAYAS } from "@/lib/wilayas";
+import { parseAlgerianInput } from "@/lib/format";
 import { BrandCombobox } from "@/components/BrandCombobox";
 import { toast } from "sonner";
 import { PremiumPaywallModal } from "@/components/PremiumPaywallModal";
@@ -32,7 +33,7 @@ function PostPage() {
   const [f, setF] = useState({
     brand: "", model: "", year: new Date().getFullYear(), mileage: 0, engine_type: "",
     fuel_type: "Essence", transmission: "Manuelle", wilaya: "Alger", phone: "",
-    description: "", price_type: "fixed" as "fixed" | "auction",
+    description: "", condition: "Used", documents_status: "Clean", original_color: "", paint_condition: "Original", price_type: "fixed" as "fixed" | "auction",
     fixed_price: 0, starting_price: 0, auction_hours: 24,
   });
   const [photos, setPhotos] = useState<File[]>([]);
@@ -148,6 +149,12 @@ function PostPage() {
         wilaya: f.wilaya,
         phone: f.phone || user.phone,
         description: f.description,
+        condition: f.condition,
+        documents_status: f.documents_status,
+        original_color: f.original_color,
+        paint_condition: f.paint_condition,
+        inquiry_count: 0,
+        views: 0,
         images: imageUrls, // Cloudinary URLs
         video_url: videoUrl, // Cloudinary URL
         price_type: f.price_type,
@@ -303,6 +310,12 @@ function PostPage() {
               </Select>
             </Field>
           </div>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Condition"><Select value={f.condition} onValueChange={(v) => setF({ ...f, condition: v })}><SelectTrigger className="bg-charcoal"><SelectValue /></SelectTrigger><SelectContent>{["New", "Used", "Certified Pre-Owned"].map((value) => <SelectItem key={value} value={value}>{value}</SelectItem>)}</SelectContent></Select></Field>
+            <Field label="Documents"><Select value={f.documents_status} onValueChange={(v) => setF({ ...f, documents_status: v })}><SelectTrigger className="bg-charcoal"><SelectValue /></SelectTrigger><SelectContent>{["Clean", "Pending", "Needs Review"].map((value) => <SelectItem key={value} value={value}>{value}</SelectItem>)}</SelectContent></Select></Field>
+            <Field label="Original Color"><Input className="bg-charcoal" value={f.original_color} onChange={(e) => setF({ ...f, original_color: e.target.value })} placeholder="Black" /></Field>
+            <Field label="Paint / Wrap"><Select value={f.paint_condition} onValueChange={(v) => setF({ ...f, paint_condition: v })}><SelectTrigger className="bg-charcoal"><SelectValue /></SelectTrigger><SelectContent>{["Original", "Repainted", "Wrapped"].map((value) => <SelectItem key={value} value={value}>{value}</SelectItem>)}</SelectContent></Select></Field>
+          </div>
           <Field label="Phone Number">
             <Input className="bg-charcoal" required value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })} placeholder={user?.phone || ""} />
           </Field>
@@ -338,7 +351,7 @@ function PostPage() {
                 className="bg-charcoal"
                 required
                 value={f.fixed_price || ""}
-                onChange={(e) => setF({ ...f, fixed_price: Number(e.target.value) })}
+                onChange={(e) => setF({ ...f, fixed_price: parseAlgerianInput(e.target.value) })}
               />
             </Field>
           ) : (
@@ -349,7 +362,7 @@ function PostPage() {
                   className="bg-charcoal"
                   required
                   value={f.starting_price || ""}
-                  onChange={(e) => setF({ ...f, starting_price: Number(e.target.value) })}
+                  onChange={(e) => setF({ ...f, starting_price: parseAlgerianInput(e.target.value) })}
                 />
               </Field>
               <Field label="Duration (hours)">

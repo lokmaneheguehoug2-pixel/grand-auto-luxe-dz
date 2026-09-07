@@ -9,7 +9,7 @@ import { calculateDeal } from "@/lib/pricing";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Search, MapPin, Play, Grid3x2 as Grid3X3, Film, Heart, Eye, Star, TrendingDown, Bookmark, Pin } from "lucide-react";
+import { Search, MapPin, Play, Grid3x2 as Grid3X3, Film, Heart, Eye, Star, TrendingDown, Bookmark, Pin, Bell } from "lucide-react";
 import { Countdown } from "@/components/Countdown";
 import { compareStore, useCompare } from "@/lib/compare";
 import { useAuth } from "@/hooks/use-auth";
@@ -17,6 +17,7 @@ import { StoriesStrip } from "@/components/StoriesStrip";
 import { getSupabase } from "@/lib/supabase";
 import { supabaseSucceeded } from "@/lib/listing-interactions";
 import { toast } from "sonner";
+import { demoKeys, useDemoCounterMap, useDemoSet } from "@/lib/demo-state";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -49,6 +50,12 @@ type Vehicle = {
   created_at: string;
   previous_price?: number | null;
   pinned?: boolean;
+  condition?: string;
+  documents_status?: string;
+  original_color?: string;
+  paint_condition?: string;
+  inquiry_count?: number;
+  views?: number;
 };
 
 type LikeData = Record<string, { count: number; liked: boolean }>;
@@ -218,6 +225,11 @@ function HomeContent() {
   const [likeData, setLikeData] = useState<LikeData>({});
   const [favorites, setFavorites] = useState<FavoriteData>({});
   const [viewData, setViewData] = useState<ViewData>({});
+  const [localLikes, setLocalLikes] = useDemoCounterMap(demoKeys.likes);
+  const [localSaved, toggleLocalSaved] = useDemoSet(demoKeys.saved);
+  const [localViews, incrementLocalView] = useDemoCounterMap(demoKeys.views);
+  const [localPinned] = useDemoSet(demoKeys.pinned);
+  const [localAlerts, toggleLocalAlert] = useDemoSet(demoKeys.alerts);
   const shuffleSeed = useRef<string>("");
 
   useEffect(() => {
@@ -264,7 +276,13 @@ function HomeContent() {
               status: typeof v.status === "string" ? v.status : "active",
               created_at: typeof v.created_at === "string" ? v.created_at : new Date().toISOString(),
               previous_price: Number.isFinite(Number(v.previous_price)) ? Number(v.previous_price) : null,
-              pinned: v.pinned === true,
+              pinned: v.pinned === true || localPinned.has(id),
+              condition: typeof v.condition === "string" ? v.condition : undefined,
+              documents_status: typeof v.documents_status === "string" ? v.documents_status : undefined,
+              original_color: typeof v.original_color === "string" ? v.original_color : undefined,
+              paint_condition: typeof v.paint_condition === "string" ? v.paint_condition : undefined,
+              inquiry_count: Number(v.inquiry_count) || 0,
+              views: Number(v.views) || 0,
             } satisfies Vehicle;
           })
           .filter((vehicle): vehicle is Vehicle => vehicle !== null && (vehicle.status === "active" || vehicle.status === "sold"));
@@ -303,6 +321,9 @@ function HomeContent() {
     };
   }, []);
 
+  useEffect(() => {
+    setVehicles((current) => current.map((vehicle) => ({ ...vehicle, pinned: vehicle.pinned || localPinned.has(vehicle.id) })));
+  }, [localPinned]);
 
   const loadLikes = useCallback(async () => {
     const client = getSupabase();
@@ -356,6 +377,22 @@ function HomeContent() {
     void Promise.allSettled([loadLikes(), loadFavorites(), loadViews()]);
   }, [loadLikes, loadFavorites, loadViews]);
 
+  useEffect(() => {
+    setLikeData((current) => {
+      const next = { ...current };
+      Object.entries(localLikes).forEach(([id, count]) => {
+        next[id] = { count: Math.max(next[id]?.count ?? 0, count), liked: next[id]?.liked ?? false };
+      });
+      return next;
+    });
+    setFavorites((current) => {
+      const next = { ...current };
+      localSaved.forEach((id) => { next[id] = true; });
+      return next;
+    });
+    setViewData((current) => ({ ...current, ...localViews }));
+  }, [localLikes, localSaved, localViews]);
+
   const filtered = useMemo(() => {
     const list = (Array.isArray(vehicles) ? vehicles : []).filter((vehicle): vehicle is Vehicle => {
       if (!isValidVehicle(vehicle)) return false;
@@ -406,7 +443,8 @@ function HomeContent() {
 
   const handleView = useCallback(async (vehicleId: string) => {
     if (!vehicleId) return;
-    setViewData((previous) => ({ ...previous, [vehicleId]: (previous[vehicleId] ?? 0) + 1 }));
+    setViewData((previous) => ({ ...previous, [vehicleId]: (previous[vehicleId] ?? localViews[vehicleId] ?? 0) + 1 }));
+    incrementLocalView(vehicleId);
     const client = getSupabase();
     if (!client) return;
     try {
@@ -419,16 +457,12 @@ function HomeContent() {
   }, [userId]);
 
   const handleLike = useCallback(async (vehicleId: string) => {
+    const current = likeData[vehicleId] ?? { count: localLikes[vehicleId] ?? 0, liked: false };
+    const newLiked = !current.liked;
+    setLikeData((prev) => ({ ...prev, [vehicleId]: { count: Math.max(0, current.count + (newLiked ? 1 : -1)), liked: newLiked } }));
+    setLocalLikes((prev) => ({ ...prev, [vehicleId]: Math.max(0, (prev[vehicleId] ?? current.count) + (newLiked ? 1 : -1)) }));
     const client = getSupabase();
     if (!client) return;
-
-    const current = likeData[vehicleId] ?? { count: 0, liked: false };
-    const newLiked = !current.liked;
-
-    setLikeData(prev => ({
-      ...prev,
-      [vehicleId]: { count: newLiked ? current.count + 1 : Math.max(0, current.count - 1), liked: newLiked }
-    }));
 
     try {
       const result = newLiked
@@ -448,6 +482,7 @@ function HomeContent() {
     if (!client) {
       const next = !favorites[vehicleId];
       setFavorites((previous) => ({ ...previous, [vehicleId]: next }));
+      toggleLocalSaved(vehicleId);
       if (typeof window !== "undefined") {
         const saved = JSON.parse(window.localStorage.getItem("grand-auto-luxe-saved") || "[]") as unknown;
         const ids = Array.isArray(saved) ? saved.filter((id): id is string => typeof id === "string") : [];
@@ -458,6 +493,7 @@ function HomeContent() {
     }
     const isFav = favorites[vehicleId] ?? false;
     setFavorites(prev => ({ ...prev, [vehicleId]: !isFav }));
+    toggleLocalSaved(vehicleId);
     if (typeof window !== "undefined") {
       const saved = JSON.parse(window.localStorage.getItem("grand-auto-luxe-saved") || "[]") as unknown;
       const ids = Array.isArray(saved) ? saved.filter((id): id is string => typeof id === "string") : [];
@@ -513,6 +549,15 @@ function HomeContent() {
 
       {/* Tabs */}
       <section className="max-w-7xl mx-auto px-3 sm:px-6 py-4">
+        {filtered.some((vehicle) => (likeData[vehicle.id]?.count ?? 0) >= 3 || (viewData[vehicle.id] ?? vehicle.views ?? 0) >= 10) && (
+          <div className="mb-4 rounded-xl border border-gold/20 bg-gold-soft/10 px-4 py-3">
+            <div className="flex items-center justify-between gap-3 mb-2">
+              <div><p className="text-[10px] uppercase tracking-[0.2em] text-gold">Popular in Algeria</p><p className="text-xs text-muted-foreground">High-interest vehicles right now</p></div>
+              <TrendingDown className="h-4 w-4 text-gold rotate-180" />
+            </div>
+            <div className="flex gap-2 overflow-x-auto pb-1">{filtered.filter((vehicle) => (likeData[vehicle.id]?.count ?? 0) >= 3 || (viewData[vehicle.id] ?? vehicle.views ?? 0) >= 10).slice(0, 4).map((vehicle) => <Link key={vehicle.id} to="/vehicle/$id" params={{ id: vehicle.id }} className="shrink-0 rounded-lg bg-charcoal px-3 py-2 text-xs hover:border-gold/40 border border-transparent">{vehicle.brand} {vehicle.model}</Link>)}</div>
+          </div>
+        )}
         <Tabs defaultValue="grid">
           <TabsList className="mb-4">
             <TabsTrigger value="grid"><Grid3X3 className="h-4 w-4 mr-1" />Grid</TabsTrigger>
@@ -543,6 +588,8 @@ function HomeContent() {
                     onLike={() => v?.id && handleLike(v.id)}
                       onFavorite={() => v?.id && handleFavorite(v.id)}
                       onView={() => v?.id && handleView(v.id)}
+                      priceAlert={v?.id ? localAlerts.has(v.id) : false}
+                      onPriceAlert={() => v?.id && toggleLocalAlert(v.id)}
                     />
                   </VehicleRenderBoundary>
                 ))}
@@ -573,7 +620,7 @@ function HomeContent() {
   );
 }
 
-function VehicleCard({ vehicle: v, allVehicles, likeInfo, isFavorite, viewCount, onLike, onFavorite, onView }: {
+function VehicleCard({ vehicle: v, allVehicles, likeInfo, isFavorite, viewCount, onLike, onFavorite, onView, priceAlert, onPriceAlert }: {
   vehicle: Vehicle;
   allVehicles: Vehicle[];
   likeInfo?: { count: number; liked: boolean };
@@ -582,6 +629,8 @@ function VehicleCard({ vehicle: v, allVehicles, likeInfo, isFavorite, viewCount,
   onLike: () => void;
   onFavorite: () => void;
   onView: () => void;
+  priceAlert: boolean;
+  onPriceAlert: () => void;
 }) {
   const fallbackImage = "/my-logo.png.PNG";
   const imageUrl = Array.isArray(v?.images) && typeof v.images[0] === "string" && v.images[0].length > 0 ? v.images[0] : fallbackImage;
@@ -650,8 +699,9 @@ function VehicleCard({ vehicle: v, allVehicles, likeInfo, isFavorite, viewCount,
 
         {/* Price with drop */}
         {hasPriceDrop ? (
-          <div className="mb-1.5">
+          <div className="mb-1.5 flex items-center justify-between gap-1">
             <PriceDropTag vehicle={v} />
+            <button type="button" onClick={(event) => { event.preventDefault(); event.stopPropagation(); onPriceAlert(); }} className={`inline-flex items-center gap-1 text-[9px] ${priceAlert ? "text-gold" : "text-muted-foreground"}`} aria-label="Watch price"><Bell className={`h-3 w-3 ${priceAlert ? "fill-gold" : ""}`} />{priceAlert ? "Watching" : "Alert"}</button>
           </div>
         ) : (
           <div className="flex items-baseline gap-1.5 mb-1.5">

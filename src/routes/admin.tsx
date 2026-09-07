@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
-import { Shield, Check, X, Eye, DollarSign, Ban, UserCheck, Crown, Users, Car, Clock, RefreshCw, Key, ChartBar as BarChart3, Activity, Tag, Megaphone, Settings, Copy, Trash2, Plus, Send, Receipt, Mail, UserX, Film, Play, Gauge, Fuel, Cog, MapPin, Calendar, FileText, Flag, Image as ImageIcon, ZoomIn, ShieldCheck, Sparkles } from "lucide-react";
+import { Shield, Check, X, Eye, DollarSign, Ban, UserCheck, Crown, Users, Car, Clock, RefreshCw, Key, ChartBar as BarChart3, Activity, Tag, Megaphone, Settings, Copy, Trash2, Plus, Send, Receipt, Mail, UserX, Film, Play, Gauge, Fuel, Cog, MapPin, Calendar, FileText, Flag, Image as ImageIcon, ZoomIn, ShieldCheck, Sparkles, Pin } from "lucide-react";
 import { toast } from "sonner";
 import { useState, useEffect, useCallback } from "react";
 import { formatDZD } from "@/lib/format";
@@ -17,6 +17,7 @@ import { savePlatformSettings, fetchPlatformSettings } from "@/lib/supabase";
 import { SocialImageGenerator } from "@/components/SocialImageGenerator";
 import { SocialAutomationPanel } from "@/components/SocialAutomationPanel";
 import { getSupabase } from "@/lib/supabase";
+import { demoKeys, getDemoValue, setDemoValue } from "@/lib/demo-state";
 
 export const Route = createFileRoute("/admin")({
   head: () => ({ meta: [{ title: "Admin · GRAND Auto Luxe" }] }),
@@ -704,6 +705,7 @@ function UsersManagementTab() {
 
 function ListingsTab() {
   const [vehicles, setVehicles] = useState<FirebaseVehicle[]>([]);
+  const [demoPinned, setDemoPinned] = useState<string[]>(() => getDemoValue(demoKeys.pinned, []));
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [reviewVehicle, setReviewVehicle] = useState<FirebaseVehicle | null>(null);
@@ -771,7 +773,7 @@ function ListingsTab() {
         {filteredVehicles.map((v) => (
           <div key={v.id} className="premium-card rounded-xl p-4 border border-gold/20 flex items-center gap-4">
             <div className="flex-1 min-w-0">
-              <div className="font-medium truncate">{v.brand} {v.model} ({v.year})</div>
+              <div className="font-medium truncate flex items-center gap-2">{v.brand} {v.model} ({v.year}) {(v.pinned || demoPinned.includes(v.id)) && <span className="text-[10px] text-gold">PINNED</span>}</div>
               <div className="text-xs text-muted-foreground">{v.wilaya} · Seller: {v.sellerId?.slice(0, 8)}...</div>
               <div className="text-xs flex items-center gap-2 mt-1 flex-wrap">
                 <Badge variant="outline" className={`${v.status === "active" ? "border-green-500 text-green-400" : ""} ${v.status === "pending" ? "border-yellow-500 text-yellow-400" : ""} ${v.status === "sold" ? "border-blue-500 text-blue-400" : ""} ${v.status === "rejected" ? "border-red-500 text-red-400" : ""}`}>{v.status}</Badge>
@@ -784,6 +786,7 @@ function ListingsTab() {
               <Button variant="outline" size="sm" onClick={() => setReviewVehicle(v)} title="Review details"><Eye className="h-4 w-4" /></Button>
               {v.status === "pending" && (<><Button variant="gold" size="sm" onClick={() => updateVehicleStatus(v, "active")} title="Approve"><Check className="h-4 w-4" /></Button><Button variant="destructive" size="sm" onClick={() => updateVehicleStatus(v, "rejected")} title="Reject"><X className="h-4 w-4" /></Button></>)}
               {v.status === "active" && <Button variant="outline" size="sm" onClick={() => updateVehicleStatus(v, "sold")} title="Mark Sold"><DollarSign className="h-4 w-4" /></Button>}
+              <Button variant={demoPinned.includes(v.id) ? "gold" : "outline"} size="sm" onClick={() => { const next = demoPinned.includes(v.id) ? demoPinned.filter((id) => id !== v.id) : [...demoPinned, v.id]; setDemoPinned(next); setDemoValue(demoKeys.pinned, next); toast.success(next.includes(v.id) ? "Listing pinned in demo feed" : "Listing unpinned"); }} title="Pin in demo feed"><Pin className="h-4 w-4" /></Button>
               <Button variant="destructive" size="sm" onClick={() => setDeleteVehicle(v)} title="Delete permanently"><Trash2 className="h-4 w-4" /></Button>
             </div>
           </div>
