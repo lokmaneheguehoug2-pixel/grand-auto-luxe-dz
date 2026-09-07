@@ -321,10 +321,6 @@ function HomeContent() {
     };
   }, []);
 
-  useEffect(() => {
-    setVehicles((current) => current.map((vehicle) => ({ ...vehicle, pinned: vehicle.pinned || localPinned.has(vehicle.id) })));
-  }, [localPinned]);
-
   const loadLikes = useCallback(async () => {
     const client = getSupabase();
     if (!client) return;
@@ -377,24 +373,22 @@ function HomeContent() {
     void Promise.allSettled([loadLikes(), loadFavorites(), loadViews()]);
   }, [loadLikes, loadFavorites, loadViews]);
 
-  useEffect(() => {
-    setLikeData((current) => {
-      const next = { ...current };
-      Object.entries(localLikes).forEach(([id, count]) => {
-        next[id] = { count: Math.max(next[id]?.count ?? 0, count), liked: next[id]?.liked ?? false };
-      });
-      return next;
+  const effectiveLikeData = useMemo(() => {
+    const next = { ...likeData };
+    Object.entries(localLikes).forEach(([id, count]) => {
+      next[id] = { count: Math.max(next[id]?.count ?? 0, count), liked: next[id]?.liked ?? false };
     });
-    setFavorites((current) => {
-      const next = { ...current };
-      localSaved.forEach((id) => { next[id] = true; });
-      return next;
-    });
-    setViewData((current) => ({ ...current, ...localViews }));
-  }, [localLikes, localSaved, localViews]);
+    return next;
+  }, [likeData, localLikes]);
+  const effectiveFavorites = useMemo(() => {
+    const next = { ...favorites };
+    localSaved.forEach((id) => { next[id] = true; });
+    return next;
+  }, [favorites, localSaved]);
+  const effectiveViewData = useMemo(() => ({ ...viewData, ...localViews }), [viewData, localViews]);
 
   const filtered = useMemo(() => {
-    const list = (Array.isArray(vehicles) ? vehicles : []).filter((vehicle): vehicle is Vehicle => {
+    const list = (Array.isArray(vehicles) ? vehicles : []).map((vehicle) => ({ ...vehicle, pinned: vehicle.pinned || localPinned.has(vehicle.id) })).filter((vehicle): vehicle is Vehicle => {
       if (!isValidVehicle(vehicle)) return false;
       const v = vehicle;
       const brand = typeof v.brand === "string" ? v.brand : "";
@@ -435,7 +429,7 @@ function HomeContent() {
     }
 
     return list;
-  }, [vehicles, filters]);
+  }, [vehicles, filters, localPinned]);
 
   const reelsVehicles = (Array.isArray(filtered) ? filtered : [])
     .filter(isValidVehicle)
@@ -454,10 +448,10 @@ function HomeContent() {
       setViewData((previous) => ({ ...previous, [vehicleId]: Math.max(0, (previous[vehicleId] ?? 1) - 1) }));
       console.error("[v0] Failed to record vehicle view", error);
     }
-  }, [userId]);
+  }, [userId, localViews, incrementLocalView]);
 
   const handleLike = useCallback(async (vehicleId: string) => {
-    const current = likeData[vehicleId] ?? { count: localLikes[vehicleId] ?? 0, liked: false };
+    const current = effectiveLikeData[vehicleId] ?? { count: localLikes[vehicleId] ?? 0, liked: false };
     const newLiked = !current.liked;
     setLikeData((prev) => ({ ...prev, [vehicleId]: { count: Math.max(0, current.count + (newLiked ? 1 : -1)), liked: newLiked } }));
     setLocalLikes((prev) => ({ ...prev, [vehicleId]: Math.max(0, (prev[vehicleId] ?? current.count) + (newLiked ? 1 : -1)) }));
@@ -475,12 +469,12 @@ function HomeContent() {
         [vehicleId]: { count: current.count, liked: current.liked }
       }));
     }
-  }, [userId, likeData]);
+  }, [userId, effectiveLikeData, localLikes, setLocalLikes]);
 
   const handleFavorite = useCallback(async (vehicleId: string) => {
     const client = getSupabase();
     if (!client) {
-      const next = !favorites[vehicleId];
+      const next = !effectiveFavorites[vehicleId];
       setFavorites((previous) => ({ ...previous, [vehicleId]: next }));
       toggleLocalSaved(vehicleId);
       if (typeof window !== "undefined") {
@@ -491,7 +485,7 @@ function HomeContent() {
       }
       return;
     }
-    const isFav = favorites[vehicleId] ?? false;
+    const isFav = effectiveFavorites[vehicleId] ?? false;
     setFavorites(prev => ({ ...prev, [vehicleId]: !isFav }));
     toggleLocalSaved(vehicleId);
     if (typeof window !== "undefined") {
@@ -507,7 +501,7 @@ function HomeContent() {
     } catch {
       setFavorites(prev => ({ ...prev, [vehicleId]: isFav }));
     }
-  }, [userId, favorites]);
+  }, [userId, effectiveFavorites, toggleLocalSaved]);
 
   return (
     <div>
@@ -549,13 +543,13 @@ function HomeContent() {
 
       {/* Tabs */}
       <section className="max-w-7xl mx-auto px-3 sm:px-6 py-4">
-        {filtered.some((vehicle) => (likeData[vehicle.id]?.count ?? 0) >= 3 || (viewData[vehicle.id] ?? vehicle.views ?? 0) >= 10) && (
+        {filtered.some((vehicle) => (effectiveLikeData[vehicle.id]?.count ?? 0) >= 3 || (effectiveViewData[vehicle.id] ?? vehicle.views ?? 0) >= 10) && (
           <div className="mb-4 rounded-xl border border-gold/20 bg-gold-soft/10 px-4 py-3">
             <div className="flex items-center justify-between gap-3 mb-2">
               <div><p className="text-[10px] uppercase tracking-[0.2em] text-gold">Popular in Algeria</p><p className="text-xs text-muted-foreground">High-interest vehicles right now</p></div>
               <TrendingDown className="h-4 w-4 text-gold rotate-180" />
             </div>
-            <div className="flex gap-2 overflow-x-auto pb-1">{filtered.filter((vehicle) => (likeData[vehicle.id]?.count ?? 0) >= 3 || (viewData[vehicle.id] ?? vehicle.views ?? 0) >= 10).slice(0, 4).map((vehicle) => <Link key={vehicle.id} to="/vehicle/$id" params={{ id: vehicle.id }} className="shrink-0 rounded-lg bg-charcoal px-3 py-2 text-xs hover:border-gold/40 border border-transparent">{vehicle.brand} {vehicle.model}</Link>)}</div>
+            <div className="flex gap-2 overflow-x-auto pb-1">{filtered.filter((vehicle) => (effectiveLikeData[vehicle.id]?.count ?? 0) >= 3 || (effectiveViewData[vehicle.id] ?? vehicle.views ?? 0) >= 10).slice(0, 4).map((vehicle) => <Link key={vehicle.id} to="/vehicle/$id" params={{ id: vehicle.id }} className="shrink-0 rounded-lg bg-charcoal px-3 py-2 text-xs hover:border-gold/40 border border-transparent">{vehicle.brand} {vehicle.model}</Link>)}</div>
           </div>
         )}
         <Tabs defaultValue="grid">
@@ -582,9 +576,9 @@ function HomeContent() {
                     <VehicleCard
                       vehicle={v}
                       allVehicles={vehicles}
-                    likeInfo={v?.id ? likeData[v.id] : undefined}
-                    isFavorite={v?.id ? favorites[v.id] ?? false : false}
-                    viewCount={v?.id ? viewData[v.id] ?? 0 : 0}
+                    likeInfo={v?.id ? effectiveLikeData[v.id] : undefined}
+                    isFavorite={v?.id ? effectiveFavorites[v.id] ?? false : false}
+                    viewCount={v?.id ? effectiveViewData[v.id] ?? 0 : 0}
                     onLike={() => v?.id && handleLike(v.id)}
                       onFavorite={() => v?.id && handleFavorite(v.id)}
                       onView={() => v?.id && handleView(v.id)}
@@ -604,8 +598,8 @@ function HomeContent() {
                   <VehicleRenderBoundary key={v?.id ? `car-${v.id}` : `car-index-${index}`}>
                     <VehicleReelCard
                       vehicle={v}
-                      likeInfo={v?.id ? likeData[v.id] : undefined}
-                      viewCount={v?.id ? viewData[v.id] ?? 0 : 0}
+                      likeInfo={v?.id ? effectiveLikeData[v.id] : undefined}
+                      viewCount={v?.id ? effectiveViewData[v.id] ?? 0 : 0}
                       onLike={() => v?.id && handleLike(v.id)}
                       onView={() => v?.id && handleView(v.id)}
                     />
