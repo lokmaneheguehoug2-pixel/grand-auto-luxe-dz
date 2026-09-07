@@ -7,6 +7,7 @@ import { PremiumPaywallModal } from "@/components/PremiumPaywallModal";
 import { toast } from "sonner";
 import { get, ref, set } from "firebase/database";
 import { realtimeDb } from "@/lib/firebase";
+import { demoKeys, setDemoValue } from "@/lib/demo-state";
 
 export const Route = createFileRoute("/plans")({
   component: PlansPage,
@@ -157,6 +158,11 @@ function PlansPage() {
     setPromoLoading(true);
 
     try {
+      if (!realtimeDb) {
+        setDemoValue(demoKeys.subscription, { status: "active", tier: "basic", until: new Date(Date.now() + 7 * 86400000).toISOString(), promo: promoCode.trim().toUpperCase() });
+        toast.success("Demo subscription activated for 7 days");
+        return;
+      }
       // Step 1: Fetch promo codes from database
       const promoSnap = await get(ref(realtimeDb, "promo_codes"));
 
