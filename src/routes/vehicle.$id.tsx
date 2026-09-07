@@ -86,6 +86,16 @@ function VehicleDetail() {
   const auth = useAuth();
   const user = auth?.user;
   const access = auth?.access ?? "locked";
+  const [guestId] = useState(() => {
+    if (typeof window === "undefined") return "guest-preview";
+    const key = "grand-auto-luxe-guest-id";
+    const existing = window.localStorage.getItem(key);
+    if (existing) return existing;
+    const created = `guest-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    window.localStorage.setItem(key, created);
+    return created;
+  });
+  const viewerId = user?.id ?? user?.phone ?? guestId;
   const [v, setV] = useState<Vehicle | null>(null);
   const [bids, setBids] = useState<Bid[]>([]);
   const [bidAmount, setBidAmount] = useState("");
@@ -104,9 +114,16 @@ function VehicleDetail() {
   // Record a view when the page loads
   useEffect(() => {
     if (!id) return;
+    let cancelled = false;
+    const localKey = `grand-auto-luxe-views-${id}`;
+    let localCount = 0;
+    try {
+      localCount = Number(window.localStorage.getItem(localKey) || 0);
+      window.localStorage.setItem(localKey, String(localCount + 1));
+    } catch { /* local storage is optional */ }
+    setViewCount((previous) => Math.max(previous, localCount + 1));
     const client = getSupabase();
-    if (!client) return;
-    const viewerId = user?.id ?? user?.phone ?? null;
+    if (!client) return () => { cancelled = true; };
     client.from("vehicle_views").insert({ vehicle_id: id, viewer_id: viewerId }).then(() => {
       // Reload view count after recording
       client.from("vehicle_views").select("vehicle_id", { count: "exact", head: true }).eq("vehicle_id", id).then(({ count }) => {
@@ -116,8 +133,9 @@ function VehicleDetail() {
     // Also load initial view count
     client.from("vehicle_views").select("vehicle_id", { count: "exact", head: true }).eq("vehicle_id", id).then(({ count }) => {
       if (count !== null) setViewCount(count);
-    }).catch(() => { /* non-blocking */ });
-  }, [id, user?.id, user?.phone]);
+    }).catch(() => { /* non-blocking */     }).finally(() => { cancelled = true; });
+    return () => { cancelled = true; };
+  }, [id, viewerId]);
 
   // Load inquiry count and favorite status
   useEffect(() => {
@@ -128,7 +146,11 @@ function VehicleDetail() {
       if (count !== null) setInquiryCount(count);
     }).catch(() => { /* non-blocking */ });
 
-    const uid = user?.id ?? user?.phone ?? null;
+    try {
+      const saved = JSON.parse(window.localStorage.getItem("grand-auto-luxe-saved") || "[]") as unknown;
+      setIsFavorited(Array.isArray(saved) && saved.includes(id));
+    } catch { setIsFavorited(false); }
+    const uid = user?.id ?? user?.phone;
     if (uid) {
       client.from("vehicle_favorites").select("vehicle_id").eq("vehicle_id", id).eq("user_id", uid).maybeSingle().then(({ data }) => {
         setIsFavorited(!!data);
