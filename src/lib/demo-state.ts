@@ -2,20 +2,32 @@ import { useCallback, useSyncExternalStore } from "react";
 
 const PREFIX = "gal:demo:";
 const listeners = new Set<() => void>();
+const snapshotCache = new Map<string, { raw: string | null; value: unknown }>();
+const EMPTY_VALUES: string[] = [];
+const EMPTY_COUNTS: Record<string, number> = {};
 
 function read<T>(key: string, fallback: T): T {
   if (typeof window === "undefined") return fallback;
   try {
-    const value = window.localStorage.getItem(`${PREFIX}${key}`);
-    return value == null ? fallback : (JSON.parse(value) as T);
+    const raw = window.localStorage.getItem(`${PREFIX}${key}`);
+    const cached = snapshotCache.get(key);
+    if (cached?.raw === raw) return cached.value as T;
+    const value = raw == null ? fallback : (JSON.parse(raw) as T);
+    snapshotCache.set(key, { raw, value });
+    return value;
   } catch {
+    snapshotCache.set(key, { raw: null, value: fallback });
     return fallback;
   }
 }
 
 function write<T>(key: string, value: T) {
   if (typeof window !== "undefined") {
-    try { window.localStorage.setItem(`${PREFIX}${key}`, JSON.stringify(value)); } catch {}
+    try {
+      const raw = JSON.stringify(value);
+      window.localStorage.setItem(`${PREFIX}${key}`, raw);
+      snapshotCache.set(key, { raw, value });
+    } catch {}
   }
   listeners.forEach((listener) => listener());
 }
@@ -39,7 +51,7 @@ export function useDemoRecord<T>(key: string, fallback: T) {
 }
 
 export function useDemoSet(key: string) {
-  const [values, setValues] = useDemoRecord<string[]>(key, []);
+  const [values, setValues] = useDemoRecord<string[]>(key, EMPTY_VALUES);
   const toggle = useCallback((id: string) => {
     setValues((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
   }, [setValues]);
@@ -47,7 +59,7 @@ export function useDemoSet(key: string) {
 }
 
 export function useDemoCounterMap(key: string) {
-  const [counts, setCounts] = useDemoRecord<Record<string, number>>(key, {});
+  const [counts, setCounts] = useDemoRecord<Record<string, number>>(key, EMPTY_COUNTS);
   const increment = useCallback((id: string, amount = 1) => {
     setCounts((current) => ({ ...current, [id]: Math.max(0, (current[id] ?? 0) + amount) }));
   }, [setCounts]);
