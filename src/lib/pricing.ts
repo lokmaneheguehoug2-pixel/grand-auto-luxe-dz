@@ -47,18 +47,9 @@ export function calculateDeal(
       priceOf(v) > 0
   );
 
-  if (similar.length < MIN_SAMPLE) {
-    return {
-      rating: "fair",
-      label: "Fair Price",
-      labelAr: "سعر عادل",
-      badgeClass: "bg-gold/20 text-gold border-gold/40",
-      diffPercent: 0,
-      averagePrice: price,
-      similarCount: similar.length,
-      tooltip: `Not enough similar listings (${similar.length}) to compare. Defaulted to Fair Price.`,
-    };
-  }
+  // Never present a market verdict from an insufficient sample. Callers can
+  // show the explicit "not enough data" state instead of inventing an average.
+  if (similar.length < MIN_SAMPLE) return null;
 
   const avg = similar.reduce((sum, v) => sum + priceOf(v), 0) / similar.length;
   const diff = ((price - avg) / avg) * 100;
