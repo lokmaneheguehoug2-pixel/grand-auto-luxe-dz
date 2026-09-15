@@ -65,6 +65,7 @@ type FavoriteData = Record<string, boolean>;
 type ViewData = Record<string, number>;
 
 type MaybeVehicle = Vehicle | null | undefined;
+type FeedComment = { id: string; text: string; authorId: string; createdAt: string };
 
 function isValidVehicle(value: MaybeVehicle): value is Vehicle {
   return Boolean(value && typeof value === "object" && typeof value.id === "string" && value.id.length > 0);
@@ -234,7 +235,6 @@ function HomeContent() {
   const [localAlerts, toggleLocalAlert] = useDemoSet(demoKeys.alerts);
   const [commentVehicleId, setCommentVehicleId] = useState<string | null>(null);
   const [commentText, setCommentText] = useState("");
-  type FeedComment = { id: string; text: string; authorId: string; createdAt: string };
   const [comments, setComments] = useState<Record<string, FeedComment[]>>({});
   const shuffleSeed = useRef<string>("");
 
@@ -641,20 +641,48 @@ function HomeContent() {
           )}
         </Tabs>
       </section>
-      <Dialog open={commentVehicleId !== null} onOpenChange={(open) => { if (!open) setCommentVehicleId(null); }}>
+      <Dialog open={Boolean(commentVehicleId)} onOpenChange={(open) => { if (!open) setCommentVehicleId(null); }}>
         <DialogContent className="max-w-md bg-background border-gold/40">
           <DialogHeader><DialogTitle>Comments</DialogTitle></DialogHeader>
           {commentVehicleId ? (
-            <>
-              <div className="max-h-64 overflow-y-auto space-y-2">
-                {(comments[commentVehicleId] ?? []).length > 0 ? (comments[commentVehicleId] ?? []).map((comment) => <div key={comment.id} className="rounded-lg bg-charcoal px-3 py-2 text-sm">{comment.text}</div>) : <p className="text-sm text-muted-foreground">No comments yet.</p>}
-              </div>
-              <div className="flex gap-2"><Input value={commentText} onChange={(event) => setCommentText(event.target.value)} placeholder="Write a comment" onKeyDown={(event) => { if (event.key === "Enter" && !event.nativeEvent.isComposing && event.keyCode !== 229) submitFeedComment(); }} /><Button type="button" variant="gold" disabled={!commentText.trim()} onClick={submitFeedComment}>Post</Button></div>
-            </>
+            <CommentList
+              comments={comments[commentVehicleId] ?? []}
+              commentText={commentText}
+              onChange={setCommentText}
+              onSubmit={submitFeedComment}
+            />
           ) : null}
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+function CommentList({ comments, commentText, onChange, onSubmit }: {
+  comments: FeedComment[];
+  commentText: string;
+  onChange: (value: string) => void;
+  onSubmit: () => void;
+}) {
+  return (
+    <>
+      <div className="max-h-64 overflow-y-auto space-y-2">
+        {comments.length > 0 ? comments.map((comment) => (
+          <div key={comment.id} className="rounded-lg bg-charcoal px-3 py-2 text-sm">{comment.text}</div>
+        )) : <p className="text-sm text-muted-foreground">No comments yet.</p>}
+      </div>
+      <div className="flex gap-2">
+        <Input
+          value={commentText}
+          onChange={(event) => onChange(event.target.value)}
+          placeholder="Write a comment"
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && !event.nativeEvent.isComposing && event.keyCode !== 229) onSubmit();
+          }}
+        />
+        <Button type="button" variant="gold" disabled={!commentText.trim()} onClick={onSubmit}>Post</Button>
+      </div>
+    </>
   );
 }
 
