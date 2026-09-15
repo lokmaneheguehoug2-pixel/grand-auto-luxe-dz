@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { formatDZD, formatDZDArabic } from "@/lib/format";
-import { calculateDeal } from "@/lib/pricing";
+import { calculateDeal, calculateGrandScore } from "@/lib/pricing";
 import { Flag, Calendar, Gauge, Fuel, Cog, Gavel, Trophy, Phone, MessageCircle, Lock, Pencil, Trash2, MapPin, Crown, CircleCheck, RotateCcw, Star, TrendingDown, Heart, Eye, Bookmark } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Countdown } from "@/components/Countdown";
@@ -624,6 +624,24 @@ function VehicleDetail() {
                 <span>{deal.labelAr}</span>
               </div>
               <p className="text-[10px] text-muted-foreground mt-1">{deal.tooltip}</p>
+            </div>
+          );
+        })()}
+
+        {/* GRAND SCORE */}
+        {(() => {
+          const grandScore = calculateGrandScore(v);
+          return (
+            <div className="mb-5 rounded-xl border border-gold/25 bg-gold/5 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-xs uppercase tracking-widest text-gold">GRAND SCORE</div>
+                  <div className="mt-1 text-sm font-medium">{grandScore.label} · {grandScore.labelAr}</div>
+                </div>
+                <div className="text-2xl font-display text-gold">{grandScore.score}<span className="text-sm text-muted-foreground">/100</span></div>
+              </div>
+              <div className="mt-3 h-2 overflow-hidden rounded-full bg-muted/30"><div className="h-full rounded-full bg-gold transition-all" style={{ width: `${grandScore.score}%` }} /></div>
+              {grandScore.factors.length > 0 && <p className="mt-2 text-xs text-muted-foreground">Based on: {grandScore.factors.join(" · ")}</p>}
             </div>
           );
         })()}
