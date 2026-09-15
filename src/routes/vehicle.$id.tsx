@@ -239,6 +239,10 @@ function VehicleDetail() {
   }, [user, hasLiked, id]);
 
   useEffect(() => {
+    if (!realtimeDb) {
+      setAllVehicles([]);
+      return;
+    }
     const allRef = ref(realtimeDb, "vehicles");
     const handleAll = (snap: { exists?: () => boolean; val: () => unknown }) => {
       try {
@@ -273,6 +277,11 @@ function VehicleDetail() {
 
   useEffect(() => {
     if (typeof id !== "string" || id.trim().length === 0) {
+      setV(null);
+      return;
+    }
+
+    if (!realtimeDb) {
       setV(null);
       return;
     }
@@ -332,7 +341,7 @@ function VehicleDetail() {
   }, [id]);
 
   useEffect(() => {
-    if (!v || v.price_type !== "auction") return;
+    if (!v || v.price_type !== "auction" || !realtimeDb) return;
     const bidsRef = ref(realtimeDb, `bids/${id}`);
     const handleBids = (snapshot: { val: () => Record<string, Bid> | null }) => {
       try {
@@ -354,7 +363,7 @@ function VehicleDetail() {
 
   useEffect(() => {
     async function loadOwner() {
-      if (!v?.sellerPhone && !v?.sellerId) return;
+      if (!realtimeDb || !v?.sellerPhone && !v?.sellerId) return;
       let phoneKey = v.sellerPhone || v.sellerId;
       if (phoneKey.startsWith("admin-")) {
         phoneKey = phoneKey.replace("admin-", "");
@@ -365,7 +374,9 @@ function VehicleDetail() {
           const vehiclesSnap = await get(ref(realtimeDb, "vehicles"));
           if (vehiclesSnap.exists()) {
             const allV = vehiclesSnap.val() as Record<string, any>;
-            const match = Object.values(allV).find((veh) => veh.sellerId === v.sellerId);
+            const match = Object.values(allV).find(
+              (veh): veh is Record<string, any> => Boolean(veh && typeof veh === "object" && veh.sellerId === v.sellerId),
+            );
             if (match?.sellerPhone) {
               phoneKey = match.sellerPhone;
               snap = await get(ref(realtimeDb, `users/${phoneKey}`));
