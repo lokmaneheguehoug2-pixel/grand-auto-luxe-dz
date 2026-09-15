@@ -394,7 +394,10 @@ function HomeContent() {
   const effectiveViewData = useMemo(() => ({ ...viewData, ...localViews }), [viewData, localViews]);
 
   const filtered = useMemo(() => {
-    const list = (Array.isArray(vehicles) ? vehicles : []).map((vehicle) => ({ ...vehicle, pinned: vehicle.pinned || localPinned.has(vehicle.id) })).filter((vehicle): vehicle is Vehicle => {
+    const list = (Array.isArray(vehicles) ? vehicles : [])
+      .filter(isValidVehicle)
+      .map((vehicle) => ({ ...vehicle, pinned: vehicle.pinned === true || localPinned.has(vehicle.id) }))
+      .filter((vehicle): vehicle is Vehicle => {
       if (!isValidVehicle(vehicle)) return false;
       const v = vehicle;
       const brand = typeof v.brand === "string" ? v.brand : "";
