@@ -18,6 +18,7 @@ import { ref, get, onValue, off, push, set, remove } from "firebase/database";
 import { realtimeDb } from "@/lib/firebase";
 import { getSupabase } from "@/lib/supabase";
 import { isVerifiedShowroom, supabaseSucceeded } from "@/lib/listing-interactions";
+import { getDemoValue, setDemoValue, demoKeys } from "@/lib/demo-state";
 
 function normalizeAlgPhone(raw: string): string {
   const digits = (raw ?? "").replace(/\D/g, "");
@@ -120,12 +121,9 @@ function VehicleDetail() {
     if (!id || viewedVehicleRef.current === id) return;
     viewedVehicleRef.current = id;
     let cancelled = false;
-    const localKey = `grand-auto-luxe-views-${id}`;
-    let localCount = 0;
-    try {
-      localCount = Number(window.localStorage.getItem(localKey) || 0);
-      window.localStorage.setItem(localKey, String(localCount + 1));
-    } catch { /* local storage is optional */ }
+    const counts = getDemoValue<Record<string, number>>(demoKeys.views, {});
+    const localCount = Math.max(0, Number(counts[id] ?? 0));
+    setDemoValue(demoKeys.views, { ...counts, [id]: localCount + 1 });
     setViewCount((previous) => Math.max(previous, localCount + 1));
     const client = getSupabase();
     if (!client) return () => { cancelled = true; };

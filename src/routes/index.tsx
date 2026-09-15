@@ -234,7 +234,8 @@ function HomeContent() {
   const [localAlerts, toggleLocalAlert] = useDemoSet(demoKeys.alerts);
   const [commentVehicleId, setCommentVehicleId] = useState<string | null>(null);
   const [commentText, setCommentText] = useState("");
-  const [comments, setComments] = useState<Record<string, Array<{ id: string; text: string }>>>({});
+  type FeedComment = { id: string; text: string; authorId: string; createdAt: string };
+  const [comments, setComments] = useState<Record<string, FeedComment[]>>({});
   const shuffleSeed = useRef<string>("");
 
   useEffect(() => {
@@ -445,13 +446,16 @@ function HomeContent() {
     setCommentText("");
     try {
       const stored = JSON.parse(window.localStorage.getItem(`grand-auto-luxe-comments-${vehicleId}`) || "[]") as unknown;
-      setComments((current) => ({ ...current, [vehicleId]: Array.isArray(stored) ? stored.filter((item): item is { id: string; text: string } => Boolean(item && typeof item === "object" && "id" in item && "text" in item)) : [] }));
+      const safeComments: FeedComment[] = Array.isArray(stored)
+        ? stored.filter((item): item is FeedComment => Boolean(item && typeof item === "object" && typeof (item as FeedComment).id === "string" && typeof (item as FeedComment).text === "string" && typeof (item as FeedComment).authorId === "string" && typeof (item as FeedComment).createdAt === "string"))
+        : [];
+      setComments((current) => ({ ...current, [vehicleId]: safeComments }));
     } catch { setComments((current) => ({ ...current, [vehicleId]: [] })); }
   }, []);
 
   const submitFeedComment = useCallback(() => {
     if (!commentVehicleId || !commentText.trim()) return;
-    const next = [...(comments[commentVehicleId] ?? []), { id: `${Date.now()}-${Math.random()}`, text: commentText.trim() }];
+    const next = [...(comments[commentVehicleId] ?? []), { id: `${Date.now()}-${Math.random()}`, text: commentText.trim(), authorId: userId, createdAt: new Date().toISOString() }];
     setComments((current) => ({ ...current, [commentVehicleId]: next }));
     setCommentText("");
     try { window.localStorage.setItem(`grand-auto-luxe-comments-${commentVehicleId}`, JSON.stringify(next)); } catch { /* optional storage */ }
@@ -603,7 +607,7 @@ function HomeContent() {
                     viewCount={v?.id ? effectiveViewData[v.id] ?? 0 : 0}
                     onLike={() => v?.id && handleLike(v.id)}
                       onFavorite={() => v?.id && handleFavorite(v.id)}
-                      onView={() => v?.id && handleView(v.id)}
+                      onView={() => undefined}
                       priceAlert={v?.id ? localAlerts.has(v.id) : false}
                       onPriceAlert={() => v?.id && toggleLocalAlert(v.id)}
                       commentCount={v?.id ? comments[v.id]?.length ?? 0 : 0}
@@ -625,7 +629,7 @@ function HomeContent() {
                       likeInfo={v?.id ? effectiveLikeData[v.id] : undefined}
                       viewCount={v?.id ? effectiveViewData[v.id] ?? 0 : 0}
                       onLike={() => v?.id && handleLike(v.id)}
-                      onView={() => v?.id && handleView(v.id)}
+                      onView={() => undefined}
                     />
                   </VehicleRenderBoundary>
                 ))}

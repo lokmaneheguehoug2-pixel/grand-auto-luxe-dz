@@ -19,6 +19,7 @@ import { uploadImageToCloudinary } from "@/lib/cloudinary";
 import { ChatDialog } from "@/components/ChatDialog";
 import { getSupabase } from "@/lib/supabase";
 import { isActivePaidSubscription, isVerifiedShowroom } from "@/lib/listing-interactions";
+import { getDemoValue, demoKeys } from "@/lib/demo-state";
 
 export const Route = createFileRoute("/seller/$id")({
   head: () => ({ meta: [{ title: "Profile · GRAND Auto Luxe" }] }),
@@ -369,12 +370,23 @@ function SellerProfile() {
   // Load saved vehicles when saved tab is opened
   useEffect(() => {
     if (!isOwnProfile || activeTab !== "saved") return;
-    const client = getSupabase();
-    if (!client || !user) return;
-    const uid = user?.id ?? user?.phone;
-    client.from("vehicle_favorites").select("vehicle_id").eq("user_id", uid).then(({ data, error }) => {
-      if (error || !data || data.length === 0) { setSavedVehicles([]); return; }
-      const favIds = data.map((d) => d.vehicle_id);
+const client = getSupabase();
+  const uid = user?.id ?? user?.phone;
+  const localIds = getDemoValue<string[]>(demoKeys.saved, []);
+  if (!client || !user) {
+    if (localIds.length === 0) { setSavedVehicles([]); return; }
+    get(ref(realtimeDb, "vehicles")).then((snap) => {
+      const allV = snap.exists() ? snap.val() as Record<string, any> : {};
+      setSavedVehicles(localIds.map((vid) => allV?.[vid] ? { ...allV[vid], id: vid } : null).filter(Boolean) as Vehicle[]);
+    }).catch(() => setSavedVehicles([]));
+    return;
+  }
+  client.from("vehicle_favorites").select("vehicle_id").eq("user_id", uid).then(({ data, error }) => {
+      const favoriteRows = !error && Array.isArray(data) && data.length > 0
+        ? data
+        : localIds.map((vehicle_id) => ({ vehicle_id }));
+      if (favoriteRows.length === 0) { setSavedVehicles([]); return; }
+      const favIds = favoriteRows.map((d) => d.vehicle_id);
       const vehiclesRef = ref(realtimeDb, "vehicles");
       get(vehiclesRef).then((snap) => {
         if (!snap.exists()) { setSavedVehicles([]); return; }
