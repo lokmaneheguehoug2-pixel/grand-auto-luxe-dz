@@ -157,8 +157,9 @@ function SellerProfile() {
         if (vehiclesSnap.exists()) {
           const allVehicles = vehiclesSnap.val() as Record<string, Vehicle>;
           sellerVehicles = Object.entries(allVehicles)
-            .filter(([_, v]) => v.sellerId === id || v.sellerPhone === id || v.sellerId === phoneKey || v.sellerPhone === phoneKey)
-            .map(([vid, v]) => ({ ...v, id: vid }))
+            .filter(([, v]) => Boolean(v && (v.sellerId === id || v.sellerPhone === id || v.sellerId === phoneKey || v.sellerPhone === phoneKey)))
+            .map(([vid, v]) => v ? { ...v, id: vid } : null)
+            .filter((v): v is Vehicle => Boolean(v?.id))
             .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
           setVehicles(sellerVehicles);
         }

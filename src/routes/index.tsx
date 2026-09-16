@@ -393,9 +393,11 @@ function HomeContent() {
   }, [favorites, localSaved]);
   const effectiveViewData = useMemo(() => ({ ...viewData, ...localViews }), [viewData, localViews]);
 
+  const validVehicles = useMemo(() => (Array.isArray(vehicles) ? vehicles : []).filter((vehicle): vehicle is Vehicle => Boolean(vehicle?.id)), [vehicles]);
+
   const filtered = useMemo(() => {
-    const list = (Array.isArray(vehicles) ? vehicles : [])
-      .filter(isValidVehicle)
+    const list = validVehicles
+      .filter((vehicle): vehicle is Vehicle => Boolean(vehicle?.id))
       .map((vehicle) => ({ ...vehicle, pinned: vehicle.pinned === true || localPinned.has(vehicle.id) }))
       .filter((vehicle): vehicle is Vehicle => {
       if (!isValidVehicle(vehicle)) return false;
@@ -438,7 +440,7 @@ function HomeContent() {
     }
 
     return list;
-  }, [vehicles, filters, localPinned]);
+  }, [validVehicles, filters, localPinned]);
 
   const reelsVehicles = (Array.isArray(filtered) ? filtered : [])
     .filter(isValidVehicle)
@@ -604,7 +606,7 @@ function HomeContent() {
                   <VehicleRenderBoundary key={v?.id ? `car-${v.id}` : `car-index-${index}`}>
                     <VehicleCard
                       vehicle={v}
-                      allVehicles={vehicles}
+                      allVehicles={validVehicles}
                     likeInfo={v?.id ? effectiveLikeData[v.id] : undefined}
                     isFavorite={v?.id ? effectiveFavorites[v.id] ?? false : false}
                     viewCount={v?.id ? effectiveViewData[v.id] ?? 0 : 0}
@@ -687,7 +689,7 @@ function CommentList({ comments, commentText, onChange, onSubmit }: {
 }
 
 function VehicleCard({ vehicle: v, allVehicles, likeInfo, isFavorite, viewCount, onLike, onFavorite, onView, priceAlert, onPriceAlert, commentCount, onComments }: {
-  vehicle: Vehicle;
+  vehicle: Vehicle | null | undefined;
   allVehicles: Vehicle[];
   likeInfo?: { count: number; liked: boolean };
   isFavorite: boolean;
@@ -700,6 +702,7 @@ function VehicleCard({ vehicle: v, allVehicles, likeInfo, isFavorite, viewCount,
   commentCount: number;
   onComments: () => void;
 }) {
+  if (!v?.id) return null;
   const fallbackImage = "/my-logo.png.PNG";
   const imageUrl = Array.isArray(v?.images) && typeof v.images[0] === "string" && v.images[0].length > 0 ? v.images[0] : fallbackImage;
   const compare = useCompare();
@@ -814,12 +817,13 @@ function VehicleCard({ vehicle: v, allVehicles, likeInfo, isFavorite, viewCount,
 }
 
 function VehicleReelCard({ vehicle: v, likeInfo, viewCount, onLike, onView }: {
-  vehicle: Vehicle;
+  vehicle: Vehicle | null | undefined;
   likeInfo?: { count: number; liked: boolean };
   viewCount: number;
   onLike: () => void;
   onView: () => void;
 }) {
+  if (!v?.id) return null;
   const likeCount = likeInfo?.count ?? 0;
   const liked = likeInfo?.liked ?? false;
   const price = priceOf(v);
