@@ -208,34 +208,29 @@ function VehicleDetail() {
     }
   }, [user, isFavorited, id]);
 
-  // Load like count and liked status
+  // Load like count and liked status from Firebase Realtime Database.
   useEffect(() => {
-    if (!id) return;
-    const client = getSupabase();
-    if (!client) return;
-    client.from("vehicle_likes").select("vehicle_id, user_id").eq("vehicle_id", id).then(({ data }) => {
-      if (!data) return;
-      setLikeCount(data.length);
-      const uid = user?.id ?? user?.phone ?? null;
-      if (uid) setHasLiked(data.some((row) => row.user_id === uid));
+    if (!id || !realtimeDb) return;
+    get(ref(realtimeDb, `vehicleLikes/${id}`)).then((snapshot) => {
+      const raw = snapshot.val();
+      const users = raw && typeof raw === "object" ? Object.keys(raw as Record<string, unknown>) : [];
+      setLikeCount(users.length);
+      const uid = user?.id ?? user?.phone ?? "guest";
+      setHasLiked(users.includes(uid));
     }).catch(() => { /* non-blocking */ });
   }, [id, user?.id, user?.phone]);
 
   const toggleLike = useCallback(async () => {
     if (!id) return;
-    if (!user) { toast.info("Sign in to like vehicles"); return; }
-    const client = getSupabase();
-    if (!client) return;
-    const uid = user.id ?? user.phone;
+    if (!realtimeDb) return;
+    const uid = user?.id ?? user?.phone ?? "guest";
     const newLiked = !hasLiked;
     setHasLiked(newLiked);
     setLikeCount(prev => newLiked ? prev + 1 : Math.max(0, prev - 1));
     try {
-      if (newLiked) {
-        await client.from("vehicle_likes").insert({ vehicle_id: id, user_id: uid });
-      } else {
-        await client.from("vehicle_likes").delete().eq("vehicle_id", id).eq("user_id", uid);
-      }
+      const likeRef = ref(realtimeDb, `vehicleLikes/${id}/${uid}`);
+      if (newLiked) await set(likeRef, true);
+      else await remove(likeRef);
     } catch {
       setHasLiked(!newLiked);
       setLikeCount(prev => newLiked ? Math.max(0, prev - 1) : prev + 1);
