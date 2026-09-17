@@ -234,6 +234,7 @@ function HomeContent() {
   const [favorites, setFavorites] = useState<FavoriteData>({});
   const [viewData, setViewData] = useState<ViewData>({});
   const [localLikes, setLocalLikes] = useDemoCounterMap(demoKeys.likes);
+  const [localLiked, setLocalLiked] = useState<Record<string, boolean>>({});
   const [localSaved, toggleLocalSaved] = useDemoSet(demoKeys.saved);
   const [localViews, incrementLocalView] = useDemoCounterMap(demoKeys.views);
   const [localPinned] = useDemoSet(demoKeys.pinned);
@@ -385,15 +386,19 @@ function HomeContent() {
 
   useEffect(() => {
     void Promise.allSettled([loadLikes(), loadFavorites(), loadViews()]);
+    try {
+      const stored = JSON.parse(window.localStorage.getItem("grand-auto-luxe-liked") || "{}") as unknown;
+      if (stored && typeof stored === "object" && !Array.isArray(stored)) setLocalLiked(stored as Record<string, boolean>);
+    } catch { /* optional guest storage */ }
   }, [loadLikes, loadFavorites, loadViews]);
 
   const effectiveLikeData = useMemo(() => {
     const next = { ...likeData };
     Object.entries(localLikes).forEach(([id, count]) => {
-      next[id] = { count: Math.max(next[id]?.count ?? 0, count), liked: next[id]?.liked ?? false };
+      next[id] = { count: Math.max(next[id]?.count ?? 0, count), liked: localLiked[id] ?? next[id]?.liked ?? false };
     });
     return next;
-  }, [likeData, localLikes]);
+  }, [likeData, localLikes, localLiked]);
   const effectiveFavorites = useMemo(() => {
     const next = { ...favorites };
     localSaved.forEach((id) => { next[id] = true; });
@@ -499,6 +504,11 @@ function HomeContent() {
     const newLiked = !current.liked;
     setLikeData((prev) => ({ ...prev, [vehicleId]: { count: Math.max(0, current.count + (newLiked ? 1 : -1)), liked: newLiked } }));
     setLocalLikes((prev) => ({ ...prev, [vehicleId]: Math.max(0, (prev[vehicleId] ?? current.count) + (newLiked ? 1 : -1)) }));
+    setLocalLiked((previous) => {
+      const next = { ...previous, [vehicleId]: newLiked };
+      try { window.localStorage.setItem("grand-auto-luxe-liked", JSON.stringify(next)); } catch { /* optional guest storage */ }
+      return next;
+    });
     const client = getSupabase();
     if (!client) return;
 
@@ -513,6 +523,7 @@ function HomeContent() {
         [vehicleId]: { count: current.count, liked: current.liked }
       }));
       setLocalLikes((previous) => ({ ...previous, [vehicleId]: current.count }));
+      setLocalLiked((previous) => ({ ...previous, [vehicleId]: current.liked }));
       toast.error("تعذر حفظ الإعجاب، حاول مرة أخرى");
     }
   }, [userId, effectiveLikeData, localLikes, setLocalLikes]);
