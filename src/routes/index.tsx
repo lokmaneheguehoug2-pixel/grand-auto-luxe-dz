@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Component, useState, useMemo, useEffect, useCallback, useRef } from "react";
 import type { ReactNode } from "react";
-import { ref, onValue, off } from "firebase/database";
+import { ref, get, set, remove, onValue, off } from "firebase/database";
 import { realtimeDb } from "@/lib/firebase";
 import { WILAYAS, BRANDS } from "@/lib/wilayas";
 import { formatDZD, formatDZDArabic } from "@/lib/format";
@@ -337,16 +337,15 @@ function HomeContent() {
   }, [vehiclesRetryKey]);
 
   const loadLikes = useCallback(async () => {
-    const client = getSupabase();
-    if (!client) return;
-    const { data } = await client.from("vehicle_likes").select("vehicle_id, user_id").throwOnError();
-    if (!Array.isArray(data)) return;
+    if (!realtimeDb) return;
+    const snapshot = await get(ref(realtimeDb, "vehicleLikes"));
+    const raw = snapshot.val();
+    if (!raw || typeof raw !== "object") return;
     const map: LikeData = {};
-    for (const row of data) {
-      if (!row || typeof row.vehicle_id !== "string") continue;
-      if (!map[row.vehicle_id]) map[row.vehicle_id] = { count: 0, liked: false };
-      map[row.vehicle_id].count++;
-      if (row.user_id === userId) map[row.vehicle_id].liked = true;
+    for (const [vehicleId, users] of Object.entries(raw as Record<string, unknown>)) {
+      if (!vehicleId || !users || typeof users !== "object") continue;
+      const userIds = Object.keys(users as Record<string, unknown>);
+      map[vehicleId] = { count: userIds.length, liked: userIds.includes(userId) };
     }
     setLikeData(map);
   }, [userId]);
@@ -509,14 +508,12 @@ function HomeContent() {
       try { window.localStorage.setItem("grand-auto-luxe-liked", JSON.stringify(next)); } catch { /* optional guest storage */ }
       return next;
     });
-    const client = getSupabase();
-    if (!client) return;
+    if (!realtimeDb) return;
 
     try {
-      const result = newLiked
-        ? await client.from("vehicle_likes").insert({ vehicle_id: vehicleId, user_id: userId })
-        : await client.from("vehicle_likes").delete().eq("vehicle_id", vehicleId).eq("user_id", userId);
-      if (!supabaseSucceeded(result)) throw result.error;
+      const likeRef = ref(realtimeDb, `vehicleLikes/${vehicleId}/${userId}`);
+      if (newLiked) await set(likeRef, true);
+      else await remove(likeRef);
     } catch {
       setLikeData(prev => ({
         ...prev,
