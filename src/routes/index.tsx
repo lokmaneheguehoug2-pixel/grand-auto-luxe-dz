@@ -397,10 +397,10 @@ function HomeContent() {
   }, [favorites, localSaved]);
   const effectiveViewData = useMemo(() => ({ ...viewData, ...localViews }), [viewData, localViews]);
 
-  const validVehicles = useMemo(() => (Array.isArray(vehicles) ? vehicles : []).filter((vehicle): vehicle is Vehicle => Boolean(vehicle?.id)), [vehicles]);
+  const safeVehicles = useMemo(() => (Array.isArray(vehicles) ? vehicles : []).filter((vehicle): vehicle is Vehicle => Boolean(vehicle?.id)), [vehicles]);
 
   const filtered = useMemo(() => {
-    const list = validVehicles
+    const list = safeVehicles
       .filter((vehicle): vehicle is Vehicle => Boolean(vehicle?.id))
       .map((vehicle) => ({ ...vehicle, pinned: vehicle.pinned === true || localPinned.has(vehicle.id) }))
       .filter((vehicle): vehicle is Vehicle => {
@@ -444,13 +444,15 @@ function HomeContent() {
     }
 
     return list;
-  }, [validVehicles, filters, localPinned]);
+  }, [safeVehicles, filters, localPinned]);
 
   const reelsVehicles = (Array.isArray(filtered) ? filtered : [])
     .filter(isValidVehicle)
     .filter((vehicle) => typeof vehicle.video_url === "string" && vehicle.video_url.length > 0);
 
-  const openComments = useCallback((vehicleId: string) => {
+  const openComments = useCallback((item: Vehicle | null | undefined) => {
+    if (!item?.id) return;
+    const vehicleId = item.id;
     setCommentVehicleId(vehicleId);
     setCommentText("");
     try {
@@ -470,8 +472,9 @@ function HomeContent() {
     try { window.localStorage.setItem(`grand-auto-luxe-comments-${commentVehicleId}`, JSON.stringify(next)); } catch { /* optional storage */ }
   }, [commentText, commentVehicleId, comments]);
 
-  const handleView = useCallback(async (vehicleId: string) => {
-    if (!vehicleId) return;
+  const handleView = useCallback(async (item: Vehicle | null | undefined) => {
+    if (!item?.id) return;
+    const vehicleId = item.id;
     setViewData((previous) => ({ ...previous, [vehicleId]: (previous[vehicleId] ?? localViews[vehicleId] ?? 0) + 1 }));
     incrementLocalView(vehicleId);
     const client = getSupabase();
@@ -485,7 +488,9 @@ function HomeContent() {
     }
   }, [userId, localViews, incrementLocalView]);
 
-  const handleLike = useCallback(async (vehicleId: string) => {
+  const handleLike = useCallback(async (item: Vehicle | null | undefined) => {
+    if (!item?.id) return;
+    const vehicleId = item.id;
     const current = effectiveLikeData[vehicleId] ?? { count: localLikes[vehicleId] ?? 0, liked: false };
     const newLiked = !current.liked;
     setLikeData((prev) => ({ ...prev, [vehicleId]: { count: Math.max(0, current.count + (newLiked ? 1 : -1)), liked: newLiked } }));
@@ -506,7 +511,9 @@ function HomeContent() {
     }
   }, [userId, effectiveLikeData, localLikes, setLocalLikes]);
 
-  const handleFavorite = useCallback(async (vehicleId: string) => {
+  const handleFavorite = useCallback(async (item: Vehicle | null | undefined) => {
+    if (!item?.id) return;
+    const vehicleId = item.id;
     const client = getSupabase();
     if (!client) {
       const next = !effectiveFavorites[vehicleId];
@@ -615,17 +622,17 @@ function HomeContent() {
                   <VehicleRenderBoundary key={v?.id ? `car-${v.id}` : `car-index-${index}`}>
                     <VehicleCard
                       vehicle={v}
-                      allVehicles={validVehicles}
+                      allVehicles={safeVehicles}
                     likeInfo={v?.id ? effectiveLikeData[v.id] : undefined}
                     isFavorite={v?.id ? effectiveFavorites[v.id] ?? false : false}
                     viewCount={v?.id ? effectiveViewData[v.id] ?? 0 : 0}
-                    onLike={() => v?.id && handleLike(v.id)}
-                      onFavorite={() => v?.id && handleFavorite(v.id)}
+                    onLike={() => handleLike(v)}
+                      onFavorite={() => handleFavorite(v)}
                       onView={() => undefined}
                       priceAlert={v?.id ? localAlerts.has(v.id) : false}
                       onPriceAlert={() => v?.id && toggleLocalAlert(v.id)}
                       commentCount={v?.id ? comments[v.id]?.length ?? 0 : 0}
-                      onComments={() => v?.id && openComments(v.id)}
+                      onComments={() => openComments(v)}
                     />
                   </VehicleRenderBoundary>
                 ))}
@@ -642,7 +649,7 @@ function HomeContent() {
                       vehicle={v}
                       likeInfo={v?.id ? effectiveLikeData[v.id] : undefined}
                       viewCount={v?.id ? effectiveViewData[v.id] ?? 0 : 0}
-                      onLike={() => v?.id && handleLike(v.id)}
+                      onLike={() => handleLike(v)}
                       onView={() => undefined}
                     />
                   </VehicleRenderBoundary>
