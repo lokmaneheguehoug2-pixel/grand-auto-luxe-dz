@@ -592,7 +592,7 @@ const ComparisonPostTemplate = forwardRef<HTMLDivElement, {
             </div>
           ))}
         </div>
-        <div className="mt-auto pb-5 text-center pt-4"><div className="text-[9px] uppercase tracking-[0.3em] text-gold/40">Grand Auto Luxe · Algeria</div></div>
+        <div className="mt-auto pb-5 text-center pt-4"><div className="text-[9px] uppercase tracking-[0.3em] text-gold/40">GRAND Auto Luxe · Algeria</div></div>
       </div>
       <div className="absolute bottom-0 left-0 right-0 h-1 gold-gradient" />
     </div>

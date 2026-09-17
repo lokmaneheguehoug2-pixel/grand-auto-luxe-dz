@@ -51,11 +51,7 @@ export class ErrorBoundary extends Component<Props, State> {
             <p className="text-muted-foreground mb-6">
               We encountered an unexpected error. Please try refreshing the page or go back to the home page.
             </p>
-            {process.env.NODE_ENV === "development" && this.state.error && (
-              <pre className="text-xs text-left bg-charcoal p-4 rounded-lg mb-6 overflow-auto max-h-40 text-muted-foreground">
-                {this.state.error.message}
-              </pre>
-            )}
+
             <div className="flex gap-3 justify-center">
               <Button variant="gold" onClick={this.handleReload}>
                 <RefreshCw className="h-4 w-4 mr-2" /> Refresh

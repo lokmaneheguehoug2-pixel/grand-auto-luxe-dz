@@ -36,8 +36,17 @@ function ReelsPage() {
 
   const [reels, setReels] = useState<Reel[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  const [retryKey, setRetryKey] = useState(0);
 
   useEffect(() => {
+    if (!realtimeDb) {
+      setError(true);
+      setLoading(false);
+      return;
+    }
+    setError(false);
+    setLoading(true);
     const reelsRef = ref(realtimeDb, "reels");
 
     const handleSnapshot = async (snapshot: { val: () => Record<string, any> | null }) => {
@@ -48,17 +57,23 @@ function ReelsPage() {
         return;
       }
 
-      const reelList: Reel[] = Object.entries(data).map(([id, v]) => ({
+      const reelList: Reel[] = Object.entries(data)
+        .filter(([, v]) => Boolean(v && typeof v === "object"))
+        .map(([id, raw]) => {
+          const v = raw as Record<string, unknown>;
+          return {
         id,
-        authorId: v.authorId,
-        authorPhone: v.authorPhone,
-        videoUrl: v.videoUrl,
-        caption: v.caption,
-        vehicleId: v.vehicleId,
+        authorId: typeof v.authorId === "string" ? v.authorId : "",
+        authorPhone: typeof v.authorPhone === "string" ? v.authorPhone : "",
+        videoUrl: typeof v.videoUrl === "string" ? v.videoUrl : "",
+        caption: typeof v.caption === "string" ? v.caption : null,
+        vehicleId: typeof v.vehicleId === "string" ? v.vehicleId : null,
         likesCount: Number(v.likesCount) || 0,
         viewsCount: Number(v.viewsCount) || 0,
-        createdAt: v.createdAt,
-      }));
+        createdAt: typeof v.createdAt === "string" ? v.createdAt : new Date(0).toISOString(),
+          };
+        })
+        .filter((reel) => Boolean(reel.id && reel.videoUrl));
 
       reelList.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
@@ -81,13 +96,19 @@ function ReelsPage() {
       }));
 
       setReels(reelsWithAuthors);
+      setError(false);
       setLoading(false);
     };
 
-    onValue(reelsRef, handleSnapshot);
+    onValue(reelsRef, handleSnapshot, () => {
+      console.error("[v0] Failed to load reels");
+      setReels([]);
+      setError(true);
+      setLoading(false);
+    });
 
     return () => off(reelsRef);
-  }, []);
+  }, [retryKey]);
 
   return (
     <div className="min-h-[calc(100vh-3.5rem)] bg-black">
@@ -110,10 +131,18 @@ function ReelsPage() {
         </div>
       )}
 
-      {!loading && reels.length === 0 && (
+      {!loading && error && (
         <div className="text-center py-24 text-muted-foreground">
           <Film className="h-12 w-12 mx-auto mb-3 text-gold/40" />
-          <p>لا يوجد ريلز بعد. كن أول من ينشر!</p>
+          <p>تعذر تحميل Reels.</p>
+          <Button variant="gold" size="sm" className="mt-4" onClick={() => setRetryKey((key) => key + 1)}>إعادة المحاولة</Button>
+        </div>
+      )}
+
+      {!loading && !error && reels.length === 0 && (
+        <div className="text-center py-24 text-muted-foreground">
+          <Film className="h-12 w-12 mx-auto mb-3 text-gold/40" />
+          <p>لا توجد Reels حاليًا.</p>
         </div>
       )}
 

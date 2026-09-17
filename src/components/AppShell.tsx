@@ -61,11 +61,11 @@ export function AppShell() {
             <Link to="/" className="flex items-center gap-2.5 min-w-0">
               <img
                 src="/my-logo.png.PNG"
-                alt="GRANDA Auto Luxe"
+                alt="GRAND Auto Luxe"
                 className="h-9 w-9 shrink-0 rounded-lg object-contain"
               />
               <div className="font-display text-base leading-none tracking-wide">
-                <span className="gold-shine font-bold">GRAND</span><span className="gold-text">A</span> <span className="gold-text">Auto Luxe</span>
+                <span className="gold-shine font-bold">GRAND Auto Luxe</span>
               </div>
             </Link>
           </div>

@@ -113,6 +113,7 @@ export function StoriesStrip() {
   }, []);
 
   const handleDeleteStory = useCallback(async (story: Story) => {
+    if (!realtimeDb || !story?.id) return;
     try {
       await remove(ref(realtimeDb, `stories/${story.id}`));
       setStories((prev) => prev.filter((s) => s.id !== story.id));
@@ -140,7 +141,7 @@ export function StoriesStrip() {
   }, []);
 
   const handleLike = useCallback(async (story: Story) => {
-    if (!user) { toast.error("Sign in to like stories"); return; }
+    if (!realtimeDb || !story?.id || !user) { toast.error("Sign in to like stories"); return; }
     try {
       const likes = story.likedBy || [];
       const isLiked = likes.includes(user.id);
@@ -166,7 +167,7 @@ export function StoriesStrip() {
   }, [user]);
 
   const handleReply = useCallback(async (story: Story, text: string) => {
-    if (!user || !text.trim()) return;
+    if (!realtimeDb || !story?.id || !user || !text.trim()) return;
     try {
       const msgRef = push(ref(realtimeDb, "messages"));
       await set(msgRef, {
