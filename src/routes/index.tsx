@@ -119,8 +119,8 @@ type HomeErrorBoundaryState = {
   error: Error | null;
 };
 
-class HomeErrorBoundary extends Component<{ children: ReactNode }, HomeErrorBoundaryState> {
-  state: HomeErrorBoundaryState = { error: null };
+class HomeErrorBoundary extends Component<{ children: (retryKey: number) => ReactNode }, HomeErrorBoundaryState & { retryKey: number }> {
+  state: HomeErrorBoundaryState & { retryKey: number } = { error: null, retryKey: 0 };
 
   static getDerivedStateFromError(error: Error): HomeErrorBoundaryState {
     return { error };
@@ -131,7 +131,7 @@ class HomeErrorBoundary extends Component<{ children: ReactNode }, HomeErrorBoun
   }
 
   render() {
-    if (!this.state.error) return this.props.children;
+    if (!this.state.error) return this.props.children(this.state.retryKey);
 
     return (
       <main className="min-h-screen bg-background px-4 py-10 text-foreground">
@@ -140,7 +140,7 @@ class HomeErrorBoundary extends Component<{ children: ReactNode }, HomeErrorBoun
           <h1 className="mb-3 text-2xl font-bold text-foreground">حدث خطأ مؤقت</h1>
           <p className="mb-6 text-sm text-muted-foreground">تعذر تحميل الصفحة. حاول مرة أخرى.</p>
           <div className="flex justify-center gap-3">
-            <button type="button" onClick={() => this.setState({ error: null })} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground">إعادة المحاولة</button>
+            <button type="button" onClick={() => this.setState((state) => ({ error: null, retryKey: state.retryKey + 1 }))} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground">إعادة المحاولة</button>
             <a href="/" className="rounded-md border border-input px-4 py-2 text-sm font-medium">الرئيسية</a>
           </div>
         </section>
@@ -152,7 +152,7 @@ class HomeErrorBoundary extends Component<{ children: ReactNode }, HomeErrorBoun
 function Home() {
   return (
     <HomeErrorBoundary>
-      <HomeContent />
+      {({ retryKey }: { retryKey?: number }) => <HomeContent key={retryKey ?? 0} />}
     </HomeErrorBoundary>
   );
 }
@@ -219,11 +219,15 @@ function HomeContent() {
   const [guestId] = useState(() => {
     if (typeof window === "undefined") return "guest-preview";
     const key = "grand-auto-luxe-guest-id";
-    const existing = window.localStorage.getItem(key);
-    if (existing) return existing;
-    const created = `guest-${crypto.randomUUID?.() ?? `${Date.now()}-${Math.random()}`}`;
-    window.localStorage.setItem(key, created);
-    return created;
+    try {
+      const existing = window.localStorage.getItem(key);
+      if (existing) return existing;
+      const created = `guest-${crypto.randomUUID?.() ?? `${Date.now()}-${Math.random()}`}`;
+      window.localStorage.setItem(key, created);
+      return created;
+    } catch {
+      return `guest-${Date.now()}-${Math.random()}`;
+    }
   });
   const userId = auth?.user?.id ?? auth?.user?.phone ?? guestId;
   const [likeData, setLikeData] = useState<LikeData>({});
@@ -508,6 +512,8 @@ function HomeContent() {
         ...prev,
         [vehicleId]: { count: current.count, liked: current.liked }
       }));
+      setLocalLikes((previous) => ({ ...previous, [vehicleId]: current.count }));
+      toast.error("تعذر حفظ الإعجاب، حاول مرة أخرى");
     }
   }, [userId, effectiveLikeData, localLikes, setLocalLikes]);
 
@@ -520,10 +526,12 @@ function HomeContent() {
       setFavorites((previous) => ({ ...previous, [vehicleId]: next }));
       toggleLocalSaved(vehicleId);
       if (typeof window !== "undefined") {
-        const saved = JSON.parse(window.localStorage.getItem("grand-auto-luxe-saved") || "[]") as unknown;
-        const ids = Array.isArray(saved) ? saved.filter((id): id is string => typeof id === "string") : [];
-        const updated = next ? [...new Set([...ids, vehicleId])] : ids.filter((id) => id !== vehicleId);
-        window.localStorage.setItem("grand-auto-luxe-saved", JSON.stringify(updated));
+        try {
+          const saved = JSON.parse(window.localStorage.getItem("grand-auto-luxe-saved") || "[]") as unknown;
+          const ids = Array.isArray(saved) ? saved.filter((id): id is string => typeof id === "string") : [];
+          const updated = next ? [...new Set([...ids, vehicleId])] : ids.filter((id) => id !== vehicleId);
+          window.localStorage.setItem("grand-auto-luxe-saved", JSON.stringify(updated));
+        } catch { /* storage is optional */ }
       }
       return;
     }
@@ -628,7 +636,7 @@ function HomeContent() {
                     viewCount={v?.id ? effectiveViewData[v.id] ?? 0 : 0}
                     onLike={() => handleLike(v)}
                       onFavorite={() => handleFavorite(v)}
-                      onView={() => undefined}
+                      onView={() => handleView(v)}
                       priceAlert={v?.id ? localAlerts.has(v.id) : false}
                       onPriceAlert={() => v?.id && toggleLocalAlert(v.id)}
                       commentCount={v?.id ? comments[v.id]?.length ?? 0 : 0}
@@ -650,7 +658,7 @@ function HomeContent() {
                       likeInfo={v?.id ? effectiveLikeData[v.id] : undefined}
                       viewCount={v?.id ? effectiveViewData[v.id] ?? 0 : 0}
                       onLike={() => handleLike(v)}
-                      onView={() => undefined}
+                      onView={() => handleView(v)}
                     />
                   </VehicleRenderBoundary>
                 ))}
