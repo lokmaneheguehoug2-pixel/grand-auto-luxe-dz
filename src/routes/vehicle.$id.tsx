@@ -8,7 +8,7 @@ import { calculateDeal, calculateGrandScore } from "@/lib/pricing";
 import { Flag, Calendar, Gauge, Fuel, Cog, Gavel, Trophy, Phone, MessageCircle, Lock, Pencil, Trash2, MapPin, Crown, CircleCheck, RotateCcw, Star, TrendingDown, Heart, Eye, Bookmark } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Countdown } from "@/components/Countdown";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { toast } from "sonner";
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
 import { ChatDialog } from "@/components/ChatDialog";
@@ -98,6 +98,7 @@ function VehicleDetail() {
   });
   const viewerId = user?.id ?? user?.phone ?? guestId;
   const [v, setV] = useState<Vehicle | null>(null);
+  const [vehicleLoadError, setVehicleLoadError] = useState(false);
   const [bids, setBids] = useState<Bid[]>([]);
   const [bidAmount, setBidAmount] = useState("");
   const [paywallOpen, setPaywallOpen] = useState(false);
@@ -181,6 +182,7 @@ function VehicleDetail() {
   }, [id, user?.id, user?.phone]);
 
   const recordInquiry = useCallback((type: "call" | "whatsapp" | "chat") => {
+    if (!id) return;
     const client = getSupabase();
     if (!client) return;
     const inquirerId = user?.id ?? user?.phone ?? null;
@@ -190,6 +192,7 @@ function VehicleDetail() {
   }, [id, user?.id, user?.phone]);
 
   const toggleFavorite = useCallback(async () => {
+    if (!id) return;
     if (!user) { toast.info("Sign in to save vehicles"); return; }
     const client = getSupabase();
     if (!client) return;
@@ -219,6 +222,7 @@ function VehicleDetail() {
   }, [id, user?.id, user?.phone]);
 
   const toggleLike = useCallback(async () => {
+    if (!id) return;
     if (!user) { toast.info("Sign in to like vehicles"); return; }
     const client = getSupabase();
     if (!client) return;
@@ -287,9 +291,14 @@ function VehicleDetail() {
     }
 
     let vehicleRef: ReturnType<typeof ref> | null = null;
+    const timeout = window.setTimeout(() => {
+      setVehicleLoadError(true);
+    }, 8000);
     const handleSnapshot = (snapshot: { exists?: () => boolean; val: () => unknown }) => {
       try {
         if (snapshot.exists && !snapshot.exists()) {
+          window.clearTimeout(timeout);
+          setVehicleLoadError(true);
           setV(null);
           return;
         }
@@ -300,6 +309,8 @@ function VehicleDetail() {
         }
         const data = raw as Record<string, any>;
         if (data) {
+          window.clearTimeout(timeout);
+          setVehicleLoadError(false);
           setV({
             ...data,
             id,
@@ -330,12 +341,19 @@ function VehicleDetail() {
     };
     try {
       vehicleRef = ref(realtimeDb, `vehicles/${id}`);
-      onValue(vehicleRef, handleSnapshot);
+      onValue(vehicleRef, handleSnapshot, () => {
+        window.clearTimeout(timeout);
+        setVehicleLoadError(true);
+        setV(null);
+      });
     } catch (error) {
+      window.clearTimeout(timeout);
       console.error("[v0] Failed to subscribe to vehicle detail", error);
+      setVehicleLoadError(true);
       setV(null);
     }
     return () => {
+      window.clearTimeout(timeout);
       try { if (vehicleRef) off(vehicleRef); } catch (error) { console.error("[v0] Failed to clean up vehicle detail", error); }
     };
   }, [id]);
@@ -408,8 +426,9 @@ function VehicleDetail() {
 
   if (!v) {
     return (
-      <div className="py-24 text-center">
-        <p className="text-muted-foreground">Loading vehicle...</p>
+      <div className="py-24 text-center space-y-4">
+        <p className="text-muted-foreground">{vehicleLoadError ? "This listing is unavailable or could not be loaded." : "Loading vehicle..."}</p>
+        {vehicleLoadError && <Button variant="gold" onClick={() => window.location.reload()}>Retry</Button>}
       </div>
     );
   }
