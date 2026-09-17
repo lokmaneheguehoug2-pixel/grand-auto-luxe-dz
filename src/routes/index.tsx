@@ -133,20 +133,19 @@ class HomeErrorBoundary extends Component<{ children: ReactNode }, HomeErrorBoun
   render() {
     if (!this.state.error) return this.props.children;
 
-    const errorMessage = this.state.error.message || "Unknown runtime error";
-    const errorStack = this.state.error.stack || "No stack trace available.";
-
     return (
       <main className="min-h-screen bg-background px-4 py-10 text-foreground">
-        <section className="mx-auto max-w-5xl rounded-xl border border-red-500/40 bg-charcoal p-5 shadow-lg sm:p-8">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-red-400">Exact runtime error</p>
-          <h1 className="mb-5 text-2xl font-bold text-red-300">The home page crashed</h1>
-          <pre className="max-h-[70vh] overflow-auto whitespace-pre-wrap break-words rounded-lg border border-border bg-background p-4 font-mono text-sm leading-relaxed text-foreground">
-            {`Message:\n${errorMessage}\n\nStack trace:\n${errorStack}`}
-          </pre>
-      </section>
-    </main>
-  );
+        <section className="mx-auto max-w-md rounded-xl border border-red-500/30 bg-charcoal p-6 text-center shadow-lg sm:p-8">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-red-400">GRAND Auto Luxe</p>
+          <h1 className="mb-3 text-2xl font-bold text-foreground">حدث خطأ مؤقت</h1>
+          <p className="mb-6 text-sm text-muted-foreground">تعذر تحميل الصفحة. حاول مرة أخرى.</p>
+          <div className="flex justify-center gap-3">
+            <button type="button" onClick={() => this.setState({ error: null })} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground">إعادة المحاولة</button>
+            <a href="/" className="rounded-md border border-input px-4 py-2 text-sm font-medium">الرئيسية</a>
+          </div>
+        </section>
+      </main>
+    );
   }
 }
 
@@ -214,6 +213,8 @@ function HomeContent() {
 
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);
+  const [vehiclesError, setVehiclesError] = useState(false);
+  const [vehiclesRetryKey, setVehiclesRetryKey] = useState(0);
   const auth = useAuth();
   const [guestId] = useState(() => {
     if (typeof window === "undefined") return "guest-preview";
@@ -244,6 +245,7 @@ function HomeContent() {
       try {
         if (snapshot.exists && !snapshot.exists()) {
           setVehicles([]);
+          setVehiclesError(false);
           return;
         }
 
@@ -293,9 +295,11 @@ function HomeContent() {
           })
           .filter((vehicle): vehicle is Vehicle => vehicle !== null && (vehicle.status === "active" || vehicle.status === "sold"));
 
+        setVehiclesError(false);
         setVehicles(list);
       } catch (error) {
         console.error("[v0] Failed to sanitize Firebase vehicles", error);
+        setVehiclesError(true);
         setVehicles([]);
       } finally {
         setLoading(false);
@@ -325,7 +329,7 @@ function HomeContent() {
         console.error("[v0] Failed to clean up Firebase vehicle listener", error);
       }
     };
-  }, []);
+  }, [vehiclesRetryKey]);
 
   const loadLikes = useCallback(async () => {
     const client = getSupabase();
@@ -598,8 +602,13 @@ function HomeContent() {
                   <div key={i} className="animate-pulse bg-charcoal rounded-xl h-48 sm:h-64" />
                 ))}
               </div>
+            ) : vehiclesError ? (
+              <div className="premium-card rounded-xl p-8 text-center">
+                <p className="text-muted-foreground">تعذر تحميل السيارات.</p>
+                <Button variant="gold" size="sm" className="mt-4" onClick={() => { setVehiclesError(false); setLoading(true); setVehiclesRetryKey((key) => key + 1); }}>إعادة المحاولة</Button>
+              </div>
             ) : filtered.length === 0 ? (
-              <div className="text-center py-16 text-muted-foreground">No vehicles found.</div>
+              <div className="text-center py-16 text-muted-foreground">لا توجد سيارات منشورة حاليًا.</div>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
                 {(Array.isArray(filtered) ? filtered : []).filter(isValidVehicle).map((v, index) => (

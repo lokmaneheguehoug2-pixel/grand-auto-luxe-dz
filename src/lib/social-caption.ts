@@ -66,7 +66,7 @@ function buildDarija(v: VehicleInfo, carLink: string): string {
     v.transmission ? `⚙️ ${v.transmission}` : null,
     v.mileage != null ? `📏 ${v.mileage.toLocaleString("fr-DZ")} km` : null,
     "",
-    "🔥 فرصة مميزة في Grand Auto Luxe!",
+    "🔥 فرصة مميزة في GRAND Auto Luxe!",
     `🎁 استعمل الكود ${PROMO_CODE} باش تربح تخفيض`,
     `🔗 ${carLink}`,
   ].filter(Boolean).join("\n");
@@ -82,7 +82,7 @@ function buildFrench(v: VehicleInfo, carLink: string): string {
     v.transmission ? `⚙️ ${v.transmission}` : null,
     v.mileage != null ? `📏 ${v.mileage.toLocaleString("fr-DZ")} km` : null,
     "",
-    "🔥 Occasion premium chez Grand Auto Luxe!",
+    "🔥 Occasion premium chez GRAND Auto Luxe!",
     `🎁 Utilisez le code ${PROMO_CODE} pour un tarif special`,
     `🔗 ${carLink}`,
   ].filter(Boolean).join("\n");
@@ -98,7 +98,7 @@ function buildArabic(v: VehicleInfo, carLink: string): string {
     v.transmission ? `⚙️ ${v.transmission}` : null,
     v.mileage != null ? `📏 ${v.mileage.toLocaleString("fr-DZ")} كم` : null,
     "",
-    "🔥 فرصة مميزة في Grand Auto Luxe!",
+    "🔥 فرصة مميزة في GRAND Auto Luxe!",
     `🎁 استخدم الكود ${PROMO_CODE} للحصول على عرض خاص`,
     `🔗 ${carLink}`,
   ].filter(Boolean).join("\n");
