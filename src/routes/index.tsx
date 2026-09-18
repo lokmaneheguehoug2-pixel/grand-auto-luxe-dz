@@ -343,26 +343,35 @@ function HomeContent() {
 
   const loadLikes = useCallback(async () => {
     if (!realtimeDb) return;
-    const snapshot = await get(ref(realtimeDb, "vehicleLikes"));
-    const raw = snapshot.val();
-    if (!raw || typeof raw !== "object") return;
-    const map: LikeData = {};
+    try {
+      const snapshot = await get(ref(realtimeDb, "vehicleLikes"));
+      const raw = snapshot.val();
+      if (!raw || typeof raw !== "object") return;
+      const map: LikeData = {};
     for (const [vehicleId, users] of Object.entries(raw as Record<string, unknown>)) {
       if (!vehicleId || !users || typeof users !== "object") continue;
       const userIds = Object.keys(users as Record<string, unknown>);
       map[vehicleId] = { count: userIds.length, liked: userIds.includes(userId) };
     }
-    setLikeData(map);
+      setLikeData(map);
+    } catch (error) {
+      console.warn("[v0] Likes unavailable", error);
+      setLikeData({});
+    }
   }, [userId]);
 
   const loadFavorites = useCallback(async () => {
     const client = getSupabase();
     if (!client || !userId) {
       if (typeof window !== "undefined") {
-        const saved = JSON.parse(window.localStorage.getItem("grand-auto-luxe-saved") || "[]") as unknown;
-        const map: FavoriteData = {};
-        if (Array.isArray(saved)) saved.forEach((id) => { if (typeof id === "string") map[id] = true; });
-        setFavorites(map);
+        try {
+          const saved = JSON.parse(window.localStorage.getItem("grand-auto-luxe-saved") || "[]") as unknown;
+          const map: FavoriteData = {};
+          if (Array.isArray(saved)) saved.forEach((id) => { if (typeof id === "string") map[id] = true; });
+          setFavorites(map);
+        } catch {
+          setFavorites({});
+        }
       }
       return;
     }
