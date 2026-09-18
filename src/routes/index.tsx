@@ -320,7 +320,12 @@ function HomeContent() {
     let firebaseVehiclesRef: ReturnType<typeof ref> | null = null;
     try {
       firebaseVehiclesRef = ref(realtimeDb, "vehicles");
-      onValue(firebaseVehiclesRef, handleSnapshot);
+      onValue(firebaseVehiclesRef, handleSnapshot, (error) => {
+        console.warn("[v0] Firebase vehicles unavailable", error.message);
+        setVehiclesError(false);
+        setVehicles([]);
+        setLoading(false);
+      });
     } catch (error) {
       console.error("[v0] Failed to subscribe to Firebase vehicles", error);
       setVehicles([]);

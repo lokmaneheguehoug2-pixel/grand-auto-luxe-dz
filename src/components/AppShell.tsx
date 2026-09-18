@@ -2,7 +2,7 @@ import { Outlet, Link, useRouterState, useNavigate } from "@tanstack/react-route
 import { Toaster } from "@/components/ui/sonner";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
-import { Hop as Home, Search, Plus, Film, User as User2, Shield, MessageSquare, LogOut } from "lucide-react";
+import { CarFront as Home, Search, Plus, Film, User as User2, Shield, MessageSquare, LogOut } from "lucide-react";
 import { PaywallGate } from "@/components/PaywallGate";
 import { CompareTray } from "@/components/CompareTray";
 import { NotificationBell } from "@/components/NotificationBell";
