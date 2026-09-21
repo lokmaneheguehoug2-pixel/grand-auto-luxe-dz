@@ -51,17 +51,35 @@ export function useDemoRecord<T>(key: string, fallback: T) {
 }
 
 export function useDemoSet(key: string) {
-  const [values, setValues] = useDemoRecord<string[]>(key, EMPTY_VALUES);
+  const [storedValues, setValues] = useDemoRecord<unknown>(key, EMPTY_VALUES);
+  const values = Array.isArray(storedValues)
+    ? storedValues.filter((value): value is string => typeof value === "string")
+    : EMPTY_VALUES;
   const toggle = useCallback((id: string) => {
-    setValues((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
+    setValues((current) => {
+      const safeCurrent = Array.isArray(current)
+        ? current.filter((value): value is string => typeof value === "string")
+        : [];
+      return safeCurrent.includes(id)
+        ? safeCurrent.filter((item) => item !== id)
+        : [...safeCurrent, id];
+    });
   }, [setValues]);
   return [new Set(values), toggle, setValues] as const;
 }
 
 export function useDemoCounterMap(key: string) {
-  const [counts, setCounts] = useDemoRecord<Record<string, number>>(key, EMPTY_COUNTS);
+  const [storedCounts, setCounts] = useDemoRecord<unknown>(key, EMPTY_COUNTS);
+  const counts = storedCounts && typeof storedCounts === "object" && !Array.isArray(storedCounts)
+    ? Object.fromEntries(Object.entries(storedCounts).filter(([, value]) => typeof value === "number" && Number.isFinite(value)))
+    : EMPTY_COUNTS;
   const increment = useCallback((id: string, amount = 1) => {
-    setCounts((current) => ({ ...current, [id]: Math.max(0, (current[id] ?? 0) + amount) }));
+    setCounts((current) => {
+      const safeCurrent = current && typeof current === "object" && !Array.isArray(current)
+        ? current as Record<string, number>
+        : {};
+      return { ...safeCurrent, [id]: Math.max(0, (safeCurrent[id] ?? 0) + amount) };
+    });
   }, [setCounts]);
   return [counts, increment, setCounts] as const;
 }
