@@ -152,7 +152,7 @@ class HomeErrorBoundary extends Component<{ children: (retryKey: number) => Reac
 function Home() {
   return (
     <HomeErrorBoundary>
-      {({ retryKey }: { retryKey?: number }) => <HomeContent key={retryKey ?? 0} />}
+      {(retryKey) => <HomeContent key={retryKey} />}
     </HomeErrorBoundary>
   );
 }
@@ -375,30 +375,40 @@ function HomeContent() {
       }
       return;
     }
-    const { data } = await client.from("vehicle_favorites").select("vehicle_id").eq("user_id", userId).throwOnError();
-    if (!Array.isArray(data)) return;
+    try {
+      const { data } = await client.from("vehicle_favorites").select("vehicle_id").eq("user_id", userId).throwOnError();
+      if (!Array.isArray(data)) return;
     const map: FavoriteData = {};
     for (const row of data) {
       if (row && typeof row.vehicle_id === "string") map[row.vehicle_id] = true;
     }
-    setFavorites(map);
+      setFavorites(map);
+    } catch (error) {
+      console.warn("[v0] Favorites unavailable", error);
+      setFavorites({});
+    }
   }, [userId]);
 
   const loadViews = useCallback(async () => {
     const client = getSupabase();
     if (!client) return;
-    const { data } = await client.from("vehicle_views").select("vehicle_id").throwOnError();
-    if (!Array.isArray(data)) return;
-    const map: ViewData = {};
+    try {
+      const { data } = await client.from("vehicle_views").select("vehicle_id").throwOnError();
+      if (!Array.isArray(data)) return;
+      const map: ViewData = {};
     for (const row of data) {
       if (!row || typeof row.vehicle_id !== "string") continue;
       map[row.vehicle_id] = (map[row.vehicle_id] ?? 0) + 1;
     }
-    setViewData(map);
+      setViewData(map);
+    } catch (error) {
+      console.warn("[v0] Views unavailable", error);
+      setViewData({});
+    }
   }, []);
 
   useEffect(() => {
-    void Promise.allSettled([loadLikes(), loadFavorites(), loadViews()]);
+    void Promise.allSettled([loadLikes(), loadFavorites(), loadViews()]).catch(() => undefined);
     try {
       const stored = JSON.parse(window.localStorage.getItem("grand-auto-luxe-liked") || "{}") as unknown;
       if (stored && typeof stored === "object" && !Array.isArray(stored)) setLocalLiked(stored as Record<string, boolean>);
@@ -577,7 +587,9 @@ function HomeContent() {
 
   return (
     <div>
-      <StoriesStrip />
+      <VehicleRenderBoundary>
+        <StoriesStrip />
+      </VehicleRenderBoundary>
 
       {/* Filters */}
       <section className="border-b border-border/60 sticky top-14 z-20 bg-background/95 backdrop-blur-sm">
