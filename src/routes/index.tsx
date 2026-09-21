@@ -1,8 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Component, useState, useMemo, useEffect, useCallback, useRef } from "react";
 import type { ReactNode } from "react";
-import { ref, get, set, remove, onValue, off } from "firebase/database";
-import { realtimeDb } from "@/lib/firebase";
+import { getSupabase } from "@/lib/supabase";
 import { WILAYAS, BRANDS } from "@/lib/wilayas";
 import { formatDZD, formatDZDArabic } from "@/lib/format";
 import { calculateDeal } from "@/lib/pricing";
@@ -257,25 +256,25 @@ function HomeContent() {
 
   useEffect(() => {
 
-    const handleSnapshot = (snapshot: { exists?: () => boolean; val: () => unknown }) => {
+    const handleSnapshot = (data: unknown) => {
       try {
-        if (snapshot.exists && !snapshot.exists()) {
+        if (!data || !Array.isArray(data)) {
           setVehicles([]);
           setVehiclesError(false);
           return;
         }
 
-        const data = snapshot.val();
+        const rows = data as Record<string, unknown>[];
         if (!data || typeof data !== "object" || Array.isArray(data)) {
           setVehicles([]);
           return;
         }
 
-        const list: Vehicle[] = Object.entries(data)
-          .filter(([, raw]) => Boolean(raw && typeof raw === "object"))
-          .map(([id, raw]) => {
-            if (!raw || typeof raw !== "object") return null;
+        const list: Vehicle[] = rows
+          .filter((raw) => Boolean(raw && typeof raw === "object" && typeof raw.id === "string"))
+          .map((raw) => {
             const v = raw as Record<string, unknown>;
+            const id = String(v.id);
             const images = Array.isArray(v.images)
               ? v.images.filter((image): image is string => typeof image === "string" && image.length > 0)
               : [];
@@ -322,48 +321,40 @@ function HomeContent() {
       }
     };
 
-    if (!realtimeDb) {
+    const client = getSupabase();
+    if (!client) {
       setVehicles([]);
       setLoading(false);
       return;
     }
-
-    let firebaseVehiclesRef: ReturnType<typeof ref> | null = null;
-    try {
-      firebaseVehiclesRef = ref(realtimeDb, "vehicles");
-      onValue(firebaseVehiclesRef, handleSnapshot, (error) => {
-        console.warn("[v0] Firebase vehicles unavailable", error.message);
-        setVehiclesError(false);
-        setVehicles([]);
-        setLoading(false);
-      });
-    } catch (error) {
-      console.error("[v0] Failed to subscribe to Firebase vehicles", error);
+    let cancelled = false;
+    void client.from("vehicles").select("*").order("created_at", { ascending: false }).then(({ data, error }) => {
+      if (cancelled) return;
+      if (error) throw error;
+      handleSnapshot(data ?? []);
+    }).catch((error) => {
+      if (cancelled) return;
+      console.warn("[v0] Supabase vehicles unavailable", error);
+      setVehiclesError(false);
       setVehicles([]);
       setLoading(false);
-    }
+    });
 
-    return () => {
-      try {
-        if (firebaseVehiclesRef) off(firebaseVehiclesRef);
-      } catch (error) {
-        console.error("[v0] Failed to clean up Firebase vehicle listener", error);
-      }
-    };
+    return () => { cancelled = true; };
   }, [vehiclesRetryKey]);
 
   const loadLikes = useCallback(async () => {
-    if (!realtimeDb) return;
+    const client = getSupabase();
+    if (!client) return;
     try {
-      const snapshot = await get(ref(realtimeDb, "vehicleLikes"));
-      const raw = snapshot.val();
-      if (!raw || typeof raw !== "object") return;
+      const { data, error } = await client.from("vehicle_likes").select("vehicle_id, user_id");
+      if (error) throw error;
       const map: LikeData = {};
-    for (const [vehicleId, users] of Object.entries(raw as Record<string, unknown>)) {
-      if (!vehicleId || !users || typeof users !== "object") continue;
-      const userIds = Object.keys(users as Record<string, unknown>);
-      map[vehicleId] = { count: userIds.length, liked: userIds.includes(userId) };
-    }
+      for (const row of data ?? []) {
+        if (!row || typeof row.vehicle_id !== "string") continue;
+        const current = map[row.vehicle_id] ?? { count: 0, liked: false };
+        map[row.vehicle_id] = { count: current.count + 1, liked: current.liked || row.user_id === userId };
+      }
       setLikeData(map);
     } catch (error) {
       console.warn("[v0] Likes unavailable", error);
@@ -543,12 +534,14 @@ function HomeContent() {
       try { window.localStorage.setItem("grand-auto-luxe-liked", JSON.stringify(next)); } catch { /* optional guest storage */ }
       return next;
     });
-    if (!realtimeDb) return;
+    const client = getSupabase();
+    if (!client) return;
 
     try {
-      const likeRef = ref(realtimeDb, `vehicleLikes/${vehicleId}/${userId}`);
-      if (newLiked) await set(likeRef, true);
-      else await remove(likeRef);
+      const result = newLiked
+        ? await client.from("vehicle_likes").insert({ vehicle_id: vehicleId, user_id: userId })
+        : await client.from("vehicle_likes").delete().eq("vehicle_id", vehicleId).eq("user_id", userId);
+      if (result.error) throw result.error;
     } catch {
       setLikeData(prev => ({
         ...prev,
