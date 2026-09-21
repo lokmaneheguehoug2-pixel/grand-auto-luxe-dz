@@ -117,17 +117,28 @@ class VehicleRenderBoundary extends Component<{ children: ReactNode }, { hasErro
 
 type HomeErrorBoundaryState = {
   error: Error | null;
+  retryKey: number;
+  retryAttempts: number;
 };
 
-class HomeErrorBoundary extends Component<{ children: (retryKey: number) => ReactNode }, HomeErrorBoundaryState & { retryKey: number }> {
-  state: HomeErrorBoundaryState & { retryKey: number } = { error: null, retryKey: 0 };
+class HomeErrorBoundary extends Component<{ children: (retryKey: number) => ReactNode }, HomeErrorBoundaryState> {
+  state: HomeErrorBoundaryState = { error: null, retryKey: 0, retryAttempts: 0 };
 
-  static getDerivedStateFromError(error: Error): HomeErrorBoundaryState {
+  static getDerivedStateFromError(error: Error): Partial<HomeErrorBoundaryState> {
     return { error };
   }
 
   componentDidCatch(error: Error) {
     console.error("EXACT RUNTIME ERROR:", error);
+    if (this.state.retryAttempts < 2) {
+      window.setTimeout(() => {
+        this.setState((state) => ({
+          error: null,
+          retryKey: state.retryKey + 1,
+          retryAttempts: state.retryAttempts + 1,
+        }));
+      }, 120);
+    }
   }
 
   render() {
@@ -140,7 +151,7 @@ class HomeErrorBoundary extends Component<{ children: (retryKey: number) => Reac
           <h1 className="mb-3 text-2xl font-bold text-foreground">حدث خطأ مؤقت</h1>
           <p className="mb-6 text-sm text-muted-foreground">تعذر تحميل الصفحة. حاول مرة أخرى.</p>
           <div className="flex justify-center gap-3">
-            <button type="button" onClick={() => this.setState((state) => ({ error: null, retryKey: state.retryKey + 1 }))} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground">إعادة المحاولة</button>
+            <button type="button" onClick={() => this.setState((state) => ({ error: null, retryKey: state.retryKey + 1, retryAttempts: 0 }))} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground">إعادة المحاولة</button>
             <a href="/" className="rounded-md border border-input px-4 py-2 text-sm font-medium">الرئيسية</a>
           </div>
         </section>
