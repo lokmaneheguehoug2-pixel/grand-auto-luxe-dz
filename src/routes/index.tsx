@@ -15,7 +15,6 @@ import { Countdown } from "@/components/Countdown";
 import { compareStore, useCompare } from "@/lib/compare";
 import { useAuth } from "@/hooks/use-auth";
 import { StoriesStrip } from "@/components/StoriesStrip";
-import { getSupabase } from "@/lib/supabase";
 import { supabaseSucceeded } from "@/lib/listing-interactions";
 import { toast } from "sonner";
 import { demoKeys, useDemoCounterMap, useDemoSet } from "@/lib/demo-state";
