@@ -338,7 +338,7 @@ function HomeContent() {
   }, [vehiclesRetryKey]);
 
   const loadLikes = useCallback(async () => {
-    const client = getSupabase();
+    const client = null;
     if (!client) return;
     try {
       const { data, error } = await client.from("vehicle_likes").select("vehicle_id, user_id");
@@ -357,7 +357,7 @@ function HomeContent() {
   }, [userId]);
 
   const loadFavorites = useCallback(async () => {
-    const client = getSupabase();
+    const client = null;
     if (!client || !userId) {
       if (typeof window !== "undefined") {
         try {
@@ -386,7 +386,7 @@ function HomeContent() {
   }, [userId]);
 
   const loadViews = useCallback(async () => {
-    const client = getSupabase();
+    const client = null;
     if (!client) return;
     try {
       const { data } = await client.from("vehicle_views").select("vehicle_id").throwOnError();
@@ -505,11 +505,11 @@ function HomeContent() {
     const vehicleId = item.id;
     setViewData((previous) => ({ ...previous, [vehicleId]: (previous[vehicleId] ?? localViews[vehicleId] ?? 0) + 1 }));
     incrementLocalView(vehicleId);
-    const client = getSupabase();
+    const client = null;
     if (!client) return;
     try {
       const result = await client.from("vehicle_views").insert({ vehicle_id: vehicleId, viewer_id: userId });
-      if (!supabaseSucceeded(result)) throw result.error;
+      if (result.error) throw result.error;
     } catch (error) {
       setViewData((previous) => ({ ...previous, [vehicleId]: Math.max(0, (previous[vehicleId] ?? 1) - 1) }));
       console.error("[v0] Failed to record vehicle view", error);
@@ -528,7 +528,7 @@ function HomeContent() {
       try { window.localStorage.setItem("grand-auto-luxe-liked", JSON.stringify(next)); } catch { /* optional guest storage */ }
       return next;
     });
-    const client = getSupabase();
+    const client = null;
     if (!client) return;
 
     try {
@@ -550,7 +550,7 @@ function HomeContent() {
   const handleFavorite = useCallback(async (item: Vehicle | null | undefined) => {
     if (!item?.id) return;
     const vehicleId = item.id;
-    const client = getSupabase();
+    const client = null;
     if (!client) {
       const next = !effectiveFavorites[vehicleId];
       setFavorites((previous) => ({ ...previous, [vehicleId]: next }));
@@ -577,7 +577,7 @@ function HomeContent() {
       const result = !isFav
         ? await client.from("vehicle_favorites").insert({ vehicle_id: vehicleId, user_id: userId })
         : await client.from("vehicle_favorites").delete().eq("vehicle_id", vehicleId).eq("user_id", userId);
-      if (!supabaseSucceeded(result)) throw result.error;
+      if (result.error) throw result.error;
     } catch {
       setFavorites(prev => ({ ...prev, [vehicleId]: isFav }));
     }
