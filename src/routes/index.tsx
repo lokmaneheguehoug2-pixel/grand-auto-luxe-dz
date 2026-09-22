@@ -109,7 +109,10 @@ class VehicleRenderBoundary extends Component<{ children: ReactNode }, { hasErro
   }
 
   render() {
-    return this.state.hasError ? null : this.props.children;
+    if (this.state.hasError) {
+      return <div className="min-h-48 rounded-xl border border-border/50 bg-charcoal/60" aria-label="Vehicle unavailable" />;
+    }
+    return this.props.children;
   }
 }
 
@@ -425,10 +428,13 @@ function HomeContent() {
   }, [favorites, localSaved]);
   const effectiveViewData = useMemo(() => ({ ...viewData, ...localViews }), [viewData, localViews]);
 
-  const safeVehicles = useMemo(() => (Array.isArray(vehicles) ? vehicles : []).filter((vehicle): vehicle is Vehicle => Boolean(vehicle?.id)), [vehicles]);
+  const validVehicles = useMemo(
+    () => (vehicles || []).filter((vehicle): vehicle is Vehicle => Boolean(vehicle && vehicle.id)),
+    [vehicles],
+  );
 
   const filtered = useMemo(() => {
-    const list = safeVehicles
+    const list = validVehicles
       .filter((vehicle): vehicle is Vehicle => Boolean(vehicle?.id))
       .map((vehicle) => ({ ...vehicle, pinned: vehicle.pinned === true || localPinned.has(vehicle.id) }))
       .filter((vehicle): vehicle is Vehicle => {
@@ -472,7 +478,7 @@ function HomeContent() {
     }
 
     return list;
-  }, [safeVehicles, filters, localPinned]);
+  }, [validVehicles, filters, localPinned]);
 
   const reelsVehicles = (Array.isArray(filtered) ? filtered : [])
     .filter(isValidVehicle)
@@ -662,7 +668,7 @@ function HomeContent() {
                   <VehicleRenderBoundary key={v?.id ? `car-${v.id}` : `car-index-${index}`}>
                     <VehicleCard
                       vehicle={v}
-                      allVehicles={safeVehicles}
+                      allVehicles={validVehicles}
                     likeInfo={v?.id ? effectiveLikeData[v.id] : undefined}
                     isFavorite={v?.id ? effectiveFavorites[v.id] ?? false : false}
                     viewCount={v?.id ? effectiveViewData[v.id] ?? 0 : 0}
