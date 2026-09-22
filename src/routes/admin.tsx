@@ -13,7 +13,6 @@ import { useState, useEffect, useCallback } from "react";
 import { formatDZD } from "@/lib/format";
 import { ref, onValue, set, off, get, push, remove, update } from "firebase/database";
 import { realtimeDb } from "@/lib/firebase";
-import { savePlatformSettings, fetchPlatformSettings } from "@/lib/supabase";
 import { SocialImageGenerator } from "@/components/SocialImageGenerator";
 import { SocialAutomationPanel } from "@/components/SocialAutomationPanel";
 import { getSupabase } from "@/lib/supabase";
@@ -1003,13 +1002,18 @@ function SettingsTab() {
     const settingsRef = ref(realtimeDb, "site_settings");
     const handleSnapshot = (snapshot: { val: () => SiteSettings | null }) => { const data = snapshot.val(); if (data) setSettings(prev => ({ ...prev, ...data })); setLoading(false); };
     onValue(settingsRef, handleSnapshot);
-    fetchPlatformSettings().then((supaData) => { if (supaData) setSettings(prev => ({ ...prev, ...supaData })); }).catch(() => {});
     return () => off(settingsRef);
   }, []);
 
   const saveSettings = async () => {
     setSaving(true);
-    try { await set(ref(realtimeDb, "site_settings"), settings); await savePlatformSettings(settings); toast.success("Settings saved"); } catch { toast.error("Failed to save"); }
+    try {
+      await set(ref(realtimeDb, "site_settings"), settings);
+      toast.success("Settings saved to Firebase");
+    } catch (error) {
+      console.error("[v0] Failed to save site settings", error);
+      toast.error("Failed to save settings");
+    }
     setSaving(false);
   };
 
@@ -1046,34 +1050,30 @@ function WeeklyReminderSection() {
     setSending(true);
     setResult(null);
     try {
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const firebaseDbUrl = import.meta.env.VITE_FIREBASE_DATABASE_URL;
-
-      if (!firebaseDbUrl) {
-        toast.error("Firebase database URL not configured. Set VITE_FIREBASE_DATABASE_URL in your environment.");
-        return;
-      }
-
-      const response = await fetch(`${supabaseUrl}/functions/v1/weekly-unsold-reminder`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ firebaseDbUrl }),
+      const vehiclesSnapshot = await get(ref(realtimeDb, "vehicles"));
+      const rawVehicles = vehiclesSnapshot.val();
+      const vehicles = rawVehicles && typeof rawVehicles === "object" ? Object.entries(rawVehicles) : [];
+      const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+      const reminders = vehicles.filter(([, value]) => {
+        if (!value || typeof value !== "object") return false;
+        const vehicle = value as Record<string, unknown>;
+        const createdAt = Date.parse(String(vehicle.created_at ?? vehicle.createdAt ?? ""));
+        return vehicle.status === "active" && Number.isFinite(createdAt) && createdAt < cutoff;
       });
-
-      const text = await response.text();
-      let data: any;
-      try {
-        data = JSON.parse(text);
-      } catch {
-        throw new Error(`Server returned a non-JSON response (status ${response.status}). The edge function may be misconfigured.`);
-      }
-
-      if (response.ok) {
-        setResult({ remindersSent: data.remindersSent || 0, message: data.message || "Reminders sent" });
-        toast.success(`${data.remindersSent || 0} reminder(s) sent to owners of unsold listings`);
-      } else {
-        throw new Error(data.error || "Failed to send reminders");
-      }
+      await Promise.all(reminders.map(async ([vehicleId, value]) => {
+        const vehicle = value as Record<string, unknown>;
+        const notificationRef = push(ref(realtimeDb, `notifications/${String(vehicle.sellerId ?? vehicle.seller_id ?? "unknown")}`));
+        await set(notificationRef, {
+          id: notificationRef.key,
+          type: "unsold_listing_reminder",
+          vehicle_id: vehicleId,
+          message: "Is your vehicle still available? Please update your listing status or mark it as sold.",
+          created_at: new Date().toISOString(),
+          read: false,
+        });
+      }));
+      setResult({ remindersSent: reminders.length, message: "Reminders created in Firebase" });
+      toast.success(`${reminders.length} reminder(s) created in Firebase`);
     } catch (err: any) {
       toast.error(err?.message || "Failed to send reminders");
       console.error(err);
