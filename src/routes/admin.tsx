@@ -1047,6 +1047,10 @@ function WeeklyReminderSection() {
   const [result, setResult] = useState<{ remindersSent: number; message: string } | null>(null);
 
   const sendReminders = async () => {
+    if (!realtimeDb) {
+      toast.error("Firebase is not configured");
+      return;
+    }
     setSending(true);
     setResult(null);
     try {
@@ -1058,7 +1062,8 @@ function WeeklyReminderSection() {
         if (!value || typeof value !== "object") return false;
         const vehicle = value as Record<string, unknown>;
         const createdAt = Date.parse(String(vehicle.created_at ?? vehicle.createdAt ?? ""));
-        return vehicle.status === "active" && Number.isFinite(createdAt) && createdAt < cutoff;
+        const status = String(vehicle.status ?? "active").toLowerCase();
+        return status === "active" && Number.isFinite(createdAt) && createdAt < cutoff;
       });
       await Promise.all(reminders.map(async ([vehicleId, value]) => {
         const vehicle = value as Record<string, unknown>;
@@ -1090,7 +1095,7 @@ function WeeklyReminderSection() {
         <Button variant="gold" onClick={sendReminders} disabled={sending}>{sending ? (<><RefreshCw className="h-4 w-4 mr-2 animate-spin" /> Sending reminders...</>) : (<><Send className="h-4 w-4 mr-2" /> Send Reminders Now</>)}</Button>
         {result && <span className="text-sm text-green-400">{result.remindersSent} reminder(s) sent successfully</span>}
       </div>
-      <p className="text-xs text-muted-foreground mt-2">This runs automatically every 7 days via a scheduled edge function. Use the button above to trigger it manually.</p>
+      <p className="text-xs text-muted-foreground mt-2">This checks Firebase for active listings older than 7 days and creates an in-app notification for each owner.</p>
     </div>
   );
 }
