@@ -1,7 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Component, useState, useMemo, useEffect, useCallback, useRef } from "react";
 import type { ReactNode } from "react";
-import { getSupabase } from "@/lib/supabase";
+import { ref, get, set, remove, onValue, off } from "firebase/database";
+import { realtimeDb } from "@/lib/firebase";
 import { WILAYAS, BRANDS } from "@/lib/wilayas";
 import { formatDZD, formatDZDArabic } from "@/lib/format";
 import { calculateDeal } from "@/lib/pricing";
@@ -15,7 +16,6 @@ import { Countdown } from "@/components/Countdown";
 import { compareStore, useCompare } from "@/lib/compare";
 import { useAuth } from "@/hooks/use-auth";
 import { StoriesStrip } from "@/components/StoriesStrip";
-import { supabaseSucceeded } from "@/lib/listing-interactions";
 import { toast } from "sonner";
 import { demoKeys, useDemoCounterMap, useDemoSet } from "@/lib/demo-state";
 
@@ -257,20 +257,20 @@ function HomeContent() {
 
     const handleSnapshot = (data: unknown) => {
       try {
-        if (!data || !Array.isArray(data)) {
+        if (!data || typeof data !== "object") {
           setVehicles([]);
           setVehiclesError(false);
           return;
         }
 
-        const rows = data as Record<string, unknown>[];
-        if (!data || typeof data !== "object" || Array.isArray(data)) {
-          setVehicles([]);
-          return;
-        }
-
+        const rows = Array.isArray(data)
+          ? data as Record<string, unknown>[]
+          : Object.entries(data as Record<string, unknown>).map(([id, value]) => ({
+              ...(value && typeof value === "object" ? value as Record<string, unknown> : {}),
+              id,
+            }));
         const list: Vehicle[] = rows
-          .filter((raw) => Boolean(raw && typeof raw === "object" && typeof raw.id === "string"))
+          .filter((raw) => Boolean(raw && typeof raw === "object"))
           .map((raw) => {
             const v = raw as Record<string, unknown>;
             const id = String(v.id);
@@ -320,26 +320,21 @@ function HomeContent() {
       }
     };
 
-    const client = getSupabase();
-    if (!client) {
+    if (!realtimeDb) {
       setVehicles([]);
       setLoading(false);
       return;
     }
-    let cancelled = false;
-    void client.from("vehicles").select("*").order("created_at", { ascending: false }).then(({ data, error }) => {
-      if (cancelled) return;
-      if (error) throw error;
-      handleSnapshot(data ?? []);
-    }).catch((error) => {
-      if (cancelled) return;
-      console.warn("[v0] Supabase vehicles unavailable", error);
+    const vehiclesRef = ref(realtimeDb, "vehicles");
+    const handleValue = (snapshot: { val: () => unknown }) => handleSnapshot(snapshot.val());
+    const handleError = (error: Error) => {
+      console.warn("[v0] Firebase vehicles unavailable", error.message);
       setVehiclesError(false);
       setVehicles([]);
       setLoading(false);
-    });
-
-    return () => { cancelled = true; };
+    };
+    onValue(vehiclesRef, handleValue, handleError);
+    return () => off(vehiclesRef, "value", handleValue);
   }, [vehiclesRetryKey]);
 
   const loadLikes = useCallback(async () => {
