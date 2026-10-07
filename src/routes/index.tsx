@@ -764,10 +764,10 @@ function VehicleCard({ vehicle: v, allVehicles, likeInfo, isFavorite, viewCount,
   commentCount: number;
   onComments: () => void;
 }) {
+  const compare = useCompare();
   if (!v?.id) return null;
   const fallbackImage = "/my-logo.png.PNG";
   const imageUrl = Array.isArray(v?.images) && typeof v.images[0] === "string" && v.images[0].length > 0 ? v.images[0] : fallbackImage;
-  const compare = useCompare();
   const likeCount = likeInfo?.count ?? 0;
   const liked = likeInfo?.liked ?? false;
   const price = priceOf(v);
