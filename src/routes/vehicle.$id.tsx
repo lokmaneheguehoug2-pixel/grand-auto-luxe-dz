@@ -686,12 +686,24 @@ function VehicleDetail() {
           </div>
         )}
 
-        {v.video_url && (
-          <div className="mb-6">
-            <h3 className="text-sm font-semibold text-gold mb-2">Video</h3>
-            <video src={v.video_url} controls className="w-full rounded-xl max-h-[400px]" />
-          </div>
-        )}
+  {v.video_url && (
+  <div className="mb-6">
+  <h3 className="text-sm font-semibold text-gold mb-2">Video</h3>
+  <video
+    src={v.video_url}
+    controls
+    playsInline
+    preload="metadata"
+    className="w-full rounded-xl max-h-[400px] bg-black"
+    onError={(event) => {
+      event.currentTarget.replaceWith(Object.assign(document.createElement("p"), {
+        className: "rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground",
+        textContent: "تعذر تشغيل الفيديو، يمكنك مشاهدة صور السيارة بدلًا منه.",
+      }));
+    }}
+  />
+  </div>
+  )}
 
         {/* Auction */}
         {v.price_type === "auction" && v.auction_ends_at && v.status !== "sold" && (

@@ -161,6 +161,7 @@ function ReelCard({ reel, currentUserId, isAdmin, onRefresh }: { reel: Reel; cur
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [playing, setPlaying] = useState(false);
+  const [videoFailed, setVideoFailed] = useState(false);
   const [liked, setLiked] = useState(false);
   const [likes, setLikes] = useState(Number(reel.likesCount) || 0);
   const [views, setViews] = useState(Number(reel.viewsCount) || 0);
@@ -315,15 +316,23 @@ function ReelCard({ reel, currentUserId, isAdmin, onRefresh }: { reel: Reel; cur
           className="relative aspect-[9/16] max-h-[80vh] w-full bg-black flex items-center justify-center"
           onClick={togglePlay}
         >
-          <video
-            ref={videoRef}
-            src={reel.videoUrl}
-            className="w-full h-full object-contain"
-            loop
-            playsInline
-            muted={false}
-            preload="metadata"
-          />
+          {videoFailed ? (
+            <div className="flex h-full w-full flex-col items-center justify-center gap-3 bg-charcoal p-6 text-center">
+              <Film className="h-10 w-10 text-gold" />
+              <p className="text-sm text-white/75">تعذر تشغيل هذا الفيديو. جرّب الريل التالي.</p>
+            </div>
+          ) : (
+            <video
+              ref={videoRef}
+              src={reel.videoUrl}
+              className="w-full h-full object-contain"
+              loop
+              playsInline
+              muted={false}
+              preload="metadata"
+              onError={() => setVideoFailed(true)}
+            />
+          )}
           {!playing && (
             <div className="absolute inset-0 flex items-center justify-center bg-black/30 pointer-events-none">
               <div className="h-16 w-16 rounded-full bg-gold/20 grid place-items-center">

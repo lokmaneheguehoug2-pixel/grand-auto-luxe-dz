@@ -885,6 +885,7 @@ function VehicleReelCard({ vehicle: v, likeInfo, viewCount, onLike, onView }: {
   onLike: () => void;
   onView: () => void;
 }) {
+  const [videoFailed, setVideoFailed] = useState(false);
   if (!v?.id) return null;
   const likeCount = likeInfo?.count ?? 0;
   const liked = likeInfo?.liked ?? false;
@@ -899,7 +900,7 @@ function VehicleReelCard({ vehicle: v, likeInfo, viewCount, onLike, onView }: {
       className="group rounded-xl overflow-hidden border border-gold/20 block relative aspect-[9/16] bg-charcoal"
       onClick={onView}
   >
-      {videoUrl ? (
+      {videoUrl && !videoFailed ? (
         <video
           src={videoUrl}
           poster={imageUrl}
@@ -908,9 +909,7 @@ function VehicleReelCard({ vehicle: v, likeInfo, viewCount, onLike, onView }: {
           loop
           playsInline
           preload="metadata"
-          onError={(event) => {
-            event.currentTarget.style.display = "none";
-          }}
+          onError={() => setVideoFailed(true)}
           onMouseOver={(event) => { void event.currentTarget.play().catch(() => undefined); }}
           onMouseOut={(event) => event.currentTarget.pause()}
         />
