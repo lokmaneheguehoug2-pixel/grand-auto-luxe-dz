@@ -9,83 +9,28 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as IndexRouteImport } from './routes/index'
-import { Route as AdminRouteImport } from './routes/admin'
-import { Route as AuthRouteImport } from './routes/auth'
-import { Route as BrandsRouteImport } from './routes/brands'
-import { Route as CheckoutRouteImport } from './routes/checkout'
-import { Route as MessagesRouteImport } from './routes/messages'
-import { Route as MyAppointmentsRouteImport } from './routes/my-appointments'
-import { Route as MyListingsRouteImport } from './routes/my-listings'
-import { Route as PlansRouteImport } from './routes/plans'
-import { Route as PostRouteImport } from './routes/post'
-import { Route as PostReelRouteImport } from './routes/post-reel'
-import { Route as PostStoryRouteImport } from './routes/post-story'
-import { Route as ReelsRouteImport } from './routes/reels'
 import { Route as UnifiedInboxRouteImport } from './routes/unified-inbox'
-import { Route as CarIdRouteImport } from './routes/car.$id'
-import { Route as EditListingIdRouteImport } from './routes/edit-listing.$id'
-import { Route as SellerIdRouteImport } from './routes/seller.$id'
+import { Route as ReelsRouteImport } from './routes/reels'
+import { Route as PostStoryRouteImport } from './routes/post-story'
+import { Route as PostReelRouteImport } from './routes/post-reel'
+import { Route as PostRouteImport } from './routes/post'
+import { Route as PlansRouteImport } from './routes/plans'
+import { Route as MyListingsRouteImport } from './routes/my-listings'
+import { Route as MyAppointmentsRouteImport } from './routes/my-appointments'
+import { Route as MessagesRouteImport } from './routes/messages'
+import { Route as CheckoutRouteImport } from './routes/checkout'
+import { Route as BrandsRouteImport } from './routes/brands'
+import { Route as AuthRouteImport } from './routes/auth'
+import { Route as AdminRouteImport } from './routes/admin'
+import { Route as IndexRouteImport } from './routes/index'
 import { Route as VehicleIdRouteImport } from './routes/vehicle.$id'
+import { Route as SellerIdRouteImport } from './routes/seller.$id'
+import { Route as EditListingIdRouteImport } from './routes/edit-listing.$id'
+import { Route as CarIdRouteImport } from './routes/car.$id'
 
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AdminRoute = AdminRouteImport.update({
-  id: '/admin',
-  path: '/admin',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AuthRoute = AuthRouteImport.update({
-  id: '/auth',
-  path: '/auth',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const BrandsRoute = BrandsRouteImport.update({
-  id: '/brands',
-  path: '/brands',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const CheckoutRoute = CheckoutRouteImport.update({
-  id: '/checkout',
-  path: '/checkout',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const MessagesRoute = MessagesRouteImport.update({
-  id: '/messages',
-  path: '/messages',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const MyAppointmentsRoute = MyAppointmentsRouteImport.update({
-  id: '/my-appointments',
-  path: '/my-appointments',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const MyListingsRoute = MyListingsRouteImport.update({
-  id: '/my-listings',
-  path: '/my-listings',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PlansRoute = PlansRouteImport.update({
-  id: '/plans',
-  path: '/plans',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PostRoute = PostRouteImport.update({
-  id: '/post',
-  path: '/post',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PostReelRoute = PostReelRouteImport.update({
-  id: '/post-reel',
-  path: '/post-reel',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PostStoryRoute = PostStoryRouteImport.update({
-  id: '/post-story',
-  path: '/post-story',
+const UnifiedInboxRoute = UnifiedInboxRouteImport.update({
+  id: '/unified-inbox',
+  path: '/unified-inbox',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ReelsRoute = ReelsRouteImport.update({
@@ -93,19 +38,69 @@ const ReelsRoute = ReelsRouteImport.update({
   path: '/reels',
   getParentRoute: () => rootRouteImport,
 } as any)
-const UnifiedInboxRoute = UnifiedInboxRouteImport.update({
-  id: '/unified-inbox',
-  path: '/unified-inbox',
+const PostStoryRoute = PostStoryRouteImport.update({
+  id: '/post-story',
+  path: '/post-story',
   getParentRoute: () => rootRouteImport,
 } as any)
-const CarIdRoute = CarIdRouteImport.update({
-  id: '/car/$id',
-  path: '/car/$id',
+const PostReelRoute = PostReelRouteImport.update({
+  id: '/post-reel',
+  path: '/post-reel',
   getParentRoute: () => rootRouteImport,
 } as any)
-const EditListingIdRoute = EditListingIdRouteImport.update({
-  id: '/edit-listing/$id',
-  path: '/edit-listing/$id',
+const PostRoute = PostRouteImport.update({
+  id: '/post',
+  path: '/post',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PlansRoute = PlansRouteImport.update({
+  id: '/plans',
+  path: '/plans',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MyListingsRoute = MyListingsRouteImport.update({
+  id: '/my-listings',
+  path: '/my-listings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MyAppointmentsRoute = MyAppointmentsRouteImport.update({
+  id: '/my-appointments',
+  path: '/my-appointments',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MessagesRoute = MessagesRouteImport.update({
+  id: '/messages',
+  path: '/messages',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CheckoutRoute = CheckoutRouteImport.update({
+  id: '/checkout',
+  path: '/checkout',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BrandsRoute = BrandsRouteImport.update({
+  id: '/brands',
+  path: '/brands',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthRoute = AuthRouteImport.update({
+  id: '/auth',
+  path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminRoute = AdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const VehicleIdRoute = VehicleIdRouteImport.update({
+  id: '/vehicle/$id',
+  path: '/vehicle/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SellerIdRoute = SellerIdRouteImport.update({
@@ -113,9 +108,14 @@ const SellerIdRoute = SellerIdRouteImport.update({
   path: '/seller/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
-const VehicleIdRoute = VehicleIdRouteImport.update({
-  id: '/vehicle/$id',
-  path: '/vehicle/$id',
+const EditListingIdRoute = EditListingIdRouteImport.update({
+  id: '/edit-listing/$id',
+  path: '/edit-listing/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CarIdRoute = CarIdRouteImport.update({
+  id: '/car/$id',
+  path: '/car/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
 
@@ -266,88 +266,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/admin': {
-      id: '/admin'
-      path: '/admin'
-      fullPath: '/admin'
-      preLoaderRoute: typeof AdminRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/auth': {
-      id: '/auth'
-      path: '/auth'
-      fullPath: '/auth'
-      preLoaderRoute: typeof AuthRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/brands': {
-      id: '/brands'
-      path: '/brands'
-      fullPath: '/brands'
-      preLoaderRoute: typeof BrandsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/checkout': {
-      id: '/checkout'
-      path: '/checkout'
-      fullPath: '/checkout'
-      preLoaderRoute: typeof CheckoutRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/messages': {
-      id: '/messages'
-      path: '/messages'
-      fullPath: '/messages'
-      preLoaderRoute: typeof MessagesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/my-appointments': {
-      id: '/my-appointments'
-      path: '/my-appointments'
-      fullPath: '/my-appointments'
-      preLoaderRoute: typeof MyAppointmentsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/my-listings': {
-      id: '/my-listings'
-      path: '/my-listings'
-      fullPath: '/my-listings'
-      preLoaderRoute: typeof MyListingsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/plans': {
-      id: '/plans'
-      path: '/plans'
-      fullPath: '/plans'
-      preLoaderRoute: typeof PlansRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/post': {
-      id: '/post'
-      path: '/post'
-      fullPath: '/post'
-      preLoaderRoute: typeof PostRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/post-reel': {
-      id: '/post-reel'
-      path: '/post-reel'
-      fullPath: '/post-reel'
-      preLoaderRoute: typeof PostReelRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/post-story': {
-      id: '/post-story'
-      path: '/post-story'
-      fullPath: '/post-story'
-      preLoaderRoute: typeof PostStoryRouteImport
+    '/unified-inbox': {
+      id: '/unified-inbox'
+      path: '/unified-inbox'
+      fullPath: '/unified-inbox'
+      preLoaderRoute: typeof UnifiedInboxRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/reels': {
@@ -357,25 +280,95 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ReelsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/unified-inbox': {
-      id: '/unified-inbox'
-      path: '/unified-inbox'
-      fullPath: '/unified-inbox'
-      preLoaderRoute: typeof UnifiedInboxRouteImport
+    '/post-story': {
+      id: '/post-story'
+      path: '/post-story'
+      fullPath: '/post-story'
+      preLoaderRoute: typeof PostStoryRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/car/$id': {
-      id: '/car/$id'
-      path: '/car/$id'
-      fullPath: '/car/$id'
-      preLoaderRoute: typeof CarIdRouteImport
+    '/post-reel': {
+      id: '/post-reel'
+      path: '/post-reel'
+      fullPath: '/post-reel'
+      preLoaderRoute: typeof PostReelRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/edit-listing/$id': {
-      id: '/edit-listing/$id'
-      path: '/edit-listing/$id'
-      fullPath: '/edit-listing/$id'
-      preLoaderRoute: typeof EditListingIdRouteImport
+    '/post': {
+      id: '/post'
+      path: '/post'
+      fullPath: '/post'
+      preLoaderRoute: typeof PostRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/plans': {
+      id: '/plans'
+      path: '/plans'
+      fullPath: '/plans'
+      preLoaderRoute: typeof PlansRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/my-listings': {
+      id: '/my-listings'
+      path: '/my-listings'
+      fullPath: '/my-listings'
+      preLoaderRoute: typeof MyListingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/my-appointments': {
+      id: '/my-appointments'
+      path: '/my-appointments'
+      fullPath: '/my-appointments'
+      preLoaderRoute: typeof MyAppointmentsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/messages': {
+      id: '/messages'
+      path: '/messages'
+      fullPath: '/messages'
+      preLoaderRoute: typeof MessagesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/checkout': {
+      id: '/checkout'
+      path: '/checkout'
+      fullPath: '/checkout'
+      preLoaderRoute: typeof CheckoutRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/brands': {
+      id: '/brands'
+      path: '/brands'
+      fullPath: '/brands'
+      preLoaderRoute: typeof BrandsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth': {
+      id: '/auth'
+      path: '/auth'
+      fullPath: '/auth'
+      preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin': {
+      id: '/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AdminRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/vehicle/$id': {
+      id: '/vehicle/$id'
+      path: '/vehicle/$id'
+      fullPath: '/vehicle/$id'
+      preLoaderRoute: typeof VehicleIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/seller/$id': {
@@ -385,11 +378,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SellerIdRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/vehicle/$id': {
-      id: '/vehicle/$id'
-      path: '/vehicle/$id'
-      fullPath: '/vehicle/$id'
-      preLoaderRoute: typeof VehicleIdRouteImport
+    '/edit-listing/$id': {
+      id: '/edit-listing/$id'
+      path: '/edit-listing/$id'
+      fullPath: '/edit-listing/$id'
+      preLoaderRoute: typeof EditListingIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/car/$id': {
+      id: '/car/$id'
+      path: '/car/$id'
+      fullPath: '/car/$id'
+      preLoaderRoute: typeof CarIdRouteImport
       parentRoute: typeof rootRouteImport
     }
   }

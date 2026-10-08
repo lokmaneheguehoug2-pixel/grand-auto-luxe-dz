@@ -8,6 +8,7 @@ import { CompareTray } from "@/components/CompareTray";
 import { NotificationBell } from "@/components/NotificationBell";
 import { SubscriptionReminderModal } from "@/components/SubscriptionReminderModal";
 import { CustomerServiceFooter } from "@/components/CustomerServiceFooter";
+import { GrandouAssistant } from "@/components/GrandouAssistant";
 import { useEffect, useState, useMemo } from "react";
 import { ref, onValue, off } from "firebase/database";
 import { realtimeDb } from "@/lib/firebase";
@@ -135,6 +136,7 @@ export function AppShell() {
 
       {user && access === "locked" && !isAdminStable && !isAuthPage && !["/paywall", "/checkout", "/post", "/post-reel"].includes(pathname) && <PaywallGate />}
       {!isAuthPage && <CompareTray />}
+      {!isAuthPage && <GrandouAssistant />}
       <SubscriptionReminderModal shouldShow={showReminder} />
       <Toaster theme="dark" />
     </div>
