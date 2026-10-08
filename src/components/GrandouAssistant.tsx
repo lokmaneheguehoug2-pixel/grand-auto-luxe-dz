@@ -24,8 +24,9 @@ export function GrandouAssistant() {
     try {
       const result = await askGrandou({ data: { message: text, history: messages.slice(-10) } });
       setMessages([...nextMessages, { role: "model", text: result.text }]);
-    } catch {
-      setMessages([...nextMessages, { role: "model", text: "عذرًا، Grandou غير متاح مؤقتًا. حاول مرة أخرى بعد قليل." }]);
+    } catch (error) {
+      console.error("[v0] Grandou chat request failed", error);
+      setMessages([...nextMessages, { role: "model", text: "تعذر الاتصال بـ Grandou الآن. انتظر لحظة ثم أعد المحاولة." }]);
     } finally {
       setPending(false);
     }
