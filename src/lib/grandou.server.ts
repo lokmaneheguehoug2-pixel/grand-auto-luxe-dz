@@ -15,7 +15,10 @@ const SYSTEM_PROMPT = `أنت Grandou، مساعد سيارات ذكي تابع 
 export const askGrandou = createServerFn({ method: "POST" })
   .validator((input: unknown) => requestSchema.parse(input))
   .handler(async ({ data }) => {
-    const apiKey = process.env.GEMINI_API_KEY ?? process.env.gemini_api_key;
+    const apiKey = process.env.GEMINI_API_KEY
+      ?? process.env.gemini_api_key
+      ?? import.meta.env.GEMINI_API_KEY
+      ?? import.meta.env.gemini_api_key;
     if (!apiKey) {
       throw new Error("Grandou is not configured: GEMINI_API_KEY is missing on the server");
     }
