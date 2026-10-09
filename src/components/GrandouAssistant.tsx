@@ -26,7 +26,7 @@ export function GrandouAssistant() {
       setMessages([...nextMessages, { role: "model", text: result.text }]);
     } catch (error) {
       console.error("[v0] Grandou chat request failed", error);
-      setMessages([...nextMessages, { role: "model", text: "تعذر الاتصال بـ Gemini الآن. تحقق من إعداد GEMINI_API_KEY ثم أعد المحاولة." }]);
+      setMessages([...nextMessages, { role: "model", text: "تعذر الاتصال بالمساعد الآن. حاول مرة أخرى بعد قليل." }]);
     } finally {
       setPending(false);
     }
