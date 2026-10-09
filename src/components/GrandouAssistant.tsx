@@ -26,7 +26,7 @@ export function GrandouAssistant() {
       setMessages([...nextMessages, { role: "model", text: result.text }]);
     } catch (error) {
       console.error("[v0] Grandou chat request failed", error);
-      setMessages([...nextMessages, { role: "model", text: "تعذر الاتصال بـ Grandou الآن. انتظر لحظة ثم أعد المحاولة." }]);
+      setMessages([...nextMessages, { role: "model", text: "تعذر الاتصال بـ Gemini الآن. تحقق من إعداد GEMINI_API_KEY ثم أعد المحاولة." }]);
     } finally {
       setPending(false);
     }
@@ -64,7 +64,17 @@ export function GrandouAssistant() {
               </div>
             )}
             {messages.map((item, index) => <div key={`${item.role}-${index}`} className={`max-w-[88%] rounded-2xl px-3 py-2 text-sm leading-6 ${item.role === "user" ? "mr-auto bg-gold text-gold-foreground" : "ml-auto border border-border bg-card"}`}>{item.text}</div>)}
-            {pending && <div className="ml-auto flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin text-gold" /> Grandou يفكر...</div>}
+            {pending && (
+              <div className="ml-auto flex items-center gap-2 text-xs text-muted-foreground" role="status" aria-live="polite">
+                <Loader2 className="h-4 w-4 animate-spin text-gold" />
+                <span>Grandou يكتب</span>
+                <span className="inline-flex gap-0.5 text-gold" aria-hidden="true">
+                  <span className="animate-bounce [animation-delay:-0.2s]">.</span>
+                  <span className="animate-bounce [animation-delay:-0.1s]">.</span>
+                  <span className="animate-bounce">.</span>
+                </span>
+              </div>
+            )}
           </div>
 
           <form onSubmit={(event) => { event.preventDefault(); if (!event.nativeEvent.isComposing) void send(); }} className="flex gap-2 border-t border-border/70 p-3">
