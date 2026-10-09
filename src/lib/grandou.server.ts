@@ -19,10 +19,6 @@ export const askGrandou = createServerFn({ method: "POST" })
       ?? process.env.gemini_api_key
       ?? import.meta.env.GEMINI_API_KEY
       ?? import.meta.env.gemini_api_key;
-    if (!apiKey) {
-      throw new Error("Grandou is not configured: GEMINI_API_KEY is missing on the server");
-    }
-
     const contents = [
       ...data.history.map((item) => ({
         role: item.role === "model" ? "model" : "user",
@@ -34,6 +30,22 @@ export const askGrandou = createServerFn({ method: "POST" })
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 25_000);
     try {
+      if (!apiKey) {
+        const { generateText } = await import("ai");
+        const result = await generateText({
+          model: "google/gemini-2.5-flash",
+          system: SYSTEM_PROMPT,
+          messages: contents.map((item) => ({
+            role: item.role === "model" ? "assistant" as const : "user" as const,
+            content: item.parts[0]?.text ?? "",
+          })),
+          maxOutputTokens: 500,
+          temperature: 0.4,
+        });
+        if (!result.text.trim()) throw new Error("Empty response");
+        return { text: result.text.trim() };
+      }
+
       const response = await fetch(
         "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
         {
@@ -61,8 +73,8 @@ export const askGrandou = createServerFn({ method: "POST" })
       if (!text) throw new Error("Grandou returned an empty response");
       return { text };
     } catch (error) {
-      console.error("[v0] Grandou Gemini request failed", error);
-      throw new Error("Grandou could not reach Gemini");
+      console.error("[v0] Grandou request failed", error instanceof Error ? error.message : "unknown error");
+      throw new Error("Grandou request failed");
     } finally {
       clearTimeout(timeout);
     }
