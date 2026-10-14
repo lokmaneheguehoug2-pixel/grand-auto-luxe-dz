@@ -15,10 +15,9 @@ const SYSTEM_PROMPT = `أنت Grandou، مساعد سيارات ذكي تابع 
 export const askGrandou = createServerFn({ method: "POST" })
   .validator((input: unknown) => requestSchema.parse(input))
   .handler(async ({ data }) => {
-    const apiKey = process.env.GEMINI_API_KEY
-      ?? process.env.gemini_api_key
-      ?? import.meta.env.GEMINI_API_KEY
-      ?? import.meta.env.gemini_api_key;
+    const apiKey = typeof process !== "undefined"
+      ? (process.env.GEMINI_API_KEY ?? process.env.gemini_api_key)
+      : undefined;
     const contents = [
       ...data.history.map((item) => ({
         role: item.role === "model" ? "model" : "user",
@@ -63,7 +62,7 @@ export const askGrandou = createServerFn({ method: "POST" })
       if (!response.ok) {
         const details = await response.text().catch(() => "");
         console.error("[v0] Grandou Gemini request failed", response.status, details.slice(0, 300));
-        throw new Error("Grandou request failed");
+        return { text: "تعذر الوصول إلى خدمة المساعد الآن. أعد المحاولة بعد لحظات، وسأساعدك في اختيار السيارة أو نشر الإعلان." };
       }
 
       const payload = await response.json() as {
@@ -74,7 +73,9 @@ export const askGrandou = createServerFn({ method: "POST" })
       return { text };
     } catch (error) {
       console.error("[v0] Grandou request failed", error instanceof Error ? error.message : "unknown error");
-      throw new Error("Grandou request failed");
+      return {
+        text: "تعذر الوصول إلى خدمة المساعد الآن. أعد المحاولة بعد لحظات، وسأساعدك في اختيار السيارة أو نشر الإعلان.",
+      };
     } finally {
       clearTimeout(timeout);
     }
