@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Bot, CarFront, ImagePlus, Loader2, Send, Sparkles, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +15,17 @@ export function GrandouAssistant() {
   const [pending, setPending] = useState(false);
   const [image, setImage] = useState<ImagePayload | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const handleListingAnalysis = (event: Event) => {
+      const detail = (event as CustomEvent<{ prompt?: string }>).detail;
+      if (!detail?.prompt) return;
+      setOpen(true);
+      setMessage(detail.prompt);
+    };
+    window.addEventListener("grandou:analyze-listing", handleListingAnalysis);
+    return () => window.removeEventListener("grandou:analyze-listing", handleListingAnalysis);
+  }, []);
 
   const send = async (preset?: string) => {
     const text = (preset ?? message).trim();
