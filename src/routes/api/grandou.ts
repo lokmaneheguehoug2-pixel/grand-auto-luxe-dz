@@ -20,7 +20,7 @@ export const Route = createFileRoute("/api/grandou")({
 
           const ai = new GoogleGenAI({ apiKey });
           const result = await ai.models.generateContent({
-            model: "gemini-2.5-flash",
+            model: "gemini-3.8-flash",
             contents: message,
             config: { systemInstruction: SYSTEM_PROMPT, temperature: 0.4, maxOutputTokens: 500 },
           });
@@ -28,8 +28,14 @@ export const Route = createFileRoute("/api/grandou")({
           if (!text) return Response.json({ ok: false, error: "لم تصل إجابة من المساعد." }, { status: 502 });
           return Response.json({ ok: true, text });
         } catch (error) {
-          console.error("[v0] Grandou API failed", error instanceof Error ? error.message : "unknown error");
-          return Response.json({ ok: false, error: "تعذر الاتصال بالمساعد الآن. حاول مرة أخرى بعد قليل." }, { status: 500 });
+          console.error(
+            "[v0] Grandou API failed",
+            error instanceof Error ? error.message : "unknown error",
+          );
+          return Response.json(
+            { ok: false, error: "تعذر الاتصال بالمساعد الآن. حاول مرة أخرى بعد قليل." },
+            { status: 502 },
+          );
         }
       },
     },
