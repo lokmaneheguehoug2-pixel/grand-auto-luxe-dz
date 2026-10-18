@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { Bot, CarFront, Loader2, Send, Sparkles, X } from "lucide-react";
-import { askGrandou } from "@/lib/grandou.server";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -22,11 +21,16 @@ export function GrandouAssistant() {
     setMessage("");
     setPending(true);
     try {
-      const result = await askGrandou({ data: { message: text, history: messages.slice(-10) } });
-      setMessages([
-        ...nextMessages,
-        { role: "model", text: result.ok ? result.text : result.error },
-      ]);
+      const response = await fetch("/api/grandou", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: text }),
+      });
+      const result = await response.json().catch(() => null) as { ok?: boolean; text?: string; error?: string } | null;
+      if (!response.ok || !result?.ok || !result.text) {
+        throw new Error(result?.error || "Grandou request failed");
+      }
+      setMessages([...nextMessages, { role: "model", text: result.text }]);
     } catch (error) {
       console.error("[v0] Grandou chat request failed", error);
       setMessages([...nextMessages, { role: "model", text: "تعذر الاتصال بالمساعد الآن. حاول مرة أخرى بعد قليل." }]);

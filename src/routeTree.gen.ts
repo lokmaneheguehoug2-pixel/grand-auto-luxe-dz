@@ -23,6 +23,7 @@ import { Route as PostReelRouteImport } from './routes/post-reel'
 import { Route as PostStoryRouteImport } from './routes/post-story'
 import { Route as ReelsRouteImport } from './routes/reels'
 import { Route as UnifiedInboxRouteImport } from './routes/unified-inbox'
+import { Route as ApiGrandouRouteImport } from './routes/api/grandou'
 import { Route as CarIdRouteImport } from './routes/car.$id'
 import { Route as EditListingIdRouteImport } from './routes/edit-listing.$id'
 import { Route as SellerIdRouteImport } from './routes/seller.$id'
@@ -98,6 +99,11 @@ const UnifiedInboxRoute = UnifiedInboxRouteImport.update({
   path: '/unified-inbox',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiGrandouRoute = ApiGrandouRouteImport.update({
+  id: '/api/grandou',
+  path: '/api/grandou',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const CarIdRoute = CarIdRouteImport.update({
   id: '/car/$id',
   path: '/car/$id',
@@ -134,6 +140,7 @@ export interface FileRoutesByFullPath {
   '/post-story': typeof PostStoryRoute
   '/reels': typeof ReelsRoute
   '/unified-inbox': typeof UnifiedInboxRoute
+  '/api/grandou': typeof ApiGrandouRoute
   '/car/$id': typeof CarIdRoute
   '/edit-listing/$id': typeof EditListingIdRoute
   '/seller/$id': typeof SellerIdRoute
@@ -154,6 +161,7 @@ export interface FileRoutesByTo {
   '/post-story': typeof PostStoryRoute
   '/reels': typeof ReelsRoute
   '/unified-inbox': typeof UnifiedInboxRoute
+  '/api/grandou': typeof ApiGrandouRoute
   '/car/$id': typeof CarIdRoute
   '/edit-listing/$id': typeof EditListingIdRoute
   '/seller/$id': typeof SellerIdRoute
@@ -175,6 +183,7 @@ export interface FileRoutesById {
   '/post-story': typeof PostStoryRoute
   '/reels': typeof ReelsRoute
   '/unified-inbox': typeof UnifiedInboxRoute
+  '/api/grandou': typeof ApiGrandouRoute
   '/car/$id': typeof CarIdRoute
   '/edit-listing/$id': typeof EditListingIdRoute
   '/seller/$id': typeof SellerIdRoute
@@ -197,6 +206,7 @@ export interface FileRouteTypes {
     | '/post-story'
     | '/reels'
     | '/unified-inbox'
+    | '/api/grandou'
     | '/car/$id'
     | '/edit-listing/$id'
     | '/seller/$id'
@@ -217,6 +227,7 @@ export interface FileRouteTypes {
     | '/post-story'
     | '/reels'
     | '/unified-inbox'
+    | '/api/grandou'
     | '/car/$id'
     | '/edit-listing/$id'
     | '/seller/$id'
@@ -237,6 +248,7 @@ export interface FileRouteTypes {
     | '/post-story'
     | '/reels'
     | '/unified-inbox'
+    | '/api/grandou'
     | '/car/$id'
     | '/edit-listing/$id'
     | '/seller/$id'
@@ -258,6 +270,7 @@ export interface RootRouteChildren {
   PostStoryRoute: typeof PostStoryRoute
   ReelsRoute: typeof ReelsRoute
   UnifiedInboxRoute: typeof UnifiedInboxRoute
+  ApiGrandouRoute: typeof ApiGrandouRoute
   CarIdRoute: typeof CarIdRoute
   EditListingIdRoute: typeof EditListingIdRoute
   SellerIdRoute: typeof SellerIdRoute
@@ -364,6 +377,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof UnifiedInboxRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/grandou': {
+      id: '/api/grandou'
+      path: '/api/grandou'
+      fullPath: '/api/grandou'
+      preLoaderRoute: typeof ApiGrandouRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/car/$id': {
       id: '/car/$id'
       path: '/car/$id'
@@ -410,6 +430,7 @@ const rootRouteChildren: RootRouteChildren = {
   PostStoryRoute: PostStoryRoute,
   ReelsRoute: ReelsRoute,
   UnifiedInboxRoute: UnifiedInboxRoute,
+  ApiGrandouRoute: ApiGrandouRoute,
   CarIdRoute: CarIdRoute,
   EditListingIdRoute: EditListingIdRoute,
   SellerIdRoute: SellerIdRoute,
