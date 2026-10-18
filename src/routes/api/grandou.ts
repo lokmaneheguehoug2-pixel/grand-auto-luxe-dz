@@ -8,9 +8,13 @@ export const Route = createFileRoute("/api/grandou")({
     handlers: {
       POST: async ({ request }) => {
         try {
-          const body = await request.json().catch(() => null) as { message?: unknown } | null;
+          const body = await request.json().catch(() => null) as {
+            message?: unknown;
+            history?: Array<{ role?: unknown; text?: unknown }>;
+            image?: { mimeType?: unknown; data?: unknown };
+          } | null;
           const message = typeof body?.message === "string" ? body.message.trim() : "";
-          if (!message) return Response.json({ ok: false, error: "الرسالة مطلوبة." }, { status: 400 });
+          if (!message && !body?.image?.data) return Response.json({ ok: false, error: "الرسالة أو الصورة مطلوبة." }, { status: 400 });
 
           const apiKey = process.env.GEMINI_API_KEY;
           if (!apiKey) {
@@ -19,14 +23,38 @@ export const Route = createFileRoute("/api/grandou")({
           }
 
           const ai = new GoogleGenAI({ apiKey });
-          const result = await ai.models.generateContent({
-            model: "gemini-3.8-flash",
-            contents: message,
-            config: { systemInstruction: SYSTEM_PROMPT, temperature: 0.4, maxOutputTokens: 500 },
+          const history = Array.isArray(body?.history)
+            ? body.history
+                .filter((item) => (item?.role === "user" || item?.role === "model") && typeof item.text === "string")
+                .slice(-12)
+                .map((item) => ({ role: item.role as "user" | "model", parts: [{ text: item.text as string }] }))
+            : [];
+          const parts: Array<Record<string, unknown>> = [];
+          if (message) parts.push({ text: message });
+          if (body?.image?.data && typeof body.image.data === "string" && typeof body.image.mimeType === "string") {
+            parts.push({ inlineData: { mimeType: body.image.mimeType, data: body.image.data } });
+          }
+          const stream = await ai.models.generateContentStream({
+            model: "gemini-2.5-flash",
+            contents: [...history, { role: "user", parts }],
+            config: { systemInstruction: SYSTEM_PROMPT, temperature: 0.4, maxOutputTokens: 700 },
           });
-          const text = result.text?.trim();
-          if (!text) return Response.json({ ok: false, error: "لم تصل إجابة من المساعد." }, { status: 502 });
-          return Response.json({ ok: true, text });
+          const encoder = new TextEncoder();
+          const readable = new ReadableStream({
+            async start(controller) {
+              try {
+                for await (const chunk of stream) {
+                  const text = chunk.text ?? "";
+                  if (text) controller.enqueue(encoder.encode(text));
+                }
+                controller.close();
+              } catch (error) {
+                console.error("[v0] Grandou stream failed", error instanceof Error ? error.message : "unknown error");
+                controller.error(error);
+              }
+            },
+          });
+          return new Response(readable, { headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-cache, no-transform" } });
         } catch (error) {
           console.error(
             "[v0] Grandou API failed",

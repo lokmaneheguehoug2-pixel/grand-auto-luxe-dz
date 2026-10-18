@@ -17,6 +17,7 @@ import { compareStore, useCompare } from "@/lib/compare";
 import { useAuth } from "@/hooks/use-auth";
 import { StoriesStrip } from "@/components/StoriesStrip";
 import { toast } from "sonner";
+import { ShareButton } from "@/components/ShareButton";
 import { demoKeys, useDemoCounterMap, useDemoSet } from "@/lib/demo-state";
 
 export const Route = createFileRoute("/")({
@@ -863,6 +864,7 @@ function VehicleCard({ vehicle: v, allVehicles, likeInfo, isFavorite, viewCount,
           <button type="button" onClick={(event) => { event.preventDefault(); event.stopPropagation(); onComments(); }} className="flex items-center gap-1 text-muted-foreground hover:text-gold" aria-label="Comments">
             <MessageCircle className="h-4 w-4" /><span className="text-[10px]">{commentCount || 0}</span>
           </button>
+          <ShareButton title={`${v.brand} ${v.model} (${v.year})`} text="إعلان سيارة من GRAND Auto Luxe" path={`/vehicle/${v.id}`} className="ml-auto" />
           <button
             onClick={(e) => { e.preventDefault(); e.stopPropagation(); if (compare.includes(v.id) || compareStore.canAdd()) compareStore.toggle(v.id); }}
             className={`ml-auto w-5 h-5 rounded-md border flex items-center justify-center transition ${
@@ -950,6 +952,7 @@ function VehicleReelCard({ vehicle: v, likeInfo, viewCount, onLike, onView }: {
             <Eye className="h-4 w-4 text-white/80" />
             <span className="text-[10px] text-white/80">{viewCount}</span>
           </div>
+          <ShareButton title={`${v.brand} ${v.model}`} text="شاهد هذا الريل على GRAND Auto Luxe" path={`/vehicle/${v.id}`} className="text-white/80" />
         </div>
       </div>
 
