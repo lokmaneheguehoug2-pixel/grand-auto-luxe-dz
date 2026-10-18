@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Film, Plus, Heart, ExternalLink, Eye, Pencil, Trash2, Flag } from "lucide-react";
 import { toast } from "sonner";
+import { ShareButton } from "@/components/ShareButton";
 
 export const Route = createFileRoute("/reels")({
   head: () => ({ meta: [{ title: "Reels · GRAND Auto Luxe" }] }),
@@ -366,6 +367,7 @@ function ReelCard({ reel, currentUserId, isAdmin, onRefresh }: { reel: Reel; cur
               <Eye className="h-6 w-6 text-white/80" />
               <span className="text-xs text-white/80 font-medium">{views}</span>
             </div>
+            <ShareButton title={reel.caption || "Reel من GRAND Auto Luxe"} path={`/reels#${reel.id}`} className="flex-col text-white" />
             {reel.vehicleId && (
               <Link to={`/vehicle/$id`} params={{ id: reel.vehicleId }} onClick={(e) => e.stopPropagation()}>
                 <ExternalLink className="h-6 w-6 text-gold hover:text-gold/80" />
@@ -401,7 +403,7 @@ function ReelCard({ reel, currentUserId, isAdmin, onRefresh }: { reel: Reel; cur
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label className="text-xs text-muted-foreground">الوصف (Caption)</Label>
+              <Label className="text-xs text-muted-foreground">ا��وصف (Caption)</Label>
               <Textarea
                 value={editCaption}
                 onChange={(e) => setEditCaption(e.target.value)}
