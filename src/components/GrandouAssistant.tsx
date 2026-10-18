@@ -23,7 +23,10 @@ export function GrandouAssistant() {
     setPending(true);
     try {
       const result = await askGrandou({ data: { message: text, history: messages.slice(-10) } });
-      setMessages([...nextMessages, { role: "model", text: result.text }]);
+      setMessages([
+        ...nextMessages,
+        { role: "model", text: result.ok ? result.text : result.error },
+      ]);
     } catch (error) {
       console.error("[v0] Grandou chat request failed", error);
       setMessages([...nextMessages, { role: "model", text: "تعذر الاتصال بالمساعد الآن. حاول مرة أخرى بعد قليل." }]);
