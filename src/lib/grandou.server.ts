@@ -16,7 +16,7 @@ export const askGrandou = createServerFn({ method: "POST" })
   .validator((input: unknown) => requestSchema.parse(input))
   .handler(async ({ data }) => {
     const apiKey = typeof process !== "undefined"
-      ? (process.env.GEMINI_API_KEY ?? process.env.gemini_api_key)
+      ? process.env.GEMINI_API_KEY
       : undefined;
     const contents = [
       ...data.history.map((item) => ({
@@ -30,19 +30,8 @@ export const askGrandou = createServerFn({ method: "POST" })
     const timeout = setTimeout(() => controller.abort(), 25_000);
     try {
       if (!apiKey) {
-        const { generateText } = await import("ai");
-        const result = await generateText({
-          model: "google/gemini-2.5-flash",
-          system: SYSTEM_PROMPT,
-          messages: contents.map((item) => ({
-            role: item.role === "model" ? "assistant" as const : "user" as const,
-            content: item.parts[0]?.text ?? "",
-          })),
-          maxOutputTokens: 500,
-          temperature: 0.4,
-        });
-        if (!result.text.trim()) throw new Error("Empty response");
-        return { text: result.text.trim() };
+        console.error("[v0] Grandou: GEMINI_API_KEY is missing at runtime");
+        return { ok: false as const, error: "المساعد غير مهيأ حاليًا. يرجى المحاولة لاحقًا." };
       }
 
       const response = await fetch(
@@ -62,20 +51,20 @@ export const askGrandou = createServerFn({ method: "POST" })
       if (!response.ok) {
         const details = await response.text().catch(() => "");
         console.error("[v0] Grandou Gemini request failed", response.status, details.slice(0, 300));
-        return { text: "تعذر الوصول إلى خدمة المساعد الآن. أعد المحاولة بعد لحظات، وسأساعدك في اختيار السيارة أو نشر الإعلان." };
+        return { ok: false as const, error: "تعذر الوصول إلى خدمة المساعد الآن. حاول مرة أخرى بعد قليل." };
       }
 
       const payload = await response.json() as {
         candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
       };
       const text = payload.candidates?.[0]?.content?.parts?.map((part) => part.text ?? "").join("").trim();
-      if (!text) throw new Error("Grandou returned an empty response");
-      return { text };
+      if (!text) {
+        return { ok: false as const, error: "لم تصل إجابة من المساعد. حاول مرة أخرى." };
+      }
+      return { ok: true as const, text };
     } catch (error) {
       console.error("[v0] Grandou request failed", error instanceof Error ? error.message : "unknown error");
-      return {
-        text: "تعذر الوصول إلى خدمة المساعد الآن. أعد المحاولة بعد لحظات، وسأساعدك في اختيار السيارة أو نشر الإعلان.",
-      };
+      return { ok: false as const, error: "تعذر الاتصال بالمساعد الآن. حاول مرة أخرى بعد قليل." };
     } finally {
       clearTimeout(timeout);
     }
