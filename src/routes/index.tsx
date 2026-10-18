@@ -18,6 +18,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { StoriesStrip } from "@/components/StoriesStrip";
 import { toast } from "sonner";
 import { ShareButton } from "@/components/ShareButton";
+import { AnalyzeWithGrandouButton } from "@/components/AnalyzeWithGrandouButton";
 import { demoKeys, useDemoCounterMap, useDemoSet } from "@/lib/demo-state";
 
 export const Route = createFileRoute("/")({
@@ -864,6 +865,7 @@ function VehicleCard({ vehicle: v, allVehicles, likeInfo, isFavorite, viewCount,
           <button type="button" onClick={(event) => { event.preventDefault(); event.stopPropagation(); onComments(); }} className="flex items-center gap-1 text-muted-foreground hover:text-gold" aria-label="Comments">
             <MessageCircle className="h-4 w-4" /><span className="text-[10px]">{commentCount || 0}</span>
           </button>
+          <AnalyzeWithGrandouButton listing={`${v.brand} ${v.model} ${v.year} - ${v.price} ${v.location ?? ""}`} />
           <ShareButton title={`${v.brand} ${v.model} (${v.year})`} text="إعلان سيارة من GRAND Auto Luxe" path={`/vehicle/${v.id}`} className="ml-auto" />
           <button
             onClick={(e) => { e.preventDefault(); e.stopPropagation(); if (compare.includes(v.id) || compareStore.canAdd()) compareStore.toggle(v.id); }}
