@@ -1,3 +1,4 @@
+import { GoogleGenAI } from "@google/genai";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
@@ -34,30 +35,17 @@ export const askGrandou = createServerFn({ method: "POST" })
         return { ok: false as const, error: "المساعد غير مهيأ حاليًا. يرجى المحاولة لاحقًا." };
       }
 
-      const response = await fetch(
-        "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
-        {
-          method: "POST",
-          headers: { "content-type": "application/json", "x-goog-api-key": apiKey },
-          body: JSON.stringify({
-            system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
-            contents,
-            generationConfig: { temperature: 0.4, maxOutputTokens: 500 },
-          }),
-          signal: controller.signal,
+      const ai = new GoogleGenAI({ apiKey });
+      const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents,
+        config: {
+          systemInstruction: SYSTEM_PROMPT,
+          temperature: 0.4,
+          maxOutputTokens: 500,
         },
-      );
-
-      if (!response.ok) {
-        const details = await response.text().catch(() => "");
-        console.error("[v0] Grandou Gemini request failed", response.status, details.slice(0, 300));
-        return { ok: false as const, error: "تعذر الوصول إلى خدمة المساعد الآن. حاول مرة أخرى بعد قليل." };
-      }
-
-      const payload = await response.json() as {
-        candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
-      };
-      const text = payload.candidates?.[0]?.content?.parts?.map((part) => part.text ?? "").join("").trim();
+      });
+      const text = response.text?.trim();
       if (!text) {
         return { ok: false as const, error: "لم تصل إجابة من المساعد. حاول مرة أخرى." };
       }
