@@ -849,7 +849,7 @@ function VehicleCard({ vehicle: v, allVehicles, likeInfo, isFavorite, viewCount,
           <Countdown endsAt={v.auction_ends_at} />
         )}
 
-        <div className="flex items-center gap-3 mt-2">
+        <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border/50 pt-2">
           <button
             onClick={(e) => { e.preventDefault(); e.stopPropagation(); onLike(); }}
             className="flex items-center gap-1 transition-transform active:scale-90"
@@ -866,7 +866,7 @@ function VehicleCard({ vehicle: v, allVehicles, likeInfo, isFavorite, viewCount,
             <MessageCircle className="h-4 w-4" /><span className="text-[10px]">{commentCount || 0}</span>
           </button>
           <AnalyzeWithGrandouButton listing={`${v.brand} ${v.model} ${v.year} - ${v.price} ${v.location ?? ""}`} />
-          <ShareButton title={`${v.brand} ${v.model} (${v.year})`} text="إعلان سيارة من GRAND Auto Luxe" path={`/vehicle/${v.id}`} className="ml-auto" />
+          <ShareButton title={`${v.brand} ${v.model} (${v.year})`} text="إعلان سيارة من GRAND Auto Luxe" path={`/vehicle/${v.id}`} />
           <button
             onClick={(e) => { e.preventDefault(); e.stopPropagation(); if (compare.includes(v.id) || compareStore.canAdd()) compareStore.toggle(v.id); }}
             className={`ml-auto w-5 h-5 rounded-md border flex items-center justify-center transition ${
@@ -941,7 +941,7 @@ function VehicleReelCard({ vehicle: v, likeInfo, viewCount, onLike, onView }: {
           <span className="text-[9px] text-white/50">{formatDZDArabic(price)}</span>
         </div>
 
-        <div className="flex items-center gap-3 mt-2">
+        <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-white/15 pt-2">
           <button
             onClick={(e) => { e.preventDefault(); e.stopPropagation(); onLike(); }}
             className="flex items-center gap-1"

@@ -17,5 +17,5 @@ export function ShareButton({ title, text, path, className = "" }: { title: stri
       toast.error("تعذرت المشاركة، حاول مرة أخرى");
     }
   };
-  return <button type="button" onClick={share} aria-label={`مشاركة ${title}`} className={`inline-flex items-center gap-1 text-muted-foreground hover:text-gold ${className}`}><Share2 className="h-4 w-4" /><span className="text-[10px]">مشاركة</span></button>;
+  return <button type="button" onClick={share} aria-label={`مشاركة ${title}`} className={`inline-flex min-h-8 items-center justify-center gap-1.5 rounded-lg border border-border/70 bg-card/60 px-2.5 text-xs text-muted-foreground transition-colors hover:border-gold/50 hover:text-gold active:scale-95 ${className}`}><Share2 className="h-3.5 w-3.5 shrink-0" /><span>مشاركة</span></button>;
 }
