@@ -51,14 +51,16 @@ export function GrandouAssistant() {
         throw new Error(result?.error || "Grandou request failed");
       }
       const reader = response.body.getReader();
-      const decoder = new TextDecoder();
+      const decoder = new TextDecoder("utf-8");
       let streamedText = "";
       while (true) {
         const { value, done } = await reader.read();
         if (done) break;
-        streamedText += decoder.decode(value, { stream: true });
-        setMessages([...nextMessages, { role: "model", text: streamedText }]);
+        streamedText += decoder.decode(value, { stream: false });
+        const cleanText = streamedText.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\uFFFD]/g, "");
+        setMessages([...nextMessages, { role: "model", text: cleanText }]);
       }
+      streamedText += decoder.decode();
       if (!streamedText.trim()) throw new Error("Empty Grandou response");
     } catch (error) {
       console.error("[v0] Grandou chat request failed", error);
@@ -85,14 +87,14 @@ export function GrandouAssistant() {
           type="button"
           onClick={() => setOpen(true)}
           aria-label="افتح مساعد Grandou"
-          className="fixed bottom-20 right-4 z-40 flex items-center gap-2 rounded-full border border-gold/60 bg-charcoal px-4 py-3 text-sm font-semibold text-gold shadow-[0_8px_32px_rgba(212,175,55,0.22)] transition-transform hover:scale-105 md:bottom-20"
+          className="fixed bottom-[calc(4.75rem+env(safe-area-inset-bottom))] right-4 z-40 flex items-center gap-2 rounded-full border border-gold/60 bg-charcoal px-4 py-2.5 text-sm font-semibold text-gold shadow-[0_8px_32px_rgba(212,175,55,0.22)] transition-transform hover:scale-105 md:bottom-6"
         >
           <Sparkles className="h-4 w-4" /> Grandou
         </button>
       )}
 
       {open && (
-        <section dir="rtl" aria-label="مساعد Grandou" className="fixed inset-x-3 bottom-20 z-50 flex max-h-[min(680px,calc(100vh-6rem))] flex-col overflow-hidden rounded-2xl border border-gold/35 bg-background shadow-2xl sm:inset-x-auto sm:right-5 sm:w-[390px]">
+        <section dir="rtl" aria-label="مساعد Grandou" className="fixed inset-x-3 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-50 flex max-h-[min(680px,calc(100vh-7rem))] flex-col overflow-hidden rounded-2xl border border-gold/35 bg-background shadow-2xl sm:inset-x-auto sm:right-5 sm:w-[390px] md:bottom-6">
           <header className="flex items-center justify-between border-b border-border/70 bg-charcoal/80 px-4 py-3">
             <div className="flex items-center gap-3">
               <div className="grid h-10 w-10 place-items-center rounded-xl gold-gradient text-gold-foreground"><Bot className="h-5 w-5" /></div>
