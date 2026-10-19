@@ -193,10 +193,16 @@ function VehicleDetail() {
 
   const toggleFavorite = useCallback(async () => {
     if (!id) return;
-    if (!user) { toast.info("Sign in to save vehicles"); return; }
     const client = getSupabase();
-    if (!client) return;
-    const uid = user.id ?? user.phone;
+    const uid = user?.id ?? user?.phone ?? viewerId;
+    if (!client) {
+      const saved = getDemoValue<string[]>("saved", []);
+      const next = isFavorited ? saved.filter((item) => item !== id) : [...new Set([...saved, id])];
+      setDemoValue("saved", next);
+      setIsFavorited(!isFavorited);
+      toast.success(!isFavorited ? "Added to watchlist" : "Removed from watchlist");
+      return;
+    }
     if (isFavorited) {
       setIsFavorited(false);
       const result = await client.from("vehicle_favorites").delete().eq("vehicle_id", id).eq("user_id", uid);

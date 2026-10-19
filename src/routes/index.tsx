@@ -20,6 +20,7 @@ import { toast } from "sonner";
 import { ShareButton } from "@/components/ShareButton";
 import { AnalyzeWithGrandouButton } from "@/components/AnalyzeWithGrandouButton";
 import { demoKeys, useDemoCounterMap, useDemoSet } from "@/lib/demo-state";
+import { getSupabase } from "@/lib/supabase";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -343,7 +344,7 @@ function HomeContent() {
   }, [vehiclesRetryKey]);
 
   const loadLikes = useCallback(async () => {
-    const client = null;
+    const client = getSupabase();
     if (!client) return;
     try {
       const { data, error } = await client.from("vehicle_likes").select("vehicle_id, user_id");
@@ -362,7 +363,7 @@ function HomeContent() {
   }, [userId]);
 
   const loadFavorites = useCallback(async () => {
-    const client = null;
+    const client = getSupabase();
     if (!client || !userId) {
       if (typeof window !== "undefined") {
         try {
@@ -391,7 +392,7 @@ function HomeContent() {
   }, [userId]);
 
   const loadViews = useCallback(async () => {
-    const client = null;
+    const client = getSupabase();
     if (!client) return;
     try {
       const { data } = await client.from("vehicle_views").select("vehicle_id").throwOnError();
@@ -513,7 +514,7 @@ function HomeContent() {
     const vehicleId = item.id;
     setViewData((previous) => ({ ...previous, [vehicleId]: (previous[vehicleId] ?? localViews[vehicleId] ?? 0) + 1 }));
     incrementLocalView(vehicleId);
-    const client = null;
+    const client = getSupabase();
     if (!client) return;
     try {
       const result = await client.from("vehicle_views").insert({ vehicle_id: vehicleId, viewer_id: userId });
@@ -536,7 +537,7 @@ function HomeContent() {
       try { window.localStorage.setItem("grand-auto-luxe-liked", JSON.stringify(next)); } catch { /* optional guest storage */ }
       return next;
     });
-    const client = null;
+    const client = getSupabase();
     if (!client) return;
 
     try {
@@ -558,7 +559,7 @@ function HomeContent() {
   const handleFavorite = useCallback(async (item: Vehicle | null | undefined) => {
     if (!item?.id) return;
     const vehicleId = item.id;
-    const client = null;
+    const client = getSupabase();
     if (!client) {
       const next = !effectiveFavorites[vehicleId];
       setFavorites((previous) => ({ ...previous, [vehicleId]: next }));
