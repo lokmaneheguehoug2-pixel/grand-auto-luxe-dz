@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { push, set, ref as dbRef } from "firebase/database";
 import { realtimeDb } from "@/lib/firebase";
 import { uploadImageToCloudinary } from "@/lib/cloudinary";
+import { getSupabase } from "@/lib/supabase";
 
 export const Route = createFileRoute("/checkout")({
   head: () => ({ meta: [{ title: "Activation · GRAND Auto Luxe" }] }),
@@ -62,6 +63,8 @@ function CheckoutPage() {
 
   const [plan, setPlan] = useState<string>(planFromState);
   const [file, setFile] = useState<File | null>(null);
+  const [senderPhone, setSenderPhone] = useState(user?.phone ?? "");
+  const [transactionReference, setTransactionReference] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   const selected = PLANS.find((p) => p.id === plan) || PLANS[0];
@@ -77,28 +80,51 @@ function CheckoutPage() {
 
   const submit = async () => {
     if (!file || !user) return;
+    if (!senderPhone.trim() || !transactionReference.trim()) {
+      toast.error("أدخل رقم الهاتف ومرجع عملية BaridiMob");
+      return;
+    }
+    if (file.size > 8 * 1024 * 1024) {
+      toast.error("حجم الوصل يجب ألا يتجاوز 8MB");
+      return;
+    }
     setSubmitting(true);
 
     try {
-      // Upload receipt to Cloudinary
-      const receiptUrl = await uploadImageToCloudinary(file);
+      const supabase = getSupabase();
+      const { data: authData } = supabase ? await supabase.auth.getUser() : { data: { user: null } };
 
-      // Create pending subscription in Firebase Realtime Database
-      const subRef = push(dbRef(realtimeDb, "subscriptions"));
-      const subId = subRef.key!;
+      if (supabase && authData.user) {
+        const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
+        const proofPath = `${authData.user.id}/${crypto.randomUUID()}-${safeName}`;
+        const upload = await supabase.storage.from("payment-proofs").upload(proofPath, file, { contentType: file.type, upsert: false });
+        if (upload.error) throw upload.error;
+        const submission = await supabase.from("payment_submissions").insert({
+          user_id: authData.user.id,
+          plan_code: plan,
+          amount_dzd: selected.amount,
+          sender_phone: senderPhone.trim(),
+          transaction_reference: transactionReference.trim(),
+          proof_path: proofPath,
+        });
+        if (submission.error) throw submission.error;
+      } else {
+        const receiptUrl = await uploadImageToCloudinary(file);
+        const subRef = push(dbRef(realtimeDb, "subscriptions"));
+        await set(subRef, {
+          id: subRef.key,
+          userId: user.id,
+          userPhone: senderPhone.trim(),
+          plan,
+          amount: selected.amount,
+          transactionReference: transactionReference.trim(),
+          receiptUrl,
+          status: "pending",
+          submittedAt: new Date().toISOString(),
+        });
+      }
 
-      await set(subRef, {
-        id: subId,
-        userId: user.id,
-        userPhone: user.phone,
-        plan,
-        amount: selected.amount,
-        receiptUrl, // Cloudinary URL
-        status: "pending",
-        submittedAt: new Date().toISOString(),
-      });
-
-      toast.success("Receipt submitted · Admin will activate shortly");
+      toast.success("تم إرسال طلب الدفع للمراجعة · سيتم التفعيل بعد التحقق");
       navigate({ to: "/my-listings" });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Upload failed";
@@ -156,6 +182,18 @@ function CheckoutPage() {
               <div className="font-medium">{p.amount.toLocaleString()} DZD</div>
             </button>
           ))}
+        </div>
+      </div>
+
+      {/* Payment verification details */}
+      <div className="premium-card rounded-xl p-6 border border-gold/20 mb-6 space-y-4">
+        <div>
+          <Label htmlFor="sender-phone" className="text-xs uppercase tracking-widest text-muted-foreground">رقم الهاتف المرسل</Label>
+          <input id="sender-phone" value={senderPhone} onChange={(e) => setSenderPhone(e.target.value)} placeholder="05xxxxxxxx" inputMode="tel" dir="ltr" className="mt-2 w-full rounded-lg border border-white/10 bg-charcoal/50 px-3 py-2 text-sm outline-none focus:border-gold" />
+        </div>
+        <div>
+          <Label htmlFor="transaction-reference" className="text-xs uppercase tracking-widest text-muted-foreground">مرجع عملية BaridiMob</Label>
+          <input id="transaction-reference" value={transactionReference} onChange={(e) => setTransactionReference(e.target.value)} placeholder="رقم العملية كما يظهر في التطبيق" dir="ltr" className="mt-2 w-full rounded-lg border border-white/10 bg-charcoal/50 px-3 py-2 text-sm outline-none focus:border-gold" />
         </div>
       </div>
 
