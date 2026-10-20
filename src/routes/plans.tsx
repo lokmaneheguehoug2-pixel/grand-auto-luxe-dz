@@ -267,6 +267,18 @@ function PlansPage() {
           </p>
         </div>
 
+        {profile && (
+          <div className="mx-auto mb-8 max-w-xl rounded-xl border border-white/10 bg-white/[0.03] p-4 text-center">
+            <p className="text-xs uppercase tracking-[0.2em] text-white/40">حالة حسابك</p>
+            <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
+              <span className={`rounded-full px-3 py-1 text-sm ${access === "active" ? "bg-emerald-500/15 text-emerald-300" : "bg-amber-500/15 text-amber-300"}`}>
+                {access === "active" ? "اشتراك فعال" : "بانتظار التفعيل"}
+              </span>
+              {profile.subscription_until && <span className="text-xs text-white/50">حتى {new Date(profile.subscription_until).toLocaleDateString("ar-DZ")}</span>}
+            </div>
+          </div>
+        )}
+
         {/* Plans grid - 4 options */}
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4 mb-12">
           {PLANS.map((plan) => {
