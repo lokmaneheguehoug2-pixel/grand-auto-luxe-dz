@@ -327,9 +327,24 @@ function HomeContent() {
     };
 
     if (!realtimeDb) {
-      setVehicles([]);
-      setLoading(false);
-      return;
+      let cancelled = false;
+      const loadFromSupabase = async () => {
+        const client = getSupabase();
+        if (!client) {
+          if (!cancelled) { setVehicles([]); setVehiclesError(true); setLoading(false); }
+          return;
+        }
+        const { data, error } = await client.from("vehicles").select("*").in("status", ["active", "sold"]).order("created_at", { ascending: false });
+        if (cancelled) return;
+        if (error) {
+          console.warn("[v0] Supabase vehicle feed unavailable", error.message);
+          setVehicles([]); setVehiclesError(true); setLoading(false);
+          return;
+        }
+        handleSnapshot(data ?? []);
+      };
+      void loadFromSupabase();
+      return () => { cancelled = true; };
     }
     const vehiclesRef = ref(realtimeDb, "vehicles");
     const handleValue = (snapshot: { val: () => unknown }) => handleSnapshot(snapshot.val());
