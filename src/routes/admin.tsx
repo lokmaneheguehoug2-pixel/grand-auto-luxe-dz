@@ -279,9 +279,7 @@ function StatCard({ icon: Icon, label, value, color }: { icon: React.ElementType
 
 const ACTIVATION_PLANS = [
   { id: "individual-monthly", label: "Individual Monthly", amount: 1000, days: 30, tier: "individual" as const },
-  { id: "individual-yearly", label: "Individual Yearly", amount: 10000, days: 365, tier: "individual" as const },
   { id: "showroom-monthly", label: "Showroom Monthly", amount: 2500, days: 30, tier: "showroom" as const },
-  { id: "showroom-yearly", label: "Showroom Yearly", amount: 25000, days: 365, tier: "showroom" as const },
 ];
 
 function UsersManagementTab() {
@@ -728,7 +726,7 @@ function ListingsTab() {
   if (!realtimeDb) return;
   await fetch("/api/social-publish", {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${anonKey}` },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           vehicle_id: vehicle.id,
           brand: vehicle.brand,
