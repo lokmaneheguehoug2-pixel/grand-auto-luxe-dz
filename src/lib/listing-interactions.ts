@@ -15,6 +15,6 @@ export function isVerifiedShowroom(profile?: VerificationProfile | null) {
   return !!profile?.is_showroom && isActivePaidSubscription(profile);
 }
 
-export function supabaseSucceeded(result: { error?: unknown } | null | undefined) {
+export function dataOperationSucceeded(result: { error?: unknown } | null | undefined) {
   return !result?.error;
 }

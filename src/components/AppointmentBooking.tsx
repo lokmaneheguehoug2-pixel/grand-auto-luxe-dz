@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { realtimeDb } from "@/lib/firebase";
 import { ref, push, set, get } from "firebase/database";
 import { toast } from "sonner";
-import { fetchPlatformSettings } from "@/lib/supabase";
+import { fetchPlatformSettings } from "@/lib/firebase-data";
 
 interface AppointmentBookingProps {
   vehicleId: string;

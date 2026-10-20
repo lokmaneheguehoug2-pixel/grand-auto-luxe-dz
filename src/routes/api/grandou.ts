@@ -11,7 +11,7 @@ export const Route = createFileRoute("/api/grandou")({
           const body = await request.json().catch(() => null) as {
             message?: unknown;
             history?: Array<{ role?: unknown; text?: unknown }>;
-            image?: { mimeType?: unknown; data?: unknown };
+            image?: { mimeType?: unknown; data?: unknown; url?: unknown };
           } | null;
           const message = typeof body?.message === "string" ? body.message.trim() : "";
           if (!message && !body?.image?.data) return Response.json({ ok: false, error: "الرسالة أو الصورة مطلوبة." }, { status: 400 });
@@ -31,7 +31,13 @@ export const Route = createFileRoute("/api/grandou")({
             : [];
           const parts: Array<Record<string, unknown>> = [];
           if (message) parts.push({ text: message });
-          if (body?.image?.data && typeof body.image.data === "string" && typeof body.image.mimeType === "string") {
+          if (typeof body?.image?.url === "string" && /^https:\/\//i.test(body.image.url)) {
+            const imageResponse = await fetch(body.image.url);
+            if (!imageResponse.ok) throw new Error("Cloudinary image unavailable");
+            const mimeType = imageResponse.headers.get("content-type") || (typeof body.image.mimeType === "string" ? body.image.mimeType : "image/jpeg");
+            const data = Buffer.from(await imageResponse.arrayBuffer()).toString("base64");
+            parts.push({ inlineData: { mimeType, data } });
+          } else if (body?.image?.data && typeof body.image.data === "string" && typeof body.image.mimeType === "string") {
             parts.push({ inlineData: { mimeType: body.image.mimeType, data: body.image.data } });
           }
           const stream = await ai.models.generateContentStream({

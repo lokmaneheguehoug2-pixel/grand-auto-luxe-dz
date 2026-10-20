@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
-import { getSupabase } from "@/lib/supabase";
+import { getFirebaseStore } from "@/lib/firebase-data";
 import { realtimeDb } from "@/lib/firebase";
 import { ref, onValue, off } from "firebase/database";
 import { useAuth } from "@/hooks/use-auth";
@@ -21,7 +21,7 @@ export type UnifiedInboxItem = {
 };
 
 async function fetchUnifiedInbox(userId: string): Promise<UnifiedInboxItem[]> {
-  const client = getSupabase();
+  const client = getFirebaseStore();
   if (!client) return [];
 
   const { data, error } = await client.rpc("get_unified_inbox", {
@@ -62,7 +62,7 @@ export function useUnifiedInbox() {
   }, [user?.id, queryClient]);
 
   useEffect(() => {
-    const client = getSupabase();
+    const client = getFirebaseStore();
     if (!client || !user?.id) return;
 
     const channel = client

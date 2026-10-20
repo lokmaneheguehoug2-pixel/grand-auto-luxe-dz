@@ -8,7 +8,6 @@ import { toast } from "sonner";
 import { push, set, ref as dbRef } from "firebase/database";
 import { realtimeDb } from "@/lib/firebase";
 import { uploadImageToCloudinary } from "@/lib/cloudinary";
-import { getSupabase } from "@/lib/supabase";
 
 export const Route = createFileRoute("/checkout")({
   head: () => ({ meta: [{ title: "Activation · GRAND Auto Luxe" }] }),
@@ -91,25 +90,7 @@ function CheckoutPage() {
     setSubmitting(true);
 
     try {
-      const supabase = getSupabase();
-      const { data: authData } = supabase ? await supabase.auth.getUser() : { data: { user: null } };
-
-      if (supabase && authData.user) {
-        const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
-        const proofPath = `${authData.user.id}/${crypto.randomUUID()}-${safeName}`;
-        const upload = await supabase.storage.from("payment-proofs").upload(proofPath, file, { contentType: file.type, upsert: false });
-        if (upload.error) throw upload.error;
-        const submission = await supabase.from("payment_submissions").insert({
-          user_id: authData.user.id,
-          plan_code: plan,
-          amount_dzd: selected.amount,
-          sender_phone: senderPhone.trim(),
-          transaction_reference: transactionReference.trim(),
-          proof_path: proofPath,
-        });
-        if (submission.error) throw submission.error;
-      } else {
-        const receiptUrl = await uploadImageToCloudinary(file);
+      const receiptUrl = await uploadImageToCloudinary(file);
         const subRef = push(dbRef(realtimeDb, "subscriptions"));
         await set(subRef, {
           id: subRef.key,
@@ -122,7 +103,6 @@ function CheckoutPage() {
           status: "pending",
           submittedAt: new Date().toISOString(),
         });
-      }
 
       toast.success("تم إرسال طلب الدفع للمراجعة · سيتم التفعيل بعد التحقق");
       navigate({ to: "/my-listings" });

@@ -11,8 +11,8 @@ import { realtimeDb } from "@/lib/firebase";
 import { formatDZD, formatDZDArabic, dzdToMillionCentimes, millionCentimesToDZD } from "@/lib/format";
 import { calculateDeal, type DealInfo } from "@/lib/pricing";
 import { useAuth } from "@/hooks/use-auth";
-import { getSupabase } from "@/lib/supabase";
-import { supabaseSucceeded } from "@/lib/listing-interactions";
+import { getFirebaseStore } from "@/lib/firebase-data";
+import { dataOperationSucceeded } from "@/lib/listing-interactions";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/brands")({
@@ -174,7 +174,7 @@ function DiscoveryHub() {
   }, []);
 
   const loadFavorites = useCallback(async () => {
-    const client = getSupabase();
+    const client = getFirebaseStore();
     if (!client || !userId) return;
     const { data } = await client.from("vehicle_favorites").select("vehicle_id").eq("user_id", userId);
     if (!data) return;
@@ -184,7 +184,7 @@ function DiscoveryHub() {
   }, [userId]);
 
   const loadLikes = useCallback(async () => {
-    const client = getSupabase();
+    const client = getFirebaseStore();
     if (!client) return;
     const { data } = await client.from("vehicle_likes").select("vehicle_id, user_id");
     if (!data) return;
@@ -198,7 +198,7 @@ function DiscoveryHub() {
   }, [userId]);
 
   const loadViews = useCallback(async () => {
-    const client = getSupabase();
+    const client = getFirebaseStore();
     if (!client) return;
     const { data } = await client.from("vehicle_views").select("vehicle_id");
     if (!data) return;
@@ -220,7 +220,7 @@ function DiscoveryHub() {
       toast.info("Sign in to like vehicles");
       return;
     }
-    const client = getSupabase();
+    const client = getFirebaseStore();
     if (!client) return;
     const current = likeData[vehicleId] ?? { count: 0, liked: false };
     const newLiked = !current.liked;
@@ -232,7 +232,7 @@ function DiscoveryHub() {
       const result = newLiked
         ? await client.from("vehicle_likes").insert({ vehicle_id: vehicleId, user_id: userId })
         : await client.from("vehicle_likes").delete().eq("vehicle_id", vehicleId).eq("user_id", userId);
-      if (!supabaseSucceeded(result)) throw result.error;
+      if (!dataOperationSucceeded(result)) throw result.error;
     } catch {
       setLikeData(prev => ({ ...prev, [vehicleId]: { count: current.count, liked: current.liked } }));
     }
@@ -243,7 +243,7 @@ function DiscoveryHub() {
       toast.info("Sign in to save vehicles");
       return;
     }
-    const client = getSupabase();
+    const client = getFirebaseStore();
     if (!client) return;
     const isFav = favorites[vehicleId] ?? false;
     setFavorites(prev => ({ ...prev, [vehicleId]: !isFav }));
@@ -251,7 +251,7 @@ function DiscoveryHub() {
       const result = !isFav
         ? await client.from("vehicle_favorites").insert({ vehicle_id: vehicleId, user_id: userId })
         : await client.from("vehicle_favorites").delete().eq("vehicle_id", vehicleId).eq("user_id", userId);
-      if (!supabaseSucceeded(result)) throw result.error;
+      if (!dataOperationSucceeded(result)) throw result.error;
     } catch {
       setFavorites(prev => ({ ...prev, [vehicleId]: isFav }));
     }

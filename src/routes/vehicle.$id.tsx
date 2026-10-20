@@ -16,8 +16,8 @@ import { AppointmentBooking } from "@/components/AppointmentBooking";
 import { PremiumPaywallModal } from "@/components/PremiumPaywallModal";
 import { ref, get, onValue, off, push, set, remove } from "firebase/database";
 import { realtimeDb } from "@/lib/firebase";
-import { getSupabase } from "@/lib/supabase";
-import { isVerifiedShowroom, supabaseSucceeded } from "@/lib/listing-interactions";
+import { getFirebaseStore } from "@/lib/firebase-data";
+import { isVerifiedShowroom, dataOperationSucceeded } from "@/lib/listing-interactions";
 import { getDemoValue, setDemoValue, demoKeys } from "@/lib/demo-state";
 
 function normalizeAlgPhone(raw: string): string {
@@ -126,7 +126,7 @@ function VehicleDetail() {
     const localCount = Math.max(0, Number(counts[id] ?? 0));
     setDemoValue(demoKeys.views, { ...counts, [id]: localCount + 1 });
     setViewCount((previous) => Math.max(previous, localCount + 1));
-    const client = getSupabase();
+    const client = getFirebaseStore();
     if (!client) return () => { cancelled = true; };
     client.from("vehicle_views").insert({ vehicle_id: id, viewer_id: viewerId }).then(() => {
       // Reload view count after recording
@@ -163,7 +163,7 @@ function VehicleDetail() {
   // Load inquiry count and favorite status
   useEffect(() => {
     if (!id) return;
-    const client = getSupabase();
+    const client = getFirebaseStore();
     if (!client) return;
     client.from("vehicle_inquiries").select("vehicle_id", { count: "exact", head: true }).eq("vehicle_id", id).then(({ count }) => {
       if (count !== null) setInquiryCount(count);
@@ -183,7 +183,7 @@ function VehicleDetail() {
 
   const recordInquiry = useCallback((type: "call" | "whatsapp" | "chat") => {
     if (!id) return;
-    const client = getSupabase();
+    const client = getFirebaseStore();
     if (!client) return;
     const inquirerId = user?.id ?? user?.phone ?? null;
     client.from("vehicle_inquiries").insert({ vehicle_id: id, inquirer_id: inquirerId, inquiry_type: type }).then(() => {
@@ -193,7 +193,7 @@ function VehicleDetail() {
 
   const toggleFavorite = useCallback(async () => {
     if (!id) return;
-    const client = getSupabase();
+    const client = getFirebaseStore();
     const uid = user?.id ?? user?.phone ?? viewerId;
     if (!client) {
       const saved = getDemoValue<string[]>("saved", []);
@@ -206,11 +206,11 @@ function VehicleDetail() {
     if (isFavorited) {
       setIsFavorited(false);
       const result = await client.from("vehicle_favorites").delete().eq("vehicle_id", id).eq("user_id", uid);
-      if (supabaseSucceeded(result)) toast.info("Removed from watchlist"); else throw result.error;
+      if (dataOperationSucceeded(result)) toast.info("Removed from watchlist"); else throw result.error;
     } else {
       setIsFavorited(true);
       const result = await client.from("vehicle_favorites").insert({ vehicle_id: id, user_id: uid });
-      if (supabaseSucceeded(result)) toast.success("Added to watchlist — you'll be notified of price drops"); else throw result.error;
+      if (dataOperationSucceeded(result)) toast.success("Added to watchlist — you'll be notified of price drops"); else throw result.error;
     }
   }, [user, isFavorited, id]);
 
@@ -288,8 +288,8 @@ function VehicleDetail() {
 
     if (!realtimeDb) {
       let cancelled = false;
-      const loadFromSupabase = async () => {
-        const client = getSupabase();
+      const loadFromFirebase = async () => {
+        const client = getFirebaseStore();
         if (!client) { if (!cancelled) setVehicleLoadError(true); return; }
         const { data, error } = await client.from("vehicles").select("*").eq("id", id).maybeSingle();
         if (cancelled) return;
@@ -306,7 +306,7 @@ function VehicleDetail() {
           auction_ends_at: data.auction_ends_at ?? null, status: data.status || "active",
         });
       };
-      void loadFromSupabase();
+      void loadFromFirebase();
       return () => { cancelled = true; };
     }
 

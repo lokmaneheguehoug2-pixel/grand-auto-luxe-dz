@@ -15,7 +15,7 @@ import { ref, onValue, set, off, get, push, remove, update } from "firebase/data
 import { realtimeDb } from "@/lib/firebase";
 import { SocialImageGenerator } from "@/components/SocialImageGenerator";
 import { SocialAutomationPanel } from "@/components/SocialAutomationPanel";
-import { getSupabase } from "@/lib/supabase";
+import { getFirebaseStore } from "@/lib/firebase-data";
 import { demoKeys, getDemoValue, setDemoValue } from "@/lib/demo-state";
 
 export const Route = createFileRoute("/admin")({
@@ -723,12 +723,10 @@ function ListingsTab() {
 
   const triggerSocialPublish = async (vehicle: FirebaseVehicle) => {
     try {
-      const client = getSupabase();
+      const client = getFirebaseStore();
       if (!client) return;
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-      if (!supabaseUrl || !anonKey) return;
-      await fetch(`${supabaseUrl}/functions/v1/social-publish`, {
+  if (!realtimeDb) return;
+  await fetch("/api/social-publish", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${anonKey}` },
         body: JSON.stringify({
