@@ -533,7 +533,7 @@ function UsersManagementTab() {
                         ? p.tier === "showroom" ? "border-gold bg-gold/10" : "border-red-500 bg-red-500/10"
                         : "border-white/10 bg-charcoal/40 hover:border-gold/30"
                     }`}>
-                    <div className="text-xs text-white/60">{p.label.includes("yearly") ? "Yearly" : "Monthly"}</div>
+                    <div className="text-xs text-white/60">Monthly</div>
                     <div className="font-medium">{p.amount.toLocaleString()} DZD</div>
                     <div className="text-[10px] text-muted-foreground mt-0.5">{p.tier === "showroom" ? "Showroom" : "Individual"}</div>
                   </button>
@@ -1300,7 +1300,7 @@ type SubscriptionPlan = {
   name: string;
   tier: "individual" | "showroom";
   price_dzd: number;
-  billing_period: "monthly" | "yearly";
+  billing_period: "monthly";
   features: string[];
   is_active: boolean;
   created_at: string;
@@ -1314,7 +1314,7 @@ function SubscriptionsTab() {
     name: "",
     tier: "individual" as "individual" | "showroom",
     price_dzd: 1000,
-    billing_period: "monthly" as "monthly" | "yearly",
+    billing_period: "monthly" as const,
     features: "",
   });
 
@@ -1329,7 +1329,7 @@ function SubscriptionsTab() {
           name: String(v?.name || "Unnamed"),
           tier: v?.tier === "showroom" ? "showroom" : "individual",
           price_dzd: Number(v?.price_dzd ?? 0) || 0,
-          billing_period: v?.billing_period === "yearly" ? "yearly" : "monthly",
+          billing_period: "monthly",
           features: Array.isArray(v?.features) ? v.features : [],
           is_active: Boolean(v?.is_active ?? true),
           created_at: v?.created_at || new Date().toISOString(),
@@ -1410,7 +1410,6 @@ function SubscriptionsTab() {
             <Input type="number" value={newPlan.price_dzd} onChange={(e) => setNewPlan({ ...newPlan, price_dzd: Number(e.target.value) || 0 })} placeholder="Price (DZD)" className="bg-charcoal" />
             <select value={newPlan.billing_period} onChange={(e) => setNewPlan({ ...newPlan, billing_period: e.target.value as any })} className="h-10 rounded-md border bg-charcoal px-3">
               <option value="monthly">Monthly</option>
-              <option value="yearly">Yearly</option>
             </select>
           </div>
           <Textarea value={newPlan.features} onChange={(e) => setNewPlan({ ...newPlan, features: e.target.value })} placeholder="Features (comma-separated)" className="bg-charcoal" />

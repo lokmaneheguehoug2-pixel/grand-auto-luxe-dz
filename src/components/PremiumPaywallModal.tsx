@@ -20,15 +20,14 @@ const CCP_DETAILS = {
 };
 
 type PlanTier = "individual" | "showroom";
-type BillingCycle = "monthly" | "yearly";
+type BillingCycle = "monthly";
 
-const PLAN_OPTIONS: Record<PlanTier, { name: string; nameAr: string; icon: typeof Zap; monthly: number; yearly: number; features: string[] }> = {
+const PLAN_OPTIONS: Record<PlanTier, { name: string; nameAr: string; icon: typeof Zap; monthly: number; features: string[] }> = {
   individual: {
     name: "Individual",
     nameAr: "الخطة الفردية",
     icon: Zap,
     monthly: 1000,
-    yearly: 10000,
     features: ["1 post per day", "1 reel per day", "Standard listing"],
   },
   showroom: {
@@ -36,7 +35,6 @@ const PLAN_OPTIONS: Record<PlanTier, { name: string; nameAr: string; icon: typeo
     nameAr: "خطة المعرض",
     icon: Building2,
     monthly: 2500,
-    yearly: 25000,
     features: ["Unlimited posts", "Unlimited reels", "Priority placement", "Verified dealer badge"],
   },
 };
@@ -46,9 +44,7 @@ export function PremiumPaywallModal({ open, onOpenChange, reason, selectedPlan: 
   const [tier, setTier] = useState<PlanTier>(
     initialPlan?.startsWith("showroom") ? "showroom" : "individual",
   );
-  const [billing, setBilling] = useState<BillingCycle>(
-    initialPlan?.endsWith("yearly") ? "yearly" : "monthly",
-  );
+  const billing: BillingCycle = "monthly";
 
   const copy = (text: string, field: string) => {
     navigator.clipboard.writeText(text);
@@ -116,30 +112,14 @@ export function PremiumPaywallModal({ open, onOpenChange, reason, selectedPlan: 
               })}
             </div>
 
-            {/* Billing cycle toggle */}
-            <div className="mt-4 flex gap-2">
-              {(["monthly", "yearly"] as BillingCycle[]).map((b) => (
-                <button
-                  key={b}
-                  onClick={() => setBilling(b)}
-                  className={`flex-1 rounded-lg border py-2 text-sm transition ${
-                    billing === b
-                      ? "border-gold bg-gold/10 text-gold"
-                      : "border-white/10 text-white/60 hover:border-gold/30"
-                  }`}
-                >
-                  {b === "monthly" ? "شهري · Monthly" : "سنوي · Yearly"}
-                  {b === "yearly" && <span className="block text-[9px] text-gold/60">Save 2,000+ DA</span>}
-                </button>
-              ))}
-            </div>
+  <p className="mt-4 text-center text-xs text-white/50">الفوترة شهرية فقط</p>
 
             {/* Price */}
             <div className="mt-4 text-center">
               <div className="flex items-baseline justify-center gap-2">
                 <span className="font-display text-3xl gold-shine">{price.toLocaleString()}</span>
                 <span className="text-white/60 text-sm">DZD</span>
-                <span className="text-white/40 text-xs">/ {billing === "monthly" ? "شهر" : "سنة"}</span>
+                <span className="text-white/40 text-xs">/ {"شهر"}</span>
               </div>
             </div>
 

@@ -5,18 +5,17 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 type PlanTier = "individual" | "showroom";
-type BillingCycle = "monthly" | "yearly";
+type BillingCycle = "monthly";
 
 const PLAN_OPTIONS: Record<
   PlanTier,
-  { name: string; nameAr: string; icon: typeof Zap; monthly: number; yearly: number; features: string[] }
+  { name: string; nameAr: string; icon: typeof Zap; monthly: number; features: string[] }
 > = {
   individual: {
     name: "Individual",
     nameAr: "الخطة الفردية",
     icon: Zap,
     monthly: 1000,
-    yearly: 10000,
     features: ["1 post per day", "1 reel per day", "Standard listing"],
   },
   showroom: {
@@ -24,7 +23,6 @@ const PLAN_OPTIONS: Record<
     nameAr: "خطة المعرض",
     icon: Building2,
     monthly: 2500,
-    yearly: 25000,
     features: ["Unlimited posts", "Unlimited reels", "Priority placement", "Verified dealer badge"],
   },
 };
@@ -38,7 +36,7 @@ const CCP_DETAILS = {
 
 export function PaywallGate() {
   const [tier, setTier] = useState<PlanTier>("individual");
-  const [billing, setBilling] = useState<BillingCycle>("monthly");
+  const billing: BillingCycle = "monthly";
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
   const plan = PLAN_OPTIONS[tier];
@@ -107,32 +105,14 @@ export function PaywallGate() {
               })}
             </div>
 
-            {/* Billing cycle toggle */}
-            <div className="mt-4 flex gap-2">
-              {(["monthly", "yearly"] as BillingCycle[]).map((b) => (
-                <button
-                  key={b}
-                  onClick={() => setBilling(b)}
-                  className={`flex-1 rounded-lg border py-2 text-sm transition ${
-                    billing === b
-                      ? "border-gold bg-gold/10 text-gold"
-                      : "border-border text-muted-foreground hover:border-gold/30"
-                  }`}
-                >
-                  {b === "monthly" ? "شهري · Monthly" : "سنوي · Yearly"}
-                  {b === "yearly" && (
-                    <span className="block text-[9px] text-gold/60">Save 2,000+ DA</span>
-                  )}
-                </button>
-              ))}
-            </div>
+  <p className="mt-4 text-center text-xs text-muted-foreground">الفوترة شهرية فقط</p>
 
             {/* Price display */}
             <div className="mt-4 text-center">
               <div className="flex items-baseline justify-center gap-2">
                 <span className="font-display text-3xl gold-shine">{price.toLocaleString()}</span>
                 <span className="text-muted-foreground text-sm">DZD</span>
-                <span className="text-muted-foreground/60 text-xs">/ {billing === "monthly" ? "شهر" : "سنة"}</span>
+                <span className="text-muted-foreground/60 text-xs">/ {"شهر"}</span>
               </div>
             </div>
 

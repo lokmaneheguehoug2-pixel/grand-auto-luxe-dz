@@ -156,7 +156,7 @@ function CheckoutPage() {
                   : "border-white/10 bg-charcoal/40 hover:border-gold/30"
               }`}
             >
-              <div className="text-xs text-white/60">{p.id.includes("yearly") ? "Yearly" : "Monthly"}</div>
+              <div className="text-xs text-white/60">Monthly</div>
               <div className="font-medium">{p.amount.toLocaleString()} DZD</div>
             </button>
           ))}
