@@ -287,8 +287,27 @@ function VehicleDetail() {
     }
 
     if (!realtimeDb) {
-      setV(null);
-      return;
+      let cancelled = false;
+      const loadFromSupabase = async () => {
+        const client = getSupabase();
+        if (!client) { if (!cancelled) setVehicleLoadError(true); return; }
+        const { data, error } = await client.from("vehicles").select("*").eq("id", id).maybeSingle();
+        if (cancelled) return;
+        if (error || !data) { setVehicleLoadError(true); setV(null); return; }
+        setVehicleLoadError(false);
+        setV({
+          ...(data as Record<string, any>), id,
+          brand: data.brand || "Unknown", model: data.model || "", year: data.year || 0,
+          mileage: data.mileage ?? 0, fuel_type: data.fuel_type || "N/A", transmission: data.transmission || "N/A",
+          wilaya: data.wilaya || "N/A", phone: data.phone || "", sellerPhone: data.seller_phone || data.sellerPhone || "",
+          sellerId: data.seller_id || data.sellerId || "", images: Array.isArray(data.images) ? data.images : [],
+          video_url: data.video_url || null, fixed_price: data.fixed_price ?? null, starting_price: data.starting_price ?? null,
+          current_highest_bid: data.current_highest_bid ?? null, current_highest_bidder: data.current_highest_bidder ?? null,
+          auction_ends_at: data.auction_ends_at ?? null, status: data.status || "active",
+        });
+      };
+      void loadFromSupabase();
+      return () => { cancelled = true; };
     }
 
     let vehicleRef: ReturnType<typeof ref> | null = null;
