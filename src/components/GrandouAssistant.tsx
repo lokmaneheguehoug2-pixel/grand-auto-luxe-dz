@@ -2,9 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import { Bot, CarFront, ImagePlus, Loader2, Send, Sparkles, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { uploadImageToCloudinary } from "@/lib/cloudinary";
 
 type ChatMessage = { role: "user" | "model"; text: string; imageUrl?: string };
-type ImagePayload = { mimeType: string; data: string; previewUrl: string };
+type ImagePayload = { mimeType: string; data: string; previewUrl: string; cloudinaryUrl?: string };
 
 const SUGGESTIONS = ["ساعدني أختار سيارة", "كيف أنشر إعلان؟", "ما هي نصائح شراء سيارة؟"];
 
@@ -43,7 +44,7 @@ export function GrandouAssistant() {
         body: JSON.stringify({
           message: text,
           history: messages.map(({ role, text: historyText }) => ({ role, text: historyText })),
-          image: sentImage ? { mimeType: sentImage.mimeType, data: sentImage.data } : undefined,
+          image: sentImage ? { mimeType: sentImage.mimeType, data: sentImage.data, url: sentImage.cloudinaryUrl } : undefined,
         }),
       });
       if (!response.ok || !response.body) {
@@ -73,9 +74,15 @@ export function GrandouAssistant() {
   const handleImage = (file?: File) => {
     if (!file || !file.type.startsWith("image/") || file.size > 8 * 1024 * 1024) return;
     const reader = new FileReader();
-    reader.onload = () => {
+    reader.onload = async () => {
       const result = String(reader.result);
-      setImage({ mimeType: file.type, data: result.split(",")[1] ?? "", previewUrl: result });
+      try {
+        const cloudinaryUrl = await uploadImageToCloudinary(file);
+        setImage({ mimeType: file.type, data: result.split(",")[1] ?? "", previewUrl: cloudinaryUrl, cloudinaryUrl });
+      } catch (error) {
+        console.error("[v0] Grandou image upload failed", error);
+        setImage(null);
+      }
     };
     reader.readAsDataURL(file);
   };

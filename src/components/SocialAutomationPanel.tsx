@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader as Loader2, Send, RefreshCw, CircleCheck as CheckCircle2, Circle as XCircle, Clock, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
-import { getSupabase } from "@/lib/supabase";
+import { getFirebaseStore } from "@/lib/firebase-data";
 
 type PublishSettings = {
   id: string;
@@ -45,7 +45,7 @@ export function SocialAutomationPanel() {
   const [logFilter, setLogFilter] = useState<string>("all");
 
   const loadSettings = useCallback(async () => {
-    const client = getSupabase();
+    const client = getFirebaseStore();
     if (!client) return;
     const { data, error } = await client
       .from("social_publish_settings")
@@ -60,7 +60,7 @@ export function SocialAutomationPanel() {
   }, []);
 
   const loadLogs = useCallback(async () => {
-    const client = getSupabase();
+    const client = getFirebaseStore();
     if (!client) return;
     let query = client
       .from("social_publish_log")
@@ -87,7 +87,7 @@ export function SocialAutomationPanel() {
 
   const toggleSetting = async (key: keyof PublishSettings, value: boolean) => {
     if (!settings) return;
-    const client = getSupabase();
+    const client = getFirebaseStore();
     if (!client) return;
     setSaving(true);
     const { error } = await client
@@ -105,7 +105,7 @@ export function SocialAutomationPanel() {
 
   const changeLanguage = async (lang: string) => {
     if (!settings) return;
-    const client = getSupabase();
+    const client = getFirebaseStore();
     if (!client) return;
     setSaving(true);
     const { error } = await client

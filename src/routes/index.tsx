@@ -20,7 +20,7 @@ import { toast } from "sonner";
 import { ShareButton } from "@/components/ShareButton";
 import { AnalyzeWithGrandouButton } from "@/components/AnalyzeWithGrandouButton";
 import { demoKeys, useDemoCounterMap, useDemoSet } from "@/lib/demo-state";
-import { getSupabase } from "@/lib/supabase";
+import { getFirebaseStore } from "@/lib/firebase-data";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -328,8 +328,8 @@ function HomeContent() {
 
     if (!realtimeDb) {
       let cancelled = false;
-      const loadFromSupabase = async () => {
-        const client = getSupabase();
+      const loadFromFirebase = async () => {
+        const client = getFirebaseStore();
         if (!client) {
           if (!cancelled) { setVehicles([]); setVehiclesError(true); setLoading(false); }
           return;
@@ -337,13 +337,13 @@ function HomeContent() {
         const { data, error } = await client.from("vehicles").select("*").in("status", ["active", "sold"]).order("created_at", { ascending: false });
         if (cancelled) return;
         if (error) {
-          console.warn("[v0] Supabase vehicle feed unavailable", error.message);
+          console.warn("[v0] Firebase vehicle feed unavailable", error.message);
           setVehicles([]); setVehiclesError(true); setLoading(false);
           return;
         }
         handleSnapshot(data ?? []);
       };
-      void loadFromSupabase();
+      void loadFromFirebase();
       return () => { cancelled = true; };
     }
     const vehiclesRef = ref(realtimeDb, "vehicles");
@@ -359,7 +359,7 @@ function HomeContent() {
   }, [vehiclesRetryKey]);
 
   const loadLikes = useCallback(async () => {
-    const client = getSupabase();
+    const client = getFirebaseStore();
     if (!client) return;
     try {
       const { data, error } = await client.from("vehicle_likes").select("vehicle_id, user_id");
@@ -378,7 +378,7 @@ function HomeContent() {
   }, [userId]);
 
   const loadFavorites = useCallback(async () => {
-    const client = getSupabase();
+    const client = getFirebaseStore();
     if (!client || !userId) {
       if (typeof window !== "undefined") {
         try {
@@ -407,7 +407,7 @@ function HomeContent() {
   }, [userId]);
 
   const loadViews = useCallback(async () => {
-    const client = getSupabase();
+    const client = getFirebaseStore();
     if (!client) return;
     try {
       const { data } = await client.from("vehicle_views").select("vehicle_id").throwOnError();
@@ -529,7 +529,7 @@ function HomeContent() {
     const vehicleId = item.id;
     setViewData((previous) => ({ ...previous, [vehicleId]: (previous[vehicleId] ?? localViews[vehicleId] ?? 0) + 1 }));
     incrementLocalView(vehicleId);
-    const client = getSupabase();
+    const client = getFirebaseStore();
     if (!client) return;
     try {
       const result = await client.from("vehicle_views").insert({ vehicle_id: vehicleId, viewer_id: userId });
@@ -552,7 +552,7 @@ function HomeContent() {
       try { window.localStorage.setItem("grand-auto-luxe-liked", JSON.stringify(next)); } catch { /* optional guest storage */ }
       return next;
     });
-    const client = getSupabase();
+    const client = getFirebaseStore();
     if (!client) return;
 
     try {
@@ -574,7 +574,7 @@ function HomeContent() {
   const handleFavorite = useCallback(async (item: Vehicle | null | undefined) => {
     if (!item?.id) return;
     const vehicleId = item.id;
-    const client = getSupabase();
+    const client = getFirebaseStore();
     if (!client) {
       const next = !effectiveFavorites[vehicleId];
       setFavorites((previous) => ({ ...previous, [vehicleId]: next }));

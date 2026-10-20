@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Instagram, Facebook, Mail, MessageCircle, Phone, Music2, Lightbulb, Send } from "lucide-react";
 import { realtimeDb } from "@/lib/firebase";
 import { ref, onValue, off, push, set } from "firebase/database";
-import { fetchPlatformSettings } from "@/lib/supabase";
+import { fetchPlatformSettings } from "@/lib/firebase-data";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";

@@ -17,7 +17,7 @@ import { realtimeDb } from "@/lib/firebase";
 import { ref, get, set, remove, onValue, off, push } from "firebase/database";
 import { uploadImageToCloudinary } from "@/lib/cloudinary";
 import { ChatDialog } from "@/components/ChatDialog";
-import { getSupabase } from "@/lib/supabase";
+import { getFirebaseStore } from "@/lib/firebase-data";
 import { isActivePaidSubscription, isVerifiedShowroom } from "@/lib/listing-interactions";
 import { getDemoValue, demoKeys } from "@/lib/demo-state";
 
@@ -371,7 +371,7 @@ function SellerProfile() {
   // Load saved vehicles when saved tab is opened
   useEffect(() => {
     if (!isOwnProfile || activeTab !== "saved") return;
-const client = getSupabase();
+const client = getFirebaseStore();
   const uid = user?.id ?? user?.phone;
   const localIds = getDemoValue<string[]>(demoKeys.saved, []);
   if (!client || !user) {
