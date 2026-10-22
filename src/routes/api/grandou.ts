@@ -45,7 +45,7 @@ export const Route = createFileRoute("/api/grandou")({
             parts.push({ inlineData: { mimeType: body.image.mimeType, data: body.image.data } });
           }
           const stream = await ai.models.generateContentStream({
-            model: "gemini-2.5-flash",
+            model: "gemini-3.8-flash",
             contents: [...history, { role: "user", parts }],
             config: { systemInstruction: SYSTEM_PROMPT, temperature: 0.4, maxOutputTokens: 700 },
           });
