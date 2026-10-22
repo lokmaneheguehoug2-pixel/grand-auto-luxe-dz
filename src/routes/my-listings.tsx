@@ -32,6 +32,7 @@ type Listing = {
   starting_price: number | null;
   current_highest_bid: number | null;
   status: "pending" | "active" | "sold" | "rejected";
+  pinned?: boolean;
   created_at: string;
 };
 
@@ -67,6 +68,7 @@ function MyListingsPage() {
             starting_price: v.starting_price,
             current_highest_bid: v.current_highest_bid,
             status: v.status,
+            pinned: Boolean(v.pinned),
             created_at: v.created_at,
           }))
           .filter((v) => {
@@ -118,6 +120,15 @@ function MyListingsPage() {
     }
   };
 
+  const togglePinned = async (listing: Listing) => {
+    try {
+      await set(ref(realtimeDb, `vehicles/${listing.id}/pinned`), !listing.pinned);
+      toast.success(listing.pinned ? "Listing unpinned" : "Listing pinned");
+    } catch (e: any) {
+      toast.error(e.message ?? "Failed to update pin status");
+    }
+  };
+
   const removeListing = async (id: string) => {
     if (!confirm("Delete this listing permanently?")) return;
     try {
@@ -164,6 +175,7 @@ function MyListingsPage() {
               onSold={() => markSold(v.id)}
               onActivate={() => markActive(v.id)}
               onDelete={() => removeListing(v.id)}
+              onTogglePinned={() => togglePinned(v)}
             />
           ))}
         </div>
@@ -177,11 +189,13 @@ function OwnerCard({
   onSold,
   onActivate,
   onDelete,
+  onTogglePinned,
 }: {
   v: Listing;
   onSold: () => void;
   onActivate: () => void;
   onDelete: () => void;
+  onTogglePinned: () => void;
 }) {
   const coverUrl = v.images?.[0] || "/my-logo.png.PNG";
   const price = v.price_type === "fixed" ? v.fixed_price : v.current_highest_bid ?? v.starting_price;
@@ -202,6 +216,11 @@ function OwnerCard({
           loading="lazy"
         />
         {sold && <SoldOverlay />}
+        {v.pinned && (
+          <div className="absolute top-3 right-3 rounded-full border border-gold/50 bg-gold/15 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-gold backdrop-blur-md">
+            Pinned
+          </div>
+        )}
         {pending && (
           <div className="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-amber-500/20 border border-amber-400/50 text-amber-300 text-[10px] font-bold uppercase tracking-wider backdrop-blur-md">
             Pending Review
@@ -235,6 +254,9 @@ function OwnerCard({
                 <CheckCircle2 className="h-4 w-4 mr-2 text-gold" /> Mark as Sold
               </DropdownMenuItem>
             ) : null}
+            <DropdownMenuItem onClick={onTogglePinned}>
+              <MapPin className="h-4 w-4 mr-2 text-gold" /> {v.pinned ? "Unpin listing" : "Pin listing"}
+            </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={onDelete} className="text-destructive focus:text-destructive">
               <Trash2 className="h-4 w-4 mr-2" /> Delete

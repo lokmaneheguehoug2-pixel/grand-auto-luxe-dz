@@ -22,12 +22,10 @@ const CCP_DETAILS = {
   key: "39",
 };
 
-// 4 Plans
+// Authorized monthly plans only
 const PLANS = [
   { id: "individual-monthly", label: "Individual Monthly · 1,000 DZD", amount: 1000 },
-  { id: "individual-yearly", label: "Individual Yearly · 10,000 DZD", amount: 10000 },
   { id: "showroom-monthly", label: "Showroom Monthly · 2,500 DZD", amount: 2500 },
-  { id: "showroom-yearly", label: "Showroom Yearly · 25,000 DZD", amount: 25000 },
 ] as const;
 
 function CopyRow({ label, value }: { label: string; value: string }) {
@@ -158,7 +156,7 @@ function CheckoutPage() {
                   : "border-white/10 bg-charcoal/40 hover:border-gold/30"
               }`}
             >
-              <div className="text-xs text-white/60">{p.id.includes("yearly") ? "Yearly" : "Monthly"}</div>
+              <div className="text-xs text-white/60">Monthly</div>
               <div className="font-medium">{p.amount.toLocaleString()} DZD</div>
             </button>
           ))}

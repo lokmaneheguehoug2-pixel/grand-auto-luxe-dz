@@ -8,12 +8,13 @@ import { toast } from "sonner";
 import { get, ref, set } from "firebase/database";
 import { realtimeDb } from "@/lib/firebase";
 import { demoKeys, setDemoValue } from "@/lib/demo-state";
+import { SUBSCRIPTION_PRICES } from "@/lib/pricing";
 
 export const Route = createFileRoute("/plans")({
   component: PlansPage,
 });
 
-// Exactly 4 subscription plans
+// The two authorized monthly subscription plans.
 const PLANS = [
   {
     id: "individual-monthly",
@@ -22,7 +23,7 @@ const PLANS = [
     period: "شهري",
     periodEn: "Monthly",
     icon: Zap,
-    price: 1000, // 1,000 DA/month
+    price: SUBSCRIPTION_PRICES.individualMonthly,
     features: [
       "إعلان واحد يومياً",
       "صور حتى 30 صورة",
@@ -40,38 +41,13 @@ const PLANS = [
     popular: false,
   },
   {
-    id: "individual-yearly",
-    name: "خطة فردية",
-    nameEn: "Individual Plan",
-    period: "سنوي",
-    periodEn: "Yearly",
-    icon: Zap,
-    price: 10000, // 10,000 DA/year
-    features: [
-      "إعلان واحد يومياً",
-      "صور حتى 30 صورة",
-      "نشر ريلز GRAND Stories",
-      "دعم فني بالبريد",
-      "وفر 2 شهر",
-    ],
-    featuresEn: [
-      "1 post per day",
-      "Up to 30 images",
-      "Post GRAND Stories reels",
-      "Email support",
-      "Save 2 months",
-    ],
-    popular: false,
-    savings: "Save 2,000 DA",
-  },
-  {
     id: "showroom-monthly",
     name: "خطة معرض",
     nameEn: "Showroom Plan",
     period: "شهري",
     periodEn: "Monthly",
     icon: Building2,
-    price: 2500, // 2,500 DA/month
+    price: SUBSCRIPTION_PRICES.showroomMonthly,
     features: [
       "إعلانات غير محدودة",
       "صور حتى 30 صورة",
@@ -92,37 +68,7 @@ const PLANS = [
     ],
     popular: true,
   },
-  {
-    id: "showroom-yearly",
-    name: "خطة معرض",
-    nameEn: "Showroom Plan",
-    period: "سنوي",
-    periodEn: "Yearly",
-    icon: Building2,
-    price: 25000, // 25,000 DA/year
-    features: [
-      "إعلانات غير محدودة",
-      "صور حتى 30 صورة",
-      "ريلز GRAND Stories",
-      "شارة معرض موثق",
-      "دعم أولوية واتساب",
-      "إحصائيات متقدمة",
-      "تثبيت الإعلانات",
-      "وفر 5,000 دج",
-    ],
-    featuresEn: [
-      "Unlimited posts",
-      "Up to 30 images",
-      "GRAND Stories reels",
-      "Verified showroom badge",
-      "Priority WhatsApp support",
-      "Advanced analytics",
-      "Pin listings",
-      "Save 5,000 DA",
-    ],
-    popular: false,
-    savings: "Save 5,000 DA",
-  },
+
 ];
 
 // CCP Payment Details
@@ -279,11 +225,11 @@ function PlansPage() {
           </div>
         )}
 
-        {/* Plans grid - 4 options */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4 mb-12">
+        {/* Plans grid - monthly individual and showroom options */}
+        <div className="grid md:grid-cols-2 gap-4 mb-12">
           {PLANS.map((plan) => {
             const Icon = plan.icon;
-            const isYearly = plan.id.includes("yearly");
+            const isYearly = false;
 
             return (
               <div
