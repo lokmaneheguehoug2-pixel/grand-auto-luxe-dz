@@ -1,14 +1,19 @@
 // Canonical subscription pricing and market valuation helpers.
 export const SUBSCRIPTION_PRICES = {
   individualMonthly: 1000,
+  individualYearly: 10000,
   showroomMonthly: 2500,
+  showroomYearly: 25000,
+  pinPerDay: 500,
 } as const;
 
-export type SubscriptionPlan = "individual-monthly" | "showroom-monthly";
+export type SubscriptionPlan = "individual-monthly" | "individual-yearly" | "showroom-monthly" | "showroom-yearly";
 
 export const SUBSCRIPTION_PLANS = {
   "individual-monthly": { id: "individual-monthly" as const, tier: "basic" as const, price: SUBSCRIPTION_PRICES.individualMonthly, name: "خطة فردية", nameEn: "Individual Plan", period: "شهري" },
+  "individual-yearly": { id: "individual-yearly" as const, tier: "basic" as const, price: SUBSCRIPTION_PRICES.individualYearly, name: "خطة فردية", nameEn: "Individual Plan", period: "سنوي" },
   "showroom-monthly": { id: "showroom-monthly" as const, tier: "dealer" as const, price: SUBSCRIPTION_PRICES.showroomMonthly, name: "خطة معرض", nameEn: "Showroom Plan", period: "شهري" },
+  "showroom-yearly": { id: "showroom-yearly" as const, tier: "dealer" as const, price: SUBSCRIPTION_PRICES.showroomYearly, name: "خطة معرض", nameEn: "Showroom Plan", period: "سنوي" },
 } as const;
 
 export type DealRating = "great" | "fair" | "above";

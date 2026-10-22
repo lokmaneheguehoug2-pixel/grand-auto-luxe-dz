@@ -7,7 +7,7 @@ import { uploadImageToCloudinary } from "@/lib/cloudinary";
 type ChatMessage = { role: "user" | "model"; text: string; imageUrl?: string };
 type ImagePayload = { mimeType: string; data: string; previewUrl: string; cloudinaryUrl?: string };
 
-const SUGGESTIONS = ["ساعدني أختار سيارة", "كيف أنشر إعلان؟", "ما هي نصائح شراء سيارة؟"];
+const SUGGESTIONS = ["ساعدني أختار سيارة", "كيف أنشر إعلان؟", "ما هي نصائح شراء سيارة؟", "ما أفضل سيارة في الجزائر؟"];
 
 export function GrandouAssistant() {
   const [open, setOpen] = useState(false);

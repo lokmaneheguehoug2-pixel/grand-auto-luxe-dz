@@ -40,6 +40,16 @@ export function CustomerServiceFooter() {
   const auth = useAuth();
   const user = auth?.user;
   const access = auth?.access ?? "locked";
+  const [language, setLanguage] = useState(() => typeof document !== "undefined" ? document.documentElement.lang || "ar" : "ar");
+
+  const changeLanguage = (nextLanguage: string) => {
+    setLanguage(nextLanguage);
+    if (typeof document !== "undefined") {
+      document.documentElement.lang = nextLanguage;
+      document.documentElement.dir = nextLanguage === "ar" ? "rtl" : "ltr";
+    }
+    window.dispatchEvent(new CustomEvent("grand-auto-language", { detail: nextLanguage }));
+  };
 
   useEffect(() => {
     fetchPlatformSettings()
@@ -172,8 +182,16 @@ export function CustomerServiceFooter() {
           </div>
         </div>
 
-        <div className="mt-8 pt-6 border-t border-border/40 text-center text-xs text-muted-foreground">
-          <span className="gold-text font-semibold">GRAND Auto Luxe</span> · Made in Algeria · {new Date().getFullYear()}
+        <div className="mt-8 pt-6 border-t border-border/40 flex flex-col items-center gap-3 text-center text-xs text-muted-foreground">
+          <label className="flex items-center gap-2" htmlFor="site-language">
+            <span>لغة الموقع / Site language</span>
+            <select id="site-language" value={language} onChange={(event) => changeLanguage(event.target.value)} className="rounded-md border border-gold/30 bg-charcoal px-2 py-1 text-foreground">
+              <option value="ar">العربية</option>
+              <option value="en">English</option>
+              <option value="fr">Français</option>
+            </select>
+          </label>
+          <div><span className="gold-text font-semibold">GRAND Auto Luxe</span> · Made in Algeria · {new Date().getFullYear()}</div>
         </div>
       </div>
 

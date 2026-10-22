@@ -33,6 +33,8 @@ type Listing = {
   current_highest_bid: number | null;
   status: "pending" | "active" | "sold" | "rejected";
   pinned?: boolean;
+  pinStatus?: string;
+  pinEndDate?: string;
   created_at: string;
 };
 
@@ -50,6 +52,11 @@ function MyListingsPage() {
       return;
     }
 
+    if (!realtimeDb) {
+      setListings([]);
+      setIsLoading(false);
+      return;
+    }
     const vehiclesRef = ref(realtimeDb, "vehicles");
 
     const handleSnapshot = (snapshot: { val: () => Record<string, any> | null }) => {
@@ -68,7 +75,9 @@ function MyListingsPage() {
             starting_price: v.starting_price,
             current_highest_bid: v.current_highest_bid,
             status: v.status,
-            pinned: Boolean(v.pinned),
+            pinned: Boolean(v.pinned) && (!v.pinEndDate || new Date(v.pinEndDate).getTime() > Date.now()),
+            pinStatus: v.pinStatus,
+            pinEndDate: v.pinEndDate,
             created_at: v.created_at,
           }))
           .filter((v) => {
@@ -121,11 +130,14 @@ function MyListingsPage() {
   };
 
   const togglePinned = async (listing: Listing) => {
-    try {
-      await set(ref(realtimeDb, `vehicles/${listing.id}/pinned`), !listing.pinned);
-      toast.success(listing.pinned ? "Listing unpinned" : "Listing pinned");
-    } catch (e: any) {
-      toast.error(e.message ?? "Failed to update pin status");
+    if (listing.pinned) {
+      try {
+        await set(ref(realtimeDb, `vehicles/${listing.id}/pinned`), false);
+        await set(ref(realtimeDb, `vehicles/${listing.id}/pinStatus`), "cancelled");
+        toast.success("تم إلغاء تثبيت الإعلان");
+      } catch (e: any) {
+        toast.error(e.message ?? "Failed to update pin status");
+      }
     }
   };
 
@@ -254,9 +266,17 @@ function OwnerCard({
                 <CheckCircle2 className="h-4 w-4 mr-2 text-gold" /> Mark as Sold
               </DropdownMenuItem>
             ) : null}
-            <DropdownMenuItem onClick={onTogglePinned}>
-              <MapPin className="h-4 w-4 mr-2 text-gold" /> {v.pinned ? "Unpin listing" : "Pin listing"}
-            </DropdownMenuItem>
+            {v.pinned ? (
+              <DropdownMenuItem onClick={onTogglePinned}>
+                <MapPin className="h-4 w-4 mr-2 text-gold" /> إلغاء التثبيت
+              </DropdownMenuItem>
+            ) : (
+              <DropdownMenuItem asChild>
+                <Link to="/checkout" state={{ pinListingId: v.id, pinDays: 1 } as any}>
+                  <MapPin className="h-4 w-4 mr-2 text-gold" /> تثبيت الإعلان · 500 دج/اليوم
+                </Link>
+              </DropdownMenuItem>
+            )}
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={onDelete} className="text-destructive focus:text-destructive">
               <Trash2 className="h-4 w-4 mr-2" /> Delete
