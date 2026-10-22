@@ -102,7 +102,8 @@ export function CustomerServiceFooter() {
               <button onClick={() => setFeedbackOpen(true)} className="text-muted-foreground hover:text-gold transition-colors text-left flex items-center gap-1.5">
                 <Lightbulb className="h-3.5 w-3.5" /> اقتراحات · Suggest Improvements
               </button>
-              <a href="/plans" className="text-muted-foreground hover:text-gold transition-colors">Subscription Plans</a>
+              <a href="/plans" className="text-muted-foreground hover:text-gold transition-colors">Subscription Plans · الاشتراكات</a>
+              <a href="/privacy" className="text-muted-foreground hover:text-gold transition-colors">Privacy & Disclaimer · الخصوصية</a>
               <a href="/auth" className="text-muted-foreground hover:text-gold transition-colors">Sign In / Register</a>
               <a href="/reels" className="text-muted-foreground hover:text-gold transition-colors">Reels</a>
             </nav>
