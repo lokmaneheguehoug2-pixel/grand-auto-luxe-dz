@@ -181,6 +181,7 @@ function ReelCard({ reel, currentUserId, isAdmin, onRefresh }: { reel: Reel; cur
   const canEdit = isOwner || isAdmin;
 
   useEffect(() => {
+    if (!realtimeDb) return;
     const video = videoRef.current;
     const container = containerRef.current;
     if (!video || !container) return;
@@ -213,7 +214,7 @@ function ReelCard({ reel, currentUserId, isAdmin, onRefresh }: { reel: Reel; cur
   }, [reel.id]);
 
   useEffect(() => {
-    if (!currentUserId) return;
+    if (!currentUserId || !realtimeDb) return;
     get(ref(realtimeDb, `reels/${reel.id}/likedBy/${currentUserId}`)).then((snap) => {
       setLiked(snap.exists());
     }).catch(() => {});

@@ -88,7 +88,13 @@ export function AppShell() {
             {isAdminStable && <NavButton icon={Shield} label="Admin" to="/admin" active={isActive("/admin")} />}
             <NavButton icon={Film} label="Reels" to="/reels" active={isActive("/reels")} />
             {user ? (
-              <NavButton icon={User2} label="Profile" to="/seller/$id" params={{ id: user?.phone ?? user?.id ?? "" }} active={isActive("/seller")} />
+              <>
+                <NavButton icon={User2} label="Profile" to="/seller/$id" params={{ id: user?.phone ?? user?.id ?? "" }} active={isActive("/seller")} />
+                <button type="button" aria-label="Sign out" onClick={() => { signOut(); navigate({ to: "/auth" }); }} className="flex flex-col items-center justify-center gap-0.5 flex-1 h-full text-muted-foreground">
+                  <LogOut className="h-5 w-5" />
+                  <span className="text-[9px] leading-none">خروج</span>
+                </button>
+              </>
             ) : (
               <NavButton icon={User2} label="Sign in" to="/auth" active={isActive("/auth")} />
             )}

@@ -180,6 +180,7 @@ export function useAuth() {
     }
 
     // Regular user: look up in Realtime Database
+    if (!realtimeDb) throw new Error("service-unavailable");
     const snap = await get(ref(realtimeDb, "users/" + normalizedPhone));
     if (!snap.exists()) {
       throw new Error("user-not-found");
@@ -252,6 +253,7 @@ export function useAuth() {
     }
 
     // Check if already registered
+    if (!realtimeDb) throw new Error("service-unavailable");
     const existing = await get(ref(realtimeDb, "users/" + normalizedPhone));
     if (existing.exists()) {
       throw new Error("email-already-in-use");
@@ -323,7 +325,7 @@ export function useAuth() {
 
   const reloadProfile = useCallback(async () => {
     if (!user) return;
-    if (isAdmin) return;
+    if (isAdmin || !realtimeDb) return;
     try {
       const snap = await get(ref(realtimeDb, "users/" + user.phone));
       if (snap.exists()) {
