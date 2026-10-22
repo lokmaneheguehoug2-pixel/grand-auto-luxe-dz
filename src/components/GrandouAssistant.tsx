@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import { Bot, CarFront, ImagePlus, Loader2, Send, Sparkles, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { uploadImageToCloudinary } from "@/lib/cloudinary";
 
 type ChatMessage = { role: "user" | "model"; text: string; imageUrl?: string };
 type ImagePayload = { mimeType: string; data: string; previewUrl: string; cloudinaryUrl?: string };
@@ -77,8 +76,8 @@ export function GrandouAssistant() {
     reader.onload = async () => {
       const result = String(reader.result);
       try {
-        const cloudinaryUrl = await uploadImageToCloudinary(file);
-        setImage({ mimeType: file.type, data: result.split(",")[1] ?? "", previewUrl: cloudinaryUrl, cloudinaryUrl });
+        const localData = result;
+        setImage({ mimeType: file.type, data: localData.split(",")[1] ?? "", previewUrl: localData });
       } catch (error) {
         console.error("[v0] Grandou image upload failed", error);
         setImage(null);

@@ -95,6 +95,7 @@ function CheckoutPage() {
     setSubmitting(true);
 
     try {
+      if (!realtimeDb) throw new Error("خدمة الدفع غير متاحة مؤقتًا. حاول لاحقًا.");
       const receiptUrl = await uploadImageToCloudinary(file);
         const subRef = push(dbRef(realtimeDb, "subscriptions"));
         await set(subRef, {
@@ -161,7 +162,6 @@ function CheckoutPage() {
           <div className="text-gold font-semibold">الإجمالي: {pinAmount.toLocaleString()} DZD</div>
         </div>
       ) : (
-      /* Plan Selection */
       <div className="premium-card rounded-xl p-6 border border-gold/20 mb-6">
         <Label className="text-xs uppercase tracking-widest text-muted-foreground">Select Plan</Label>
         <div className="mt-2 grid grid-cols-2 gap-2">

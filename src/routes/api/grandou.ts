@@ -18,8 +18,7 @@ export const Route = createFileRoute("/api/grandou")({
 
           const apiKey = process.env.GEMINI_API_KEY;
           if (!apiKey) {
-            console.error("[v0] Grandou API: GEMINI_API_KEY is missing");
-            return Response.json({ ok: false, error: "المساعد غير متاح حاليًا. حاول لاحقًا." }, { status: 503 });
+            return Response.json({ ok: false, error: "المساعد غير متاح حاليًا. تحقق من إعدادات الذكاء الاصطناعي." }, { status: 503 });
           }
 
           const ai = new GoogleGenAI({ apiKey });
