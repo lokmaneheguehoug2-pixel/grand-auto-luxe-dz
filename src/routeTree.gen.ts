@@ -21,6 +21,7 @@ import { Route as PlansRouteImport } from './routes/plans'
 import { Route as PostRouteImport } from './routes/post'
 import { Route as PostReelRouteImport } from './routes/post-reel'
 import { Route as PostStoryRouteImport } from './routes/post-story'
+import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as ReelsRouteImport } from './routes/reels'
 import { Route as UnifiedInboxRouteImport } from './routes/unified-inbox'
 import { Route as ApiGrandouRouteImport } from './routes/api/grandou'
@@ -89,6 +90,11 @@ const PostStoryRoute = PostStoryRouteImport.update({
   path: '/post-story',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ReelsRoute = ReelsRouteImport.update({
   id: '/reels',
   path: '/reels',
@@ -138,6 +144,7 @@ export interface FileRoutesByFullPath {
   '/post': typeof PostRoute
   '/post-reel': typeof PostReelRoute
   '/post-story': typeof PostStoryRoute
+  '/privacy': typeof PrivacyRoute
   '/reels': typeof ReelsRoute
   '/unified-inbox': typeof UnifiedInboxRoute
   '/api/grandou': typeof ApiGrandouRoute
@@ -159,6 +166,7 @@ export interface FileRoutesByTo {
   '/post': typeof PostRoute
   '/post-reel': typeof PostReelRoute
   '/post-story': typeof PostStoryRoute
+  '/privacy': typeof PrivacyRoute
   '/reels': typeof ReelsRoute
   '/unified-inbox': typeof UnifiedInboxRoute
   '/api/grandou': typeof ApiGrandouRoute
@@ -181,6 +189,7 @@ export interface FileRoutesById {
   '/post': typeof PostRoute
   '/post-reel': typeof PostReelRoute
   '/post-story': typeof PostStoryRoute
+  '/privacy': typeof PrivacyRoute
   '/reels': typeof ReelsRoute
   '/unified-inbox': typeof UnifiedInboxRoute
   '/api/grandou': typeof ApiGrandouRoute
@@ -204,6 +213,7 @@ export interface FileRouteTypes {
     | '/post'
     | '/post-reel'
     | '/post-story'
+    | '/privacy'
     | '/reels'
     | '/unified-inbox'
     | '/api/grandou'
@@ -225,6 +235,7 @@ export interface FileRouteTypes {
     | '/post'
     | '/post-reel'
     | '/post-story'
+    | '/privacy'
     | '/reels'
     | '/unified-inbox'
     | '/api/grandou'
@@ -246,6 +257,7 @@ export interface FileRouteTypes {
     | '/post'
     | '/post-reel'
     | '/post-story'
+    | '/privacy'
     | '/reels'
     | '/unified-inbox'
     | '/api/grandou'
@@ -268,6 +280,7 @@ export interface RootRouteChildren {
   PostRoute: typeof PostRoute
   PostReelRoute: typeof PostReelRoute
   PostStoryRoute: typeof PostStoryRoute
+  PrivacyRoute: typeof PrivacyRoute
   ReelsRoute: typeof ReelsRoute
   UnifiedInboxRoute: typeof UnifiedInboxRoute
   ApiGrandouRoute: typeof ApiGrandouRoute
@@ -363,6 +376,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PostStoryRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/reels': {
       id: '/reels'
       path: '/reels'
@@ -428,6 +448,7 @@ const rootRouteChildren: RootRouteChildren = {
   PostRoute: PostRoute,
   PostReelRoute: PostReelRoute,
   PostStoryRoute: PostStoryRoute,
+  PrivacyRoute: PrivacyRoute,
   ReelsRoute: ReelsRoute,
   UnifiedInboxRoute: UnifiedInboxRoute,
   ApiGrandouRoute: ApiGrandouRoute,
