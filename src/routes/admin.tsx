@@ -279,7 +279,9 @@ function StatCard({ icon: Icon, label, value, color }: { icon: React.ElementType
 
 const ACTIVATION_PLANS = [
   { id: "individual-monthly", label: "Individual Monthly", amount: 1000, days: 30, tier: "individual" as const },
+  { id: "individual-yearly", label: "Individual Yearly", amount: 10000, days: 365, tier: "individual" as const },
   { id: "showroom-monthly", label: "Showroom Monthly", amount: 2500, days: 30, tier: "showroom" as const },
+  { id: "showroom-yearly", label: "Showroom Yearly", amount: 25000, days: 365, tier: "showroom" as const },
 ];
 
 function UsersManagementTab() {
@@ -1133,6 +1135,10 @@ type SubscriptionRecord = {
   receiptUrl: string | null;
   status: "pending" | "verified" | "rejected";
   submittedAt: string;
+  listingId?: string | null;
+  pinDays?: number | null;
+  requestedStartDate?: string | null;
+  requestedEndDate?: string | null;
 };
 
 function ReceiptsTab() {
@@ -1151,9 +1157,13 @@ function ReceiptsTab() {
             id,
             userId: v.userId || "",
             userPhone: v.userPhone || "",
-            plan: v.plan || "",
-            amount: Number(v.amount) || 0,
-            receiptUrl: v.receiptUrl || null,
+  plan: v.plan || "",
+  amount: Number(v.amount) || 0,
+  receiptUrl: v.receiptUrl || null,
+  listingId: v.listingId || null,
+  pinDays: Number(v.pinDays) || null,
+  requestedStartDate: v.requestedStartDate || null,
+  requestedEndDate: v.requestedEndDate || null,
             status: v.status || "pending",
             submittedAt: v.submittedAt || new Date().toISOString(),
           }));
@@ -1173,6 +1183,18 @@ function ReceiptsTab() {
   const verifyAndActivate = async (sub: SubscriptionRecord) => {
     setVerifying(sub.id);
     try {
+      if (sub.plan === "listing-pin" && sub.listingId) {
+        const start = sub.requestedStartDate ? new Date(sub.requestedStartDate) : new Date();
+        const end = new Date(start.getTime() + Math.max(1, sub.pinDays || 1) * 86400000);
+        await set(ref(realtimeDb, `vehicles/${sub.listingId}/pinned`), true);
+        await set(ref(realtimeDb, `vehicles/${sub.listingId}/pinStatus`), "active");
+        await set(ref(realtimeDb, `vehicles/${sub.listingId}/pinStartDate`), start.toISOString());
+        await set(ref(realtimeDb, `vehicles/${sub.listingId}/pinEndDate`), end.toISOString());
+        await set(ref(realtimeDb, `subscriptions/${sub.id}/status`), "verified");
+        setSubscriptions(subscriptions.map((s) => s.id === sub.id ? { ...s, status: "verified" } : s));
+        toast.success(`تم تثبيت الإعلان لمدة ${sub.pinDays || 1} يوم`);
+        return;
+      }
       const plan = ACTIVATION_PLANS.find((p) => p.id === sub.plan);
       const days = plan?.days || 30;
       const tier = plan?.tier || "individual";
@@ -1251,7 +1273,7 @@ function ReceiptsTab() {
                 <Badge variant="outline" className="text-xs border-yellow-500 text-yellow-400">{sub.status}</Badge>
               </div>
               <div className="text-xs text-muted-foreground mt-1">{sub.userPhone}</div>
-              <div className="text-xs text-muted-foreground">{sub.amount.toLocaleString()} DZD</div>
+              <div className="text-xs text-muted-foreground">{sub.amount.toLocaleString()} DZD {sub.plan === "listing-pin" ? `· ${sub.pinDays || 1} يوم تثبيت` : ""}</div>
               <div className="text-xs text-muted-foreground">Submitted: {new Date(sub.submittedAt).toLocaleString()}</div>
             </div>
 

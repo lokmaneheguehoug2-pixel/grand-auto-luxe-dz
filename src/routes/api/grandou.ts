@@ -14,7 +14,7 @@ export const Route = createFileRoute("/api/grandou")({
             image?: { mimeType?: unknown; data?: unknown; url?: unknown };
           } | null;
           const message = typeof body?.message === "string" ? body.message.trim() : "";
-          if (!message && !body?.image?.data) return Response.json({ ok: false, error: "الرسالة أو الصورة مطلوبة." }, { status: 400 });
+          if (!message && !body?.image?.data && !body?.image?.url) return Response.json({ ok: false, error: "الرسالة أو الصورة مطلوبة." }, { status: 400 });
 
           const apiKey = process.env.GEMINI_API_KEY;
           if (!apiKey) {

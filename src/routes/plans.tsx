@@ -41,6 +41,18 @@ const PLANS = [
     popular: false,
   },
   {
+    id: "individual-yearly",
+    name: "خطة فردية",
+    nameEn: "Individual Plan",
+    period: "سنوي",
+    periodEn: "Yearly",
+    icon: Zap,
+    price: SUBSCRIPTION_PRICES.individualYearly,
+    features: ["إعلان واحد يومياً", "صور حتى 30 صورة", "نشر ريلز GRAND Stories", "وفر شهرين"],
+    featuresEn: ["1 post per day", "Up to 30 images", "Post GRAND Stories reels", "Save 2 months"],
+    popular: false,
+  },
+  {
     id: "showroom-monthly",
     name: "خطة معرض",
     nameEn: "Showroom Plan",
@@ -67,6 +79,18 @@ const PLANS = [
       "Pin listings",
     ],
     popular: true,
+  },
+  {
+    id: "showroom-yearly",
+    name: "خطة معرض",
+    nameEn: "Showroom Plan",
+    period: "سنوي",
+    periodEn: "Yearly",
+    icon: Building2,
+    price: SUBSCRIPTION_PRICES.showroomYearly,
+    features: ["إعلانات غير محدودة", "شارة معرض موثق", "إحصائيات متقدمة", "وفر 5,000 دج"],
+    featuresEn: ["Unlimited listings", "Verified showroom badge", "Advanced analytics", "Save 5,000 DZD"],
+    popular: false,
   },
 
 ];
