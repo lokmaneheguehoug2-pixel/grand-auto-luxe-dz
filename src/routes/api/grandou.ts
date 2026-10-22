@@ -32,10 +32,15 @@ export const Route = createFileRoute("/api/grandou")({
           const parts: Array<Record<string, unknown>> = [];
           if (message) parts.push({ text: message });
           if (typeof body?.image?.url === "string" && /^https:\/\//i.test(body.image.url)) {
-            const imageResponse = await fetch(body.image.url);
+            const imageResponse = await fetch(body.image.url, { signal: AbortSignal.timeout(12_000) });
             if (!imageResponse.ok) throw new Error("Cloudinary image unavailable");
             const mimeType = imageResponse.headers.get("content-type") || (typeof body.image.mimeType === "string" ? body.image.mimeType : "image/jpeg");
-            const data = Buffer.from(await imageResponse.arrayBuffer()).toString("base64");
+            if (!mimeType.startsWith("image/")) throw new Error("Unsupported image type");
+            const contentLength = Number(imageResponse.headers.get("content-length") || 0);
+            if (contentLength > 8 * 1024 * 1024) throw new Error("Image too large");
+            const bytes = await imageResponse.arrayBuffer();
+            if (bytes.byteLength > 8 * 1024 * 1024) throw new Error("Image too large");
+            const data = Buffer.from(bytes).toString("base64");
             parts.push({ inlineData: { mimeType, data } });
           } else if (body?.image?.data && typeof body.image.data === "string" && typeof body.image.mimeType === "string") {
             parts.push({ inlineData: { mimeType: body.image.mimeType, data: body.image.data } });

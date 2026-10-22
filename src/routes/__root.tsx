@@ -119,6 +119,17 @@ function RootShell({ children }: { children: ReactNode }) {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
+  useEffect(() => {
+    const applyLanguage = (event: Event) => {
+      const language = (event as CustomEvent<string>).detail;
+      if (language !== "ar" && language !== "en" && language !== "fr") return;
+      document.documentElement.lang = language;
+      document.documentElement.dir = language === "ar" ? "rtl" : "ltr";
+    };
+    window.addEventListener("grand-auto-language", applyLanguage);
+    return () => window.removeEventListener("grand-auto-language", applyLanguage);
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <ErrorBoundary>

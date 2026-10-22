@@ -40,13 +40,18 @@ export function CustomerServiceFooter() {
   const auth = useAuth();
   const user = auth?.user;
   const access = auth?.access ?? "locked";
-  const [language, setLanguage] = useState(() => typeof document !== "undefined" ? document.documentElement.lang || "ar" : "ar");
+  const [language, setLanguage] = useState(() => {
+    if (typeof document === "undefined") return "ar";
+    const saved = document.cookie.match(/(?:^|; )grand-auto-language=([^;]+)/)?.[1];
+    return saved === "en" || saved === "fr" || saved === "ar" ? saved : document.documentElement.lang || "ar";
+  });
 
   const changeLanguage = (nextLanguage: string) => {
     setLanguage(nextLanguage);
     if (typeof document !== "undefined") {
       document.documentElement.lang = nextLanguage;
       document.documentElement.dir = nextLanguage === "ar" ? "rtl" : "ltr";
+      document.cookie = `grand-auto-language=${nextLanguage}; Max-Age=31536000; Path=/; SameSite=Lax`;
     }
     window.dispatchEvent(new CustomEvent("grand-auto-language", { detail: nextLanguage }));
   };
