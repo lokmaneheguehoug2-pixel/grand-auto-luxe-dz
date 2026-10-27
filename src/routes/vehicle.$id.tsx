@@ -16,7 +16,7 @@ import { AppointmentBooking } from "@/components/AppointmentBooking";
 import { PremiumPaywallModal } from "@/components/PremiumPaywallModal";
 import { ref, get, onValue, off, push, set, remove } from "firebase/database";
 import { realtimeDb } from "@/lib/firebase";
-import { getFirebaseStore } from "@/lib/firebase-data";
+import { getFirebaseStore, normalizeVehicleImages } from "@/lib/firebase-data";
 import { isVerifiedShowroom, dataOperationSucceeded } from "@/lib/listing-interactions";
 import { getDemoValue, setDemoValue, demoKeys } from "@/lib/demo-state";
 
@@ -300,7 +300,7 @@ function VehicleDetail() {
           brand: data.brand || "Unknown", model: data.model || "", year: data.year || 0,
           mileage: data.mileage ?? 0, fuel_type: data.fuel_type || "N/A", transmission: data.transmission || "N/A",
           wilaya: data.wilaya || "N/A", phone: data.phone || "", sellerPhone: data.seller_phone || data.sellerPhone || "",
-          sellerId: data.seller_id || data.sellerId || "", images: Array.isArray(data.images) ? data.images : [],
+          sellerId: data.seller_id || data.sellerId || "", images: normalizeVehicleImages(data.images),
           video_url: data.video_url || null, fixed_price: data.fixed_price ?? null, starting_price: data.starting_price ?? null,
           current_highest_bid: data.current_highest_bid ?? null, current_highest_bidder: data.current_highest_bidder ?? null,
           auction_ends_at: data.auction_ends_at ?? null, status: data.status || "active",
@@ -344,7 +344,7 @@ function VehicleDetail() {
             phone: data.phone || "",
             sellerPhone: data.sellerPhone || "",
             sellerId: data.sellerId || "",
-            images: Array.isArray(data.images) ? data.images : [],
+            images: normalizeVehicleImages(data.images),
             video_url: data.video_url || null,
             fixed_price: data.fixed_price ?? null,
             starting_price: data.starting_price ?? null,

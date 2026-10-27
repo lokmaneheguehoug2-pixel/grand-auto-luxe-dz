@@ -20,7 +20,7 @@ import { toast } from "sonner";
 import { ShareButton } from "@/components/ShareButton";
 import { AnalyzeWithGrandouButton } from "@/components/AnalyzeWithGrandouButton";
 import { demoKeys, useDemoCounterMap, useDemoSet } from "@/lib/demo-state";
-import { getFirebaseStore } from "@/lib/firebase-data";
+import { getFirebaseStore, normalizeVehicleImages } from "@/lib/firebase-data";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -280,9 +280,7 @@ function HomeContent() {
           .map((raw) => {
             const v = raw as Record<string, unknown>;
             const id = String(v.id);
-            const images = Array.isArray(v.images)
-              ? v.images.filter((image): image is string => typeof image === "string" && image.length > 0)
-              : [];
+            const images = normalizeVehicleImages(v.images);
             const videoUrl = typeof v.video_url === "string" && v.video_url.length > 0 ? v.video_url : null;
             return {
               id,
