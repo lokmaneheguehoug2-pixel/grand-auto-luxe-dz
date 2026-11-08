@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { Component, useState, useMemo, useEffect, useCallback, useRef } from "react";
 import type { ReactNode, MouseEvent } from "react";
 import { ref, get, set, remove, onValue, off } from "firebase/database";
-import { realtimeDb } from "@/lib/firebase";
+import { getFirebaseActorId, realtimeDb } from "@/lib/firebase";
 import { WILAYAS, BRANDS } from "@/lib/wilayas";
 import { formatDZD, formatDZDArabic } from "@/lib/format";
 import { calculateDeal } from "@/lib/pricing";
@@ -43,6 +43,10 @@ type Vehicle = {
   wilaya: string;
   phone: string;
   images: string[];
+  photos?: unknown;
+  image_urls?: unknown;
+  image_url?: unknown;
+  thumbnail_url?: unknown;
   video_url: string | null;
   price_type: "fixed" | "auction";
   fixed_price: number | null;
@@ -296,6 +300,10 @@ function HomeContent() {
               wilaya: typeof v.wilaya === "string" ? v.wilaya : "Algeria",
               phone: typeof v.phone === "string" ? v.phone : "",
               images,
+              photos: v.photos,
+              image_urls: v.image_urls,
+              image_url: typeof v.image_url === "string" ? v.image_url : undefined,
+              thumbnail_url: typeof v.thumbnail_url === "string" ? v.thumbnail_url : undefined,
               video_url: videoUrl,
               price_type: v.price_type === "auction" ? "auction" : "fixed",
               fixed_price: Number.isFinite(Number(v.fixed_price)) ? Number(v.fixed_price) : null,
@@ -571,8 +579,9 @@ function HomeContent() {
     setLocalLiked((previous) => ({ ...previous, [vehicleId]: newLiked }));
   if (!realtimeDb) return;
   try {
-    const likeRef = ref(realtimeDb, `vehicleLikes/${vehicleId}/${userId}`);
-    if (newLiked) await set(likeRef, { user_id: userId, vehicle_id: vehicleId, created_at: new Date().toISOString() });
+    const actorId = await getFirebaseActorId(userId);
+    const likeRef = ref(realtimeDb, `vehicleLikes/${vehicleId}/${actorId}`);
+    if (newLiked) await set(likeRef, { user_id: actorId, vehicle_id: vehicleId, created_at: new Date().toISOString() });
     else await remove(likeRef);
   } catch {
       setLikeData(prev => ({
@@ -592,8 +601,9 @@ function HomeContent() {
     const isFav = effectiveFavorites[vehicleId] ?? false;
     setFavorites((previous) => ({ ...previous, [vehicleId]: !isFav }));
     try {
-      const favoriteRef = ref(realtimeDb, `vehicleFavorites/${vehicleId}/${userId}`);
-      if (!isFav) await set(favoriteRef, { user_id: userId, vehicle_id: vehicleId, created_at: new Date().toISOString() });
+      const actorId = await getFirebaseActorId(userId);
+      const favoriteRef = ref(realtimeDb, `vehicleFavorites/${vehicleId}/${actorId}`);
+      if (!isFav) await set(favoriteRef, { user_id: actorId, vehicle_id: vehicleId, created_at: new Date().toISOString() });
       else await remove(favoriteRef);
     } catch {
       setFavorites(prev => ({ ...prev, [vehicleId]: isFav }));
@@ -779,7 +789,7 @@ function VehicleCard({ vehicle: v, allVehicles, likeInfo, isFavorite, viewCount,
   const [imageIndex, setImageIndex] = useState(0);
   if (!v?.id) return null;
   const fallbackImage = "/my-logo.png.PNG";
-  const gallery = normalizeVehicleImages(v.images);
+  const gallery = normalizeVehicleImages(v.photos, v.images, v.image_urls, v.image_url, v.thumbnail_url);
   const imageUrl = gallery[imageIndex] ?? gallery[0] ?? fallbackImage;
   const moveImage = (event: MouseEvent, direction: number) => {
     event.preventDefault();
