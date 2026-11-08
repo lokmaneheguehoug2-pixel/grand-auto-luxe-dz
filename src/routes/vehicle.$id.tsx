@@ -18,7 +18,6 @@ import { ref, get, onValue, off, push, set, remove } from "firebase/database";
 import { realtimeDb } from "@/lib/firebase";
 import { getFirebaseStore, normalizeVehicleImages } from "@/lib/firebase-data";
 import { isVerifiedShowroom, dataOperationSucceeded } from "@/lib/listing-interactions";
-import { getDemoValue, setDemoValue, demoKeys } from "@/lib/demo-state";
 
 function normalizeAlgPhone(raw: string): string {
   const digits = (raw ?? "").replace(/\D/g, "");
@@ -117,47 +116,39 @@ function VehicleDetail() {
   const [comments, setComments] = useState<Array<{ id: string; text: string; createdAt: string }>>([]);
   const viewedVehicleRef = useRef<string | null>(null);
 
-  // Record one view per vehicle page open.
+  // Record one Firebase view and subscribe to the live Firebase count.
   useEffect(() => {
-    if (!id || viewedVehicleRef.current === id) return;
+    if (!id || !realtimeDb || viewedVehicleRef.current === id) return;
     viewedVehicleRef.current = id;
-    let cancelled = false;
-    const counts = getDemoValue<Record<string, number>>(demoKeys.views, {});
-    const localCount = Math.max(0, Number(counts[id] ?? 0));
-    setDemoValue(demoKeys.views, { ...counts, [id]: localCount + 1 });
-    setViewCount((previous) => Math.max(previous, localCount + 1));
-    const client = getFirebaseStore();
-    if (!client) return () => { cancelled = true; };
-    client.from("vehicle_views").insert({ vehicle_id: id, viewer_id: viewerId }).then(() => {
-      // Reload view count after recording
-      client.from("vehicle_views").select("vehicle_id", { count: "exact", head: true }).eq("vehicle_id", id).then(({ count }) => {
-        if (count !== null) setViewCount(count);
-      });
-    }).catch(() => { /* non-blocking */ });
-    // Also load initial view count
-    client.from("vehicle_views").select("vehicle_id", { count: "exact", head: true }).eq("vehicle_id", id).then(({ count }) => {
-      if (count !== null) setViewCount(count);
-    }).catch(() => { /* non-blocking */     }).finally(() => { cancelled = true; });
-    return () => { cancelled = true; };
+    const viewsRef = ref(realtimeDb, "vehicle_views");
+    const handleViews = (snapshot: { val: () => unknown }) => {
+      const raw = snapshot.val();
+      const rows = raw && typeof raw === "object" ? Object.values(raw as Record<string, unknown>) : [];
+      setViewCount(rows.filter((row) => (row as Record<string, unknown>)?.vehicle_id === id).length);
+    };
+    onValue(viewsRef, handleViews);
+    void set(push(viewsRef), { vehicle_id: id, viewer_id: viewerId, created_at: new Date().toISOString() });
+    return () => off(viewsRef, "value", handleViews);
   }, [id, viewerId]);
 
   useEffect(() => {
-    if (!id) return;
-    try {
-      const saved = JSON.parse(window.localStorage.getItem(`grand-auto-luxe-comments-${id}`) || "[]") as unknown;
-      setComments(Array.isArray(saved) ? saved.filter((item): item is { id: string; text: string; createdAt: string } => Boolean(item && typeof item === "object" && "id" in item && "text" in item && "createdAt" in item)) : []);
-    } catch {
-      setComments([]);
-    }
+    if (!id || !realtimeDb) return;
+    const commentsRef = ref(realtimeDb, `vehicle_comments/${id}`);
+    const handleComments = (snapshot: { val: () => unknown }) => {
+      const raw = snapshot.val();
+      const next = raw && typeof raw === "object" ? Object.entries(raw as Record<string, unknown>).map(([commentId, value]) => ({ id: commentId, text: String((value as Record<string, unknown>)?.text ?? ""), createdAt: String((value as Record<string, unknown>)?.createdAt ?? "") })).filter((comment) => comment.text) : [];
+      setComments(next);
+    };
+    onValue(commentsRef, handleComments);
+    return () => off(commentsRef, "value", handleComments);
   }, [id]);
 
   const submitComment = useCallback(() => {
     const text = commentText.trim();
     if (!id || !text) return;
-    const next = [...comments, { id: `${Date.now()}-${Math.random()}`, text, createdAt: new Date().toISOString() }];
-    setComments(next);
+    if (!realtimeDb) return;
+    void set(push(ref(realtimeDb, `vehicle_comments/${id}`)), { text, createdAt: new Date().toISOString(), authorId: viewerId });
     setCommentText("");
-    try { window.localStorage.setItem(`grand-auto-luxe-comments-${id}`, JSON.stringify(next)); } catch { /* optional storage */ }
   }, [commentText, comments, id]);
 
   // Load inquiry count and favorite status
@@ -169,11 +160,7 @@ function VehicleDetail() {
       if (count !== null) setInquiryCount(count);
     }).catch(() => { /* non-blocking */ });
 
-    try {
-      const saved = JSON.parse(window.localStorage.getItem("grand-auto-luxe-saved") || "[]") as unknown;
-      setIsFavorited(Array.isArray(saved) && saved.includes(id));
-    } catch { setIsFavorited(false); }
-    const uid = user?.id ?? user?.phone;
+    const uid = user?.id ?? user?.phone ?? viewerId;
     if (uid) {
       client.from("vehicle_favorites").select("vehicle_id").eq("vehicle_id", id).eq("user_id", uid).maybeSingle().then(({ data }) => {
         setIsFavorited(!!data);
@@ -195,14 +182,6 @@ function VehicleDetail() {
     if (!id) return;
     const client = getFirebaseStore();
     const uid = user?.id ?? user?.phone ?? viewerId;
-    if (!client) {
-      const saved = getDemoValue<string[]>("saved", []);
-      const next = isFavorited ? saved.filter((item) => item !== id) : [...new Set([...saved, id])];
-      setDemoValue("saved", next);
-      setIsFavorited(!isFavorited);
-      toast.success(!isFavorited ? "Added to watchlist" : "Removed from watchlist");
-      return;
-    }
     if (isFavorited) {
       setIsFavorited(false);
       const result = await client.from("vehicle_favorites").delete().eq("vehicle_id", id).eq("user_id", uid);
@@ -217,13 +196,16 @@ function VehicleDetail() {
   // Load like count and liked status from Firebase Realtime Database.
   useEffect(() => {
     if (!id || !realtimeDb) return;
-    get(ref(realtimeDb, `vehicleLikes/${id}`)).then((snapshot) => {
+    const likesRef = ref(realtimeDb, `vehicleLikes/${id}`);
+    const uid = user?.id ?? user?.phone ?? "guest";
+    const handleLikes = (snapshot: { val: () => unknown }) => {
       const raw = snapshot.val();
       const users = raw && typeof raw === "object" ? Object.keys(raw as Record<string, unknown>) : [];
       setLikeCount(users.length);
-      const uid = user?.id ?? user?.phone ?? "guest";
       setHasLiked(users.includes(uid));
-    }).catch(() => { /* non-blocking */ });
+    };
+    onValue(likesRef, handleLikes);
+    return () => off(likesRef, "value", handleLikes);
   }, [id, user?.id, user?.phone]);
 
   const toggleLike = useCallback(async () => {
@@ -331,6 +313,9 @@ function VehicleDetail() {
         if (data) {
           window.clearTimeout(timeout);
           setVehicleLoadError(false);
+          setViewCount(Number(data.views ?? 0));
+          setLikeCount(Number(data.likes ?? 0));
+          setInquiryCount(Number(data.inquiry_count ?? data.inquiries ?? 0));
           setV({
             ...data,
             id,
