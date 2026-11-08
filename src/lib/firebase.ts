@@ -1,5 +1,5 @@
 import { initializeApp, type FirebaseApp } from "firebase/app";
-import { getAuth, type Auth } from "firebase/auth";
+import { getAuth, signInAnonymously, type Auth } from "firebase/auth";
 import { getFirestore, type Firestore } from "firebase/firestore";
 import { getStorage, type FirebaseStorage } from "firebase/storage";
 import { getDatabase, type Database } from "firebase/database";
@@ -56,6 +56,14 @@ export const auth = safeInit(() => getAuth(getApp()));
 export const db = safeInit(() => getFirestore(getApp()));
 export const realtimeDb = safeInit(() => getDatabase(getApp()));
 export const storage = safeInit(() => getStorage(getApp()));
+
+let anonymousSignIn: Promise<string | null> | null = null;
+export function getFirebaseActorId(fallback: string): Promise<string> {
+  if (auth?.currentUser?.uid) return Promise.resolve(auth.currentUser.uid);
+  if (!auth) return Promise.resolve(fallback);
+  anonymousSignIn ??= signInAnonymously(auth).then((credential) => credential.user.uid).catch(() => null);
+  return anonymousSignIn.then((uid) => uid ?? fallback);
+}
 
 export const ADMIN_PHONES = ["0781606765", "781606765"];
 
