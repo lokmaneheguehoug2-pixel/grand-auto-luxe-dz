@@ -1,58 +1,93 @@
-import { get, ref, set, update, push, remove } from "firebase/database";
+import { get, push, ref, remove, set } from "firebase/database";
 import { realtimeDb } from "@/lib/firebase";
 
-type QueryState = { table: string; filters: Record<string, unknown>; values: Record<string, unknown>; selected?: string[] };
-type Result = { data: unknown; error: Error | null; count?: number };
+type Row = Record<string, unknown> & { id: string };
+type Result<T = unknown> = { data: T; error: Error | null; count?: number };
+type Operation = "select" | "delete";
 
-function queryFor(table: string) {
-  const state: QueryState = { table, filters: {}, values: {} };
-  const execute = async (): Promise<Result> => {
-    if (!realtimeDb) return { data: [], error: new Error("Firebase is not configured"), count: 0 };
+function tableQuery(table: string) {
+  const filters: Record<string, unknown> = {};
+  let selected = "*";
+  let operation: Operation = "select";
+
+  const execute = async (): Promise<Result<Row[] | null>> => {
+    if (!realtimeDb) return { data: null, error: new Error("Firebase Realtime Database is not configured") };
     try {
       const snapshot = await get(ref(realtimeDb, table));
       const raw = snapshot.val();
-      const rows = raw && typeof raw === "object" && !Array.isArray(raw)
+      const rows: Row[] = raw && typeof raw === "object" && !Array.isArray(raw)
         ? Object.entries(raw).map(([id, value]) => ({ id, ...(value && typeof value === "object" ? value as Record<string, unknown> : {}) }))
         : [];
-      const filtered = rows.filter((row) => Object.entries(state.filters).every(([key, expected]) => Array.isArray(expected) ? expected.includes(row[key]) : row[key] === expected));
-      const projected = state.selected?.length && !state.selected.includes("*")
-        ? filtered.map((row) => Object.fromEntries(state.selected!.map((key) => [key, row[key]])))
-        : filtered;
-      return { data: projected, error: null, count: projected.length };
-    } catch (error) { return { data: [], error: error instanceof Error ? error : new Error("Firebase query failed"), count: 0 }; }
-  };
-  const query = {
-    select: (columns = "*", _options?: { count?: "exact" | "planned" | "estimated"; head?: boolean }) => { state.selected = columns.split(",").map((column) => column.trim()); return query; },
-    eq: (key: string, value: unknown) => { state.filters[key] = value; return query; },
-    in: (key: string, value: unknown[]) => { state.filters[key] = value; return query; },
-    limit: (_value: number) => query,
-    order: (_key: string, _options?: unknown) => query,
-    maybeSingle: async () => { const result = await execute(); return { data: Array.isArray(result.data) ? result.data[0] ?? null : null, error: result.error }; },
-    then: (resolve: (value: Result) => unknown) => execute().then(resolve),
-    insert: async (values: Record<string, unknown> | Record<string, unknown>[]) => {
-      if (!realtimeDb) return { data: null, error: new Error("Firebase is not configured") };
-      try { await Promise.all((Array.isArray(values) ? values : [values]).map((value) => set(push(ref(realtimeDb, table)), value))); return { data: null, error: null }; }
-      catch (error) { return { data: null, error: error instanceof Error ? error : new Error("Firebase insert failed") }; }
-    },
-    update: async (values: Record<string, unknown>) => ({ data: null, error: new Error("Use a Firebase record key for updates") }),
-    upsert: async (values: Record<string, unknown>) => query.insert(values),
-    delete: async () => {
-      if (!realtimeDb) return { data: null, error: new Error("Firebase is not configured") };
-      const result = await execute();
-      if (result.error) return { data: null, error: result.error };
-      try {
-        const snapshot = await get(ref(realtimeDb, table));
-        const raw = snapshot.val();
-        if (raw && typeof raw === "object") await Promise.all(Object.entries(raw).filter(([, value]) => Object.entries(state.filters).every(([key, expected]) => Array.isArray(expected) ? expected.includes((value as Record<string, unknown>)?.[key]) : (value as Record<string, unknown>)?.[key] === expected)).map(([key]) => remove(ref(realtimeDb, `${table}/${key}`))));
+      const matches = rows.filter((row) => Object.entries(filters).every(([key, expected]) => row[key] === expected));
+
+      if (operation === "delete") {
+        await Promise.all(matches.map((row) => remove(ref(realtimeDb, `${table}/${row.id}`))));
         return { data: null, error: null };
-      } catch (error) { return { data: null, error: error instanceof Error ? error : new Error("Firebase delete failed") }; }
+      }
+
+      const data = selected === "*"
+        ? matches
+        : matches.map((row) => Object.fromEntries(selected.split(",").map((key) => [key.trim(), row[key.trim()]])) as Row);
+      return { data, error: null, count: data.length };
+    } catch (error) {
+      return { data: null, error: error instanceof Error ? error : new Error("Firebase operation failed") };
+    }
+  };
+
+  const query = {
+    select(columns = "*", _options?: { count?: "exact" | "planned" | "estimated"; head?: boolean }) {
+      selected = columns;
+      operation = "select";
+      return query;
     },
-    throwOnError: () => query,
+    eq(key: string, value: unknown) {
+      filters[key] = value;
+      return query;
+    },
+    in(key: string, values: unknown[]) {
+      filters[key] = values;
+      return query;
+    },
+    order(_key: string, _options?: unknown) { return query; },
+    limit(_value: number) { return query; },
+    maybeSingle: async () => {
+      const result = await execute();
+      return { data: Array.isArray(result.data) ? result.data[0] ?? null : null, error: result.error };
+    },
+    then(resolve: (result: Result<Row[] | null>) => unknown, reject?: (error: unknown) => unknown) {
+      return execute().then(resolve, reject);
+    },
+    insert: async (values: Record<string, unknown> | Record<string, unknown>[]) => {
+      if (!realtimeDb) return { data: null, error: new Error("Firebase Realtime Database is not configured") };
+      try {
+        const list = Array.isArray(values) ? values : [values];
+        await Promise.all(list.map((value) => set(push(ref(realtimeDb, table)), value)));
+        return { data: null, error: null };
+      } catch (error) {
+        return { data: null, error: error instanceof Error ? error : new Error("Firebase insert failed") };
+      }
+    },
+    delete() {
+      operation = "delete";
+      return query;
+    },
+    update(_values: Record<string, unknown>) { return query; },
+    upsert(values: Record<string, unknown> | Record<string, unknown>[]) { return query.insert(values); },
+    throwOnError() { return query; },
   };
   return query;
 }
 
-export function getFirebaseStore() { return { from: (table: string) => queryFor(table) }; }
+export function getFirebaseStore() {
+  return realtimeDb ? { from: (table: string) => tableQuery(table) } : null;
+}
+
+export async function fetchPlatformSettings(): Promise<Record<string, unknown> | null> {
+  if (!realtimeDb) return null;
+  const snapshot = await get(ref(realtimeDb, "site_settings"));
+  const value = snapshot.val();
+  return value && typeof value === "object" ? value as Record<string, unknown> : null;
+}
 
 export function normalizeVehicleImages(...values: unknown[]): string[] {
   const urls: string[] = [];
@@ -65,22 +100,12 @@ export function normalizeVehicleImages(...values: unknown[]): string[] {
     if (Array.isArray(value)) { value.forEach(visit); return; }
     if (value && typeof value === "object") {
       const record = value as Record<string, unknown>;
-      [record.url, record.downloadURL, record.src, record.image_url].forEach(visit);
-      Object.entries(record).filter(([key]) => !["url", "downloadURL", "src", "image_url"].includes(key)).forEach(([, item]) => visit(item));
+      [record.url, record.secure_url, record.downloadURL, record.src, record.image_url].forEach(visit);
+      Object.entries(record).forEach(([key, item]) => {
+        if (!["url", "secure_url", "downloadURL", "src", "image_url"].includes(key)) visit(item);
+      });
     }
   };
   values.forEach(visit);
   return urls;
-}
-
-export type PlatformSettings = { whatsapp_number: string; support_phone: string; facebook_url: string; instagram_url: string; tiktok_url: string; baridi_mob_number: string; appointment_email: string; gmail_address: string };
-export async function fetchPlatformSettings(): Promise<PlatformSettings | null> {
-  if (!realtimeDb) return null;
-  const snapshot = await get(ref(realtimeDb, "platform_settings"));
-  return snapshot.exists() ? snapshot.val() as PlatformSettings : null;
-}
-export async function savePlatformSettings(settings: PlatformSettings): Promise<boolean> {
-  if (!realtimeDb) return false;
-  await update(ref(realtimeDb, "platform_settings"), settings);
-  return true;
 }
