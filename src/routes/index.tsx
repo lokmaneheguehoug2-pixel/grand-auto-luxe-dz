@@ -350,16 +350,18 @@ function HomeContent() {
       void loadFromFirebase();
       return () => { cancelled = true; };
     }
-    const vehiclesRef = ref(realtimeDb, "vehicles");
-    const handleValue = (snapshot: { val: () => unknown }) => handleSnapshot(snapshot.val());
-    const handleError = (error: Error) => {
-      console.warn("[v0] Firebase vehicles unavailable", error.message);
-      setVehiclesError(false);
-      setVehicles([]);
-      setLoading(false);
+  const vehiclePaths = ["vehicles", "listings", "advertisements", "cars"];
+  const handles = vehiclePaths.map((path) => {
+    const vehiclesRef = ref(realtimeDb, path);
+    const handleValue = (snapshot: { val: () => unknown }) => {
+      const value = snapshot.val();
+      if (value && typeof value === "object" && Object.keys(value as Record<string, unknown>).length > 0) handleSnapshot(value);
     };
+    const handleError = (error: Error) => console.warn(`[v0] Firebase ${path} unavailable`, error.message);
     onValue(vehiclesRef, handleValue, handleError);
     return () => off(vehiclesRef, "value", handleValue);
+  });
+  return () => handles.forEach((unsubscribe) => unsubscribe());
   }, [vehiclesRetryKey]);
 
   const loadLikes = useCallback(async () => {
