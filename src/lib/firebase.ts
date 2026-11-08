@@ -17,8 +17,9 @@ const firebaseConfig = {
   databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL,
 };
 
-const hasFirebaseConfig = Object.values(firebaseConfig).every(
-  (value) => typeof value === "string" && value.length > 0,
+const requiredFirebaseKeys = ["apiKey", "projectId", "appId", "databaseURL"] as const;
+const hasFirebaseConfig = requiredFirebaseKeys.every(
+  (key) => typeof firebaseConfig[key] === "string" && firebaseConfig[key].length > 0,
 );
 
 let _app: FirebaseApp | null = null;
