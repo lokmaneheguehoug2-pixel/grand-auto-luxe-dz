@@ -431,14 +431,17 @@ function HomeContent() {
   useEffect(() => {
   void Promise.allSettled([loadLikes(), loadFavorites(), loadViews()]).catch(() => undefined);
   if (!realtimeDb) return;
-  const subscriptions = ["vehicle_likes", "vehicle_views", "vehicle_favorites"].map((table) => {
+  const subscriptions = ["vehicleLikes", "vehicle_views", "vehicleFavorites"].map((table) => {
     const path = ref(realtimeDb, table);
     const handleValue = (snapshot: { val: () => unknown }) => {
       const raw = snapshot.val();
       const rows = raw && typeof raw === "object" ? Object.values(raw as Record<string, unknown>) : [];
-      if (table === "vehicle_likes") {
+      if (table === "vehicleLikes") {
         const next: LikeData = {};
-        rows.forEach((value) => { const row = value as Record<string, unknown>; const id = typeof row.vehicle_id === "string" ? row.vehicle_id : ""; if (!id) return; const current = next[id] ?? { count: 0, liked: false }; next[id] = { count: current.count + 1, liked: current.liked || row.user_id === userId }; });
+        Object.entries(raw && typeof raw === "object" ? raw as Record<string, unknown> : {}).forEach(([vehicleId, value]) => {
+          const users = value && typeof value === "object" ? Object.keys(value as Record<string, unknown>) : [];
+          next[vehicleId] = { count: users.length, liked: users.includes(userId) };
+        });
         setLikeData(next);
       } else if (table === "vehicle_views") {
         const next: ViewData = {};
@@ -446,7 +449,10 @@ function HomeContent() {
         setViewData(next);
       } else {
         const next: FavoriteData = {};
-        rows.forEach((value) => { const row = value as Record<string, unknown>; if (row.user_id === userId && typeof row.vehicle_id === "string") next[row.vehicle_id] = true; });
+        Object.entries(raw && typeof raw === "object" ? raw as Record<string, unknown> : {}).forEach(([vehicleId, value]) => {
+          const users = value && typeof value === "object" ? Object.keys(value as Record<string, unknown>) : [];
+          if (users.includes(userId)) next[vehicleId] = true;
+        });
         setFavorites(next);
       }
     };
@@ -561,15 +567,12 @@ function HomeContent() {
     setLikeData((prev) => ({ ...prev, [vehicleId]: { count: Math.max(0, current.count + (newLiked ? 1 : -1)), liked: newLiked } }));
     setLocalLikes((prev) => ({ ...prev, [vehicleId]: Math.max(0, (prev[vehicleId] ?? current.count) + (newLiked ? 1 : -1)) }));
     setLocalLiked((previous) => ({ ...previous, [vehicleId]: newLiked }));
-    const client = getFirebaseStore();
-    if (!client) return;
-
-    try {
-      const result = newLiked
-        ? await client.from("vehicle_likes").insert({ vehicle_id: vehicleId, user_id: userId })
-        : await client.from("vehicle_likes").delete().eq("vehicle_id", vehicleId).eq("user_id", userId);
-      if (result.error) throw result.error;
-    } catch {
+  if (!realtimeDb) return;
+  try {
+    const likeRef = ref(realtimeDb, `vehicleLikes/${vehicleId}/${userId}`);
+    if (newLiked) await set(likeRef, { user_id: userId, vehicle_id: vehicleId, created_at: new Date().toISOString() });
+    else await remove(likeRef);
+  } catch {
       setLikeData(prev => ({
         ...prev,
         [vehicleId]: { count: current.count, liked: current.liked }
@@ -583,14 +586,13 @@ function HomeContent() {
   const handleFavorite = useCallback(async (item: Vehicle | null | undefined) => {
     if (!item?.id) return;
     const vehicleId = item.id;
-    const client = getFirebaseStore();
+    if (!realtimeDb) return;
     const isFav = effectiveFavorites[vehicleId] ?? false;
     setFavorites((previous) => ({ ...previous, [vehicleId]: !isFav }));
     try {
-      const result = !isFav
-        ? await client.from("vehicle_favorites").insert({ vehicle_id: vehicleId, user_id: userId })
-        : await client.from("vehicle_favorites").delete().eq("vehicle_id", vehicleId).eq("user_id", userId);
-      if (result.error) throw result.error;
+      const favoriteRef = ref(realtimeDb, `vehicleFavorites/${vehicleId}/${userId}`);
+      if (!isFav) await set(favoriteRef, { user_id: userId, vehicle_id: vehicleId, created_at: new Date().toISOString() });
+      else await remove(favoriteRef);
     } catch {
       setFavorites(prev => ({ ...prev, [vehicleId]: isFav }));
     }
