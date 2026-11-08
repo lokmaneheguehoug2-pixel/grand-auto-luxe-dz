@@ -22,7 +22,7 @@ function queryFor(table: string) {
     } catch (error) { return { data: [], error: error instanceof Error ? error : new Error("Firebase query failed"), count: 0 }; }
   };
   const query = {
-    select: (columns = "*") => { state.selected = columns.split(",").map((column) => column.trim()); return query; },
+    select: (columns = "*", _options?: { count?: "exact" | "planned" | "estimated"; head?: boolean }) => { state.selected = columns.split(",").map((column) => column.trim()); return query; },
     eq: (key: string, value: unknown) => { state.filters[key] = value; return query; },
     in: (key: string, value: unknown[]) => { state.filters[key] = value; return query; },
     limit: (_value: number) => query,
@@ -54,10 +54,23 @@ function queryFor(table: string) {
 
 export function getFirebaseStore() { return { from: (table: string) => queryFor(table) }; }
 
-export function normalizeVehicleImages(value: unknown): string[] {
-  if (Array.isArray(value)) return value.flatMap((item) => typeof item === "string" ? [item] : item && typeof item === "object" && typeof (item as { url?: unknown }).url === "string" ? [(item as { url: string }).url] : []);
-  if (value && typeof value === "object") return Object.values(value).flatMap((item) => typeof item === "string" ? [item] : []);
-  return [];
+export function normalizeVehicleImages(...values: unknown[]): string[] {
+  const urls: string[] = [];
+  const visit = (value: unknown) => {
+    if (typeof value === "string") {
+      const url = value.trim();
+      if (/^(https?:|data:image\/)\S+$/i.test(url) && !urls.includes(url)) urls.push(url);
+      return;
+    }
+    if (Array.isArray(value)) { value.forEach(visit); return; }
+    if (value && typeof value === "object") {
+      const record = value as Record<string, unknown>;
+      [record.url, record.downloadURL, record.src, record.image_url].forEach(visit);
+      Object.entries(record).filter(([key]) => !["url", "downloadURL", "src", "image_url"].includes(key)).forEach(([, item]) => visit(item));
+    }
+  };
+  values.forEach(visit);
+  return urls;
 }
 
 export type PlatformSettings = { whatsapp_number: string; support_phone: string; facebook_url: string; instagram_url: string; tiktok_url: string; baridi_mob_number: string; appointment_email: string; gmail_address: string };

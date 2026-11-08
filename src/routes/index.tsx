@@ -280,7 +280,7 @@ function HomeContent() {
           .map((raw) => {
             const v = raw as Record<string, unknown>;
             const id = String(v.id);
-            const images = normalizeVehicleImages(v.images);
+            const images = normalizeVehicleImages(v.images, v.photos, v.image_urls, v.image_url, v.thumbnail_url);
             const videoUrl = typeof v.video_url === "string" && v.video_url.length > 0 ? v.video_url : null;
             return {
               id,
