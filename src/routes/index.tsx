@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Component, useState, useMemo, useEffect, useCallback, useRef } from "react";
-import type { ReactNode } from "react";
+import type { ReactNode, MouseEvent } from "react";
 import { ref, get, set, remove, onValue, off } from "firebase/database";
 import { realtimeDb } from "@/lib/firebase";
 import { WILAYAS, BRANDS } from "@/lib/wilayas";
@@ -59,6 +59,9 @@ type Vehicle = {
   paint_condition?: string;
   inquiry_count?: number;
   views?: number;
+  likes?: number;
+  comments?: number;
+  comments_count?: number;
 };
 
 type LikeData = Record<string, { count: number; liked: boolean }>;
@@ -307,8 +310,11 @@ function HomeContent() {
               documents_status: typeof v.documents_status === "string" ? v.documents_status : undefined,
               original_color: typeof v.original_color === "string" ? v.original_color : undefined,
               paint_condition: typeof v.paint_condition === "string" ? v.paint_condition : undefined,
-              inquiry_count: Number(v.inquiry_count) || 0,
-              views: Number(v.views) || 0,
+  inquiry_count: Number(v.inquiry_count) || 0,
+  views: Number(v.views) || 0,
+  likes: Number(v.likes) || 0,
+  comments: Number(v.comments) || 0,
+  comments_count: Number(v.comments_count) || 0,
             } satisfies Vehicle;
           })
           .filter((vehicle): vehicle is Vehicle => vehicle !== null && (vehicle.status === "active" || vehicle.status === "sold"));
@@ -423,26 +429,36 @@ function HomeContent() {
   }, []);
 
   useEffect(() => {
-    void Promise.allSettled([loadLikes(), loadFavorites(), loadViews()]).catch(() => undefined);
-    try {
-      const stored = JSON.parse(window.localStorage.getItem("grand-auto-luxe-liked") || "{}") as unknown;
-      if (stored && typeof stored === "object" && !Array.isArray(stored)) setLocalLiked(stored as Record<string, boolean>);
-    } catch { /* optional guest storage */ }
-  }, [loadLikes, loadFavorites, loadViews]);
+  void Promise.allSettled([loadLikes(), loadFavorites(), loadViews()]).catch(() => undefined);
+  if (!realtimeDb) return;
+  const subscriptions = ["vehicle_likes", "vehicle_views", "vehicle_favorites"].map((table) => {
+    const path = ref(realtimeDb, table);
+    const handleValue = (snapshot: { val: () => unknown }) => {
+      const raw = snapshot.val();
+      const rows = raw && typeof raw === "object" ? Object.values(raw as Record<string, unknown>) : [];
+      if (table === "vehicle_likes") {
+        const next: LikeData = {};
+        rows.forEach((value) => { const row = value as Record<string, unknown>; const id = typeof row.vehicle_id === "string" ? row.vehicle_id : ""; if (!id) return; const current = next[id] ?? { count: 0, liked: false }; next[id] = { count: current.count + 1, liked: current.liked || row.user_id === userId }; });
+        setLikeData(next);
+      } else if (table === "vehicle_views") {
+        const next: ViewData = {};
+        rows.forEach((value) => { const id = typeof (value as Record<string, unknown>).vehicle_id === "string" ? (value as Record<string, unknown>).vehicle_id as string : ""; if (id) next[id] = (next[id] ?? 0) + 1; });
+        setViewData(next);
+      } else {
+        const next: FavoriteData = {};
+        rows.forEach((value) => { const row = value as Record<string, unknown>; if (row.user_id === userId && typeof row.vehicle_id === "string") next[row.vehicle_id] = true; });
+        setFavorites(next);
+      }
+    };
+    onValue(path, handleValue);
+    return () => off(path, "value", handleValue);
+  });
+  return () => subscriptions.forEach((unsubscribe) => unsubscribe());
+  }, [loadLikes, loadFavorites, loadViews, userId]);
 
-  const effectiveLikeData = useMemo(() => {
-    const next = { ...likeData };
-    Object.entries(localLikes).forEach(([id, count]) => {
-      next[id] = { count: Math.max(next[id]?.count ?? 0, count), liked: localLiked[id] ?? next[id]?.liked ?? false };
-    });
-    return next;
-  }, [likeData, localLikes, localLiked]);
-  const effectiveFavorites = useMemo(() => {
-    const next = { ...favorites };
-    localSaved.forEach((id) => { next[id] = true; });
-    return next;
-  }, [favorites, localSaved]);
-  const effectiveViewData = useMemo(() => ({ ...viewData, ...localViews }), [viewData, localViews]);
+  const effectiveLikeData = likeData;
+  const effectiveFavorites = favorites;
+  const effectiveViewData = viewData;
 
   const validVehicles = useMemo(
     () => (vehicles || []).filter((vehicle): vehicle is Vehicle => Boolean(vehicle && vehicle.id)),
@@ -525,8 +541,7 @@ function HomeContent() {
   const handleView = useCallback(async (item: Vehicle | null | undefined) => {
     if (!item?.id) return;
     const vehicleId = item.id;
-    setViewData((previous) => ({ ...previous, [vehicleId]: (previous[vehicleId] ?? localViews[vehicleId] ?? 0) + 1 }));
-    incrementLocalView(vehicleId);
+    setViewData((previous) => ({ ...previous, [vehicleId]: (previous[vehicleId] ?? 0) + 1 }));
     const client = getFirebaseStore();
     if (!client) return;
     try {
@@ -541,15 +556,11 @@ function HomeContent() {
   const handleLike = useCallback(async (item: Vehicle | null | undefined) => {
     if (!item?.id) return;
     const vehicleId = item.id;
-    const current = effectiveLikeData[vehicleId] ?? { count: localLikes[vehicleId] ?? 0, liked: false };
+    const current = effectiveLikeData[vehicleId] ?? { count: item.likes ?? 0, liked: false };
     const newLiked = !current.liked;
     setLikeData((prev) => ({ ...prev, [vehicleId]: { count: Math.max(0, current.count + (newLiked ? 1 : -1)), liked: newLiked } }));
     setLocalLikes((prev) => ({ ...prev, [vehicleId]: Math.max(0, (prev[vehicleId] ?? current.count) + (newLiked ? 1 : -1)) }));
-    setLocalLiked((previous) => {
-      const next = { ...previous, [vehicleId]: newLiked };
-      try { window.localStorage.setItem("grand-auto-luxe-liked", JSON.stringify(next)); } catch { /* optional guest storage */ }
-      return next;
-    });
+    setLocalLiked((previous) => ({ ...previous, [vehicleId]: newLiked }));
     const client = getFirebaseStore();
     if (!client) return;
 
@@ -573,28 +584,8 @@ function HomeContent() {
     if (!item?.id) return;
     const vehicleId = item.id;
     const client = getFirebaseStore();
-    if (!client) {
-      const next = !effectiveFavorites[vehicleId];
-      setFavorites((previous) => ({ ...previous, [vehicleId]: next }));
-      toggleLocalSaved(vehicleId);
-      if (typeof window !== "undefined") {
-        try {
-          const saved = JSON.parse(window.localStorage.getItem("grand-auto-luxe-saved") || "[]") as unknown;
-          const ids = Array.isArray(saved) ? saved.filter((id): id is string => typeof id === "string") : [];
-          const updated = next ? [...new Set([...ids, vehicleId])] : ids.filter((id) => id !== vehicleId);
-          window.localStorage.setItem("grand-auto-luxe-saved", JSON.stringify(updated));
-        } catch { /* storage is optional */ }
-      }
-      return;
-    }
     const isFav = effectiveFavorites[vehicleId] ?? false;
-    setFavorites(prev => ({ ...prev, [vehicleId]: !isFav }));
-    toggleLocalSaved(vehicleId);
-    if (typeof window !== "undefined") {
-      const saved = JSON.parse(window.localStorage.getItem("grand-auto-luxe-saved") || "[]") as unknown;
-      const ids = Array.isArray(saved) ? saved.filter((id): id is string => typeof id === "string") : [];
-      window.localStorage.setItem("grand-auto-luxe-saved", JSON.stringify(!isFav ? [...new Set([...ids, vehicleId])] : ids.filter((id) => id !== vehicleId)));
-    }
+    setFavorites((previous) => ({ ...previous, [vehicleId]: !isFav }));
     try {
       const result = !isFav
         ? await client.from("vehicle_favorites").insert({ vehicle_id: vehicleId, user_id: userId })
@@ -603,7 +594,7 @@ function HomeContent() {
     } catch {
       setFavorites(prev => ({ ...prev, [vehicleId]: isFav }));
     }
-  }, [userId, effectiveFavorites, toggleLocalSaved]);
+  }, [userId, effectiveFavorites]);
 
   return (
     <div>
@@ -685,15 +676,15 @@ function HomeContent() {
                     <VehicleCard
                       vehicle={v}
                       allVehicles={validVehicles}
-                    likeInfo={v?.id ? effectiveLikeData[v.id] : undefined}
-                    isFavorite={v?.id ? effectiveFavorites[v.id] ?? false : false}
-                    viewCount={v?.id ? effectiveViewData[v.id] ?? 0 : 0}
+likeInfo={v?.id ? effectiveLikeData[v.id] ?? { count: v.likes ?? 0, liked: false } : undefined}
+  isFavorite={v?.id ? effectiveFavorites[v.id] ?? false : false}
+  viewCount={v?.id ? effectiveViewData[v.id] ?? v.views ?? 0 : 0}
                     onLike={() => handleLike(v)}
                       onFavorite={() => handleFavorite(v)}
                       onView={() => handleView(v)}
                       priceAlert={v?.id ? localAlerts.has(v.id) : false}
                       onPriceAlert={() => v?.id && toggleLocalAlert(v.id)}
-                      commentCount={v?.id ? comments[v.id]?.length ?? 0 : 0}
+                      commentCount={v?.id ? comments[v.id]?.length ?? v.comments_count ?? v.comments ?? 0 : 0}
                       onComments={() => openComments(v)}
                     />
                   </VehicleRenderBoundary>
@@ -781,9 +772,17 @@ function VehicleCard({ vehicle: v, allVehicles, likeInfo, isFavorite, viewCount,
   onComments: () => void;
 }) {
   const compare = useCompare();
+  const [imageIndex, setImageIndex] = useState(0);
   if (!v?.id) return null;
   const fallbackImage = "/my-logo.png.PNG";
-  const imageUrl = Array.isArray(v?.images) && typeof v.images[0] === "string" && v.images[0].length > 0 ? v.images[0] : fallbackImage;
+  const gallery = normalizeVehicleImages(v.images);
+  const imageUrl = gallery[imageIndex] ?? gallery[0] ?? fallbackImage;
+  const moveImage = (event: MouseEvent, direction: number) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (gallery.length < 2) return;
+    setImageIndex((current) => (current + direction + gallery.length) % gallery.length);
+  };
   const likeCount = likeInfo?.count ?? 0;
   const liked = likeInfo?.liked ?? false;
   const price = priceOf(v);
@@ -799,17 +798,24 @@ function VehicleCard({ vehicle: v, allVehicles, likeInfo, isFavorite, viewCount,
       {v.status === "sold" && <SoldOverlay />}
 
       <div className="relative aspect-[4/3] overflow-hidden bg-charcoal">
-        <img
-          src={imageUrl}
-          alt={`${v.brand} ${v.model}`}
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-          loading="lazy"
-          onError={(event) => {
-            if (event.currentTarget.src.endsWith(fallbackImage)) return;
-            event.currentTarget.src = fallbackImage;
-          }}
-        />
-        {v.pinned && (
+  <img
+  src={imageUrl}
+  alt={`${v.brand} ${v.model} — image ${imageIndex + 1} of ${Math.max(gallery.length, 1)}`}
+  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+  loading="lazy"
+  onError={(event) => {
+  if (event.currentTarget.src.endsWith(fallbackImage)) return;
+  event.currentTarget.src = fallbackImage;
+  }}
+  />
+  {gallery.length > 1 && (
+  <>
+  <button type="button" aria-label="Previous image" onClick={(event) => moveImage(event, -1)} className="absolute left-2 top-1/2 z-10 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-full bg-black/65 text-lg text-white">‹</button>
+  <button type="button" aria-label="Next image" onClick={(event) => moveImage(event, 1)} className="absolute right-2 top-1/2 z-10 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-full bg-black/65 text-lg text-white">›</button>
+  <div className="absolute bottom-2 left-1/2 z-10 -translate-x-1/2 rounded-full bg-black/65 px-2 py-0.5 text-[10px] text-white">{imageIndex + 1} / {gallery.length}</div>
+  </>
+  )}
+  {v.pinned && (
           <div className="absolute top-2 left-2 bg-gold text-gold-foreground text-[9px] px-1.5 py-0.5 rounded-full font-bold flex items-center gap-0.5 z-10">
             <Pin className="h-2.5 w-2.5" /> Pinned
           </div>
