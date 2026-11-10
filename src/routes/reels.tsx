@@ -35,6 +35,7 @@ function ReelsPage() {
   const auth = useAuth();
   const user = auth?.user;
   const isAdmin = auth?.isAdmin ?? false;
+  const viewerId = user?.id ?? user?.phone ?? "guest-reels";
 
   const [reels, setReels] = useState<Reel[]>([]);
   const [loading, setLoading] = useState(true);
@@ -151,7 +152,7 @@ function ReelsPage() {
       {!loading && reels.length > 0 && (
         <div className="mx-auto h-[calc(100svh-3.5rem)] w-full max-w-[520px] overflow-y-scroll snap-y snap-mandatory no-scrollbar pb-16 md:pb-0">
           {reels.map((r) => (
-            <ReelCard key={r.id} reel={r} currentUserId={user?.id} isAdmin={isAdmin} onRefresh={() => setLoading(true)} />
+            <ReelCard key={r.id} reel={r} currentUserId={viewerId} isAdmin={isAdmin} onRefresh={() => setRetryKey((key) => key + 1)} />
           ))}
         </div>
       )}
@@ -232,7 +233,10 @@ function ReelCard({ reel, currentUserId, isAdmin, onRefresh }: { reel: Reel; cur
   }, []);
 
   const handleLike = async () => {
-    if (!currentUserId) return;
+    if (!currentUserId || !realtimeDb) {
+      toast.error("تعذر حفظ الإعجاب الآن");
+      return;
+    }
     const newLiked = !liked;
     setLiked(newLiked);
     const newCount = newLiked ? likes + 1 : Math.max(0, likes - 1);
@@ -316,7 +320,7 @@ function ReelCard({ reel, currentUserId, isAdmin, onRefresh }: { reel: Reel; cur
         className="snap-start relative flex h-[calc(100svh-3.5rem)] w-full flex-col items-center justify-center overflow-hidden bg-black"
       >
         <div
-          className="relative aspect-[9/16] max-h-[80vh] w-full bg-black flex items-center justify-center"
+          className="relative h-full w-full bg-black flex items-center justify-center"
           onClick={togglePlay}
         >
           {videoFailed ? (
@@ -328,7 +332,7 @@ function ReelCard({ reel, currentUserId, isAdmin, onRefresh }: { reel: Reel; cur
             <video
               ref={videoRef}
               src={reel.videoUrl}
-              className="w-full h-full object-contain"
+              className="h-full w-full object-cover"
               loop
               playsInline
               muted

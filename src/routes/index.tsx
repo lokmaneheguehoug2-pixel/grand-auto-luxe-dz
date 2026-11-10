@@ -381,6 +381,7 @@ function HomeContent() {
   }, [vehiclesRetryKey]);
 
   const loadLikes = useCallback(async () => {
+    if (realtimeDb) return;
     const client = getFirebaseStore();
     if (!client) return;
     try {
@@ -400,6 +401,7 @@ function HomeContent() {
   }, [userId]);
 
   const loadFavorites = useCallback(async () => {
+    if (realtimeDb) return;
     const client = getFirebaseStore();
     if (!client || !userId) {
       if (typeof window !== "undefined") {
@@ -429,6 +431,7 @@ function HomeContent() {
   }, [userId]);
 
   const loadViews = useCallback(async () => {
+    if (realtimeDb) return;
     const client = getFirebaseStore();
     if (!client) return;
     try {

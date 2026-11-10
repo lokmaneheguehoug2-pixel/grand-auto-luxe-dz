@@ -63,6 +63,7 @@ type FirebaseVehicle = {
   video_url?: string | null;
   description?: string;
   created_at: string;
+  pinned?: boolean;
 };
 
 type FirebaseReel = {
@@ -783,7 +784,7 @@ function ListingsTab() {
               <Button variant="outline" size="sm" onClick={() => setReviewVehicle(v)} title="Review details"><Eye className="h-4 w-4" /></Button>
               {v.status === "pending" && (<><Button variant="gold" size="sm" onClick={() => updateVehicleStatus(v, "active")} title="Approve"><Check className="h-4 w-4" /></Button><Button variant="destructive" size="sm" onClick={() => updateVehicleStatus(v, "rejected")} title="Reject"><X className="h-4 w-4" /></Button></>)}
               {v.status === "active" && <Button variant="outline" size="sm" onClick={() => updateVehicleStatus(v, "sold")} title="Mark Sold"><DollarSign className="h-4 w-4" /></Button>}
-              <Button variant={demoPinned.includes(v.id) ? "gold" : "outline"} size="sm" onClick={() => { const next = demoPinned.includes(v.id) ? demoPinned.filter((id) => id !== v.id) : [...demoPinned, v.id]; setDemoPinned(next); setDemoValue(demoKeys.pinned, next); toast.success(next.includes(v.id) ? "Listing pinned in demo feed" : "Listing unpinned"); }} title="Pin in demo feed"><Pin className="h-4 w-4" /></Button>
+              <Button variant={v.pinned || demoPinned.includes(v.id) ? "gold" : "outline"} size="sm" onClick={async () => { const nextPinned = !(v.pinned || demoPinned.includes(v.id)); try { await update(ref(realtimeDb, `vehicles/${v.id}`), { pinned: nextPinned }); setDemoPinned((current) => nextPinned ? [...new Set([...current, v.id])] : current.filter((id) => id !== v.id)); setDemoValue(demoKeys.pinned, nextPinned ? [...new Set([...demoPinned, v.id])] : demoPinned.filter((id) => id !== v.id)); toast.success(nextPinned ? "Listing pinned" : "Listing unpinned"); } catch { toast.error("Could not update pin status"); } }} title="Pin listing"><Pin className="h-4 w-4" /></Button>
               <Button variant="destructive" size="sm" onClick={() => setDeleteVehicle(v)} title="Delete permanently"><Trash2 className="h-4 w-4" /></Button>
             </div>
           </div>
