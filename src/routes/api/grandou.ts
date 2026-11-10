@@ -44,11 +44,25 @@ export const Route = createFileRoute("/api/grandou")({
           } else if (body?.image?.data && typeof body.image.data === "string" && typeof body.image.mimeType === "string") {
             parts.push({ inlineData: { mimeType: body.image.mimeType, data: body.image.data } });
           }
-          const stream = await ai.models.generateContentStream({
-            model: "gemini-2.5-flash",
-            contents: [...history, { role: "user", parts }],
+          const request = {
+            model: "gemini-3.8-flash",
+            contents: [...history, { role: "user" as const, parts }],
             config: { systemInstruction: SYSTEM_PROMPT, temperature: 0.4, maxOutputTokens: 700 },
-          });
+          };
+          let stream;
+          let lastError: unknown;
+          for (let attempt = 0; attempt < 3; attempt += 1) {
+            try {
+              stream = await ai.models.generateContentStream(request);
+              break;
+            } catch (error) {
+              lastError = error;
+              const status = (error as { status?: number })?.status;
+              if (status !== 429 && status !== 503) throw error;
+              await new Promise((resolve) => setTimeout(resolve, 250 * 2 ** attempt));
+            }
+          }
+          if (!stream) throw lastError instanceof Error ? lastError : new Error("Grandou model unavailable");
           const encoder = new TextEncoder();
           const readable = new ReadableStream({
             async start(controller) {
