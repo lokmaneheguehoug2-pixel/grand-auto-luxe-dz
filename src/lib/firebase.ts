@@ -7,6 +7,8 @@ import { getDatabase, type Database } from "firebase/database";
 const isBrowser =
   typeof window !== "undefined" && typeof window.document !== "undefined";
 
+export const FIREBASE_DATABASE_URL = "https://grand-auto-luxe-default-rtdb.firebaseio.com";
+
 const firebaseConfig = {
   apiKey: "process.env.apiKey",
   authDomain: "grand-auto-luxe.firebaseapp.com",
