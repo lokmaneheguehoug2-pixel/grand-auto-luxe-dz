@@ -93,14 +93,15 @@ export function normalizeVehicleImages(...values: unknown[]): string[] {
   const urls: string[] = [];
   const visit = (value: unknown) => {
     if (typeof value === "string") {
-      const url = value.trim();
-      if (/^(https?:|data:image\/)\S+$/i.test(url) && !urls.includes(url)) urls.push(url);
+      value.split(/[\n,|]+/).map((item) => item.trim()).filter(Boolean).forEach((url) => {
+        if (/^(https?:|data:image\/|blob:)\S+$/i.test(url) && !urls.includes(url)) urls.push(url);
+      });
       return;
     }
     if (Array.isArray(value)) { value.forEach(visit); return; }
     if (value && typeof value === "object") {
       const record = value as Record<string, unknown>;
-      [record.url, record.secure_url, record.downloadURL, record.src, record.image_url].forEach(visit);
+      [record.url, record.secure_url, record.downloadURL, record.src, record.image_url, record.imageUrl, record.photo_url, record.photoUrl].forEach(visit);
       Object.entries(record).forEach(([key, item]) => {
         if (!["url", "secure_url", "downloadURL", "src", "image_url"].includes(key)) visit(item);
       });
