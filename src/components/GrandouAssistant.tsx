@@ -56,7 +56,7 @@ export function GrandouAssistant() {
       while (true) {
         const { value, done } = await reader.read();
         if (done) break;
-        streamedText += decoder.decode(value, { stream: false });
+        streamedText += decoder.decode(value, { stream: true });
         const cleanText = streamedText.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\uFFFD]/g, "");
         setMessages([...nextMessages, { role: "model", text: cleanText }]);
       }
