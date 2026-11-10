@@ -8,13 +8,13 @@ const isBrowser =
   typeof window !== "undefined" && typeof window.document !== "undefined";
 
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
-  databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL,
+  apiKey: "process.env.apiKey",
+  authDomain: "grand-auto-luxe.firebaseapp.com",
+  databaseURL: "https://grand-auto-luxe-default-rtdb.firebaseio.com",
+  projectId: "grand-auto-luxe",
+  storageBucket: "grand-auto-luxe.firebasestorage.app",
+  messagingSenderId: "813559742956",
+  appId: "1:813559742956:web:28eb6494110409491200c9",
 };
 
 const requiredFirebaseKeys = ["apiKey", "projectId", "appId", "databaseURL"] as const;
