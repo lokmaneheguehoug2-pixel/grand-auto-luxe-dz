@@ -168,7 +168,7 @@ function VehicleDetail() {
     }
   }, [id, user?.id, user?.phone]);
 
-  const recordInquiry = useCallback((type: "call" | "whatsapp" | "chat") => {
+  const recordInquiry = useCallback((type: "call" | "whatsapp" | "viber" | "chat") => {
     if (!id) return;
     const client = getFirebaseStore();
     if (!client) return;
@@ -765,11 +765,16 @@ function VehicleDetail() {
                   <Phone className="h-4 w-4 mr-2" /> Call
                 </Button>
               </a>
-              <a href={`https://wa.me/${toWhatsApp(v.phone)}`} target="_blank" rel="noopener noreferrer" onClick={() => recordInquiry("whatsapp")}>
-                <Button variant="outline" size="sm">
-                  <MessageCircle className="h-4 w-4 mr-2" /> WhatsApp
-                </Button>
-              </a>
+  <a href={`https://wa.me/${toWhatsApp(v.phone)}`} target="_blank" rel="noopener noreferrer" onClick={() => recordInquiry("whatsapp")}>
+  <Button variant="outline" size="sm">
+  <MessageCircle className="h-4 w-4 mr-2" /> WhatsApp
+  </Button>
+  </a>
+  <a href={`viber://chat?number=${encodeURIComponent(normalizeAlgPhone(v.phone))}`} onClick={() => recordInquiry("viber")}>
+  <Button variant="outline" size="sm" className="border-purple-500/50 text-purple-400 hover:bg-purple-500/10">
+  <Phone className="h-4 w-4 mr-2" /> Viber
+  </Button>
+  </a>
               {user && !isSeller && (
                 <ChatDialog recipientId={v.sellerId} recipientPhone={v.sellerPhone} vehicleId={v.id} vehicleTitle={`${v.brand} ${v.model} (${v.year})`} onOpenChat={() => recordInquiry("chat")} />
               )}

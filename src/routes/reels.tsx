@@ -149,7 +149,7 @@ function ReelsPage() {
       )}
 
       {!loading && reels.length > 0 && (
-        <div className="max-w-md mx-auto h-[calc(100vh-3.5rem-3.5rem)] overflow-y-scroll snap-y snap-mandatory no-scrollbar pb-16 md:pb-0">
+        <div className="mx-auto h-[calc(100svh-3.5rem)] w-full max-w-[520px] overflow-y-scroll snap-y snap-mandatory no-scrollbar pb-16 md:pb-0">
           {reels.map((r) => (
             <ReelCard key={r.id} reel={r} currentUserId={user?.id} isAdmin={isAdmin} onRefresh={() => setLoading(true)} />
           ))}
@@ -313,7 +313,7 @@ function ReelCard({ reel, currentUserId, isAdmin, onRefresh }: { reel: Reel; cur
     <>
       <div
         ref={containerRef}
-        className="snap-start h-full w-full flex flex-col items-center justify-center bg-black relative"
+        className="snap-start relative flex h-[calc(100svh-3.5rem)] w-full flex-col items-center justify-center overflow-hidden bg-black"
       >
         <div
           className="relative aspect-[9/16] max-h-[80vh] w-full bg-black flex items-center justify-center"
@@ -331,7 +331,8 @@ function ReelCard({ reel, currentUserId, isAdmin, onRefresh }: { reel: Reel; cur
               className="w-full h-full object-contain"
               loop
               playsInline
-              muted={false}
+              muted
+              controls={false}
               preload="metadata"
               onError={() => setVideoFailed(true)}
             />

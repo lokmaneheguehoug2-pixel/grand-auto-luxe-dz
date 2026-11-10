@@ -276,12 +276,16 @@ function HomeContent() {
           return;
         }
 
-        const rows = Array.isArray(data)
-          ? data as Record<string, unknown>[]
-          : Object.entries(data as Record<string, unknown>).map(([id, value]) => ({
-              ...(value && typeof value === "object" ? value as Record<string, unknown> : {}),
-              id,
-            }));
+        const rows: Record<string, unknown>[] = [];
+        const collectRows = (value: unknown, fallbackId?: string) => {
+          if (!value || typeof value !== "object") return;
+          if (Array.isArray(value)) { value.forEach((item, index) => collectRows(item, String(index))); return; }
+          const record = value as Record<string, unknown>;
+          const looksLikeVehicle = ["brand", "model", "make", "price", "fixed_price", "photos", "images"].some((key) => key in record);
+          if (looksLikeVehicle) rows.push({ ...record, id: record.id ?? fallbackId });
+          else Object.entries(record).forEach(([id, child]) => collectRows(child, id));
+        };
+        collectRows(data);
         const list: Vehicle[] = rows
           .filter((raw) => Boolean(raw && typeof raw === "object"))
           .map((raw) => {
@@ -291,8 +295,8 @@ function HomeContent() {
             const videoUrl = typeof v.video_url === "string" && v.video_url.length > 0 ? v.video_url : null;
             return {
               id,
-              brand: typeof v.brand === "string" ? v.brand : "Unknown",
-              model: typeof v.model === "string" ? v.model : "Vehicle",
+              brand: typeof v.brand === "string" ? v.brand : typeof v.make === "string" ? v.make : "Unknown",
+              model: typeof v.model === "string" ? v.model : typeof v.name === "string" ? v.name : "Vehicle",
               year: Number.isFinite(Number(v.year)) ? Number(v.year) : 0,
               mileage: Number.isFinite(Number(v.mileage)) ? Number(v.mileage) : 0,
               fuel_type: typeof v.fuel_type === "string" ? v.fuel_type : "Unknown",
@@ -306,7 +310,7 @@ function HomeContent() {
               thumbnail_url: typeof v.thumbnail_url === "string" ? v.thumbnail_url : undefined,
               video_url: videoUrl,
               price_type: v.price_type === "auction" ? "auction" : "fixed",
-              fixed_price: Number.isFinite(Number(v.fixed_price)) ? Number(v.fixed_price) : null,
+              fixed_price: Number.isFinite(Number(v.fixed_price ?? v.price)) ? Number(v.fixed_price ?? v.price) : null,
               starting_price: Number.isFinite(Number(v.starting_price)) ? Number(v.starting_price) : null,
               current_highest_bid: Number.isFinite(Number(v.current_highest_bid)) ? Number(v.current_highest_bid) : null,
               auction_ends_at: typeof v.auction_ends_at === "string" ? v.auction_ends_at : null,
@@ -325,7 +329,11 @@ function HomeContent() {
   comments_count: Number(v.comments_count) || 0,
             } satisfies Vehicle;
           })
-          .filter((vehicle): vehicle is Vehicle => vehicle !== null && (vehicle.status === "active" || vehicle.status === "sold"));
+          .filter((vehicle): vehicle is Vehicle => {
+            if (!vehicle) return false;
+            const status = String(vehicle.status ?? vehicle.listing_status ?? "").toLowerCase();
+            return !status || ["active", "sold", "published", "available", "approved"].includes(status);
+          });
 
         setVehiclesError(false);
         setVehicles(list);

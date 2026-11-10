@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Instagram, Facebook, Mail, MessageCircle, Phone, Music2, Lightbulb, Send } from "lucide-react";
+import { Instagram, Facebook, Mail, MessageCircle, Phone, Music2, Lightbulb, Send, PhoneCall } from "lucide-react";
 import { realtimeDb } from "@/lib/firebase";
 import { ref, onValue, off, push, set } from "firebase/database";
 import { fetchPlatformSettings } from "@/lib/firebase-data";
@@ -11,6 +11,7 @@ import { toast } from "sonner";
 
 interface SiteSettings {
   whatsapp_number: string;
+  viber_number: string;
   support_phone: string;
   facebook_url: string;
   instagram_url: string;
@@ -22,6 +23,7 @@ interface SiteSettings {
 
 const EMPTY_SETTINGS: SiteSettings = {
   whatsapp_number: "",
+  viber_number: "",
   support_phone: "",
   facebook_url: "",
   instagram_url: "",
@@ -70,6 +72,7 @@ export function CustomerServiceFooter() {
       if (Object.keys(data).length > 0) {
         setSettings({
           whatsapp_number: data.whatsapp_number || "",
+          viber_number: data.viber_number || data.viber || "",
           support_phone: data.support_phone || "",
           facebook_url: data.facebook_url || "",
           instagram_url: data.instagram_url || "",
@@ -86,6 +89,9 @@ export function CustomerServiceFooter() {
 
   const whatsappLink = settings.whatsapp_number
     ? `https://wa.me/${settings.whatsapp_number.replace(/\D/g, "")}`
+    : "#";
+  const viberLink = settings.viber_number
+    ? `viber://chat?number=${encodeURIComponent(settings.viber_number.replace(/[^+\d]/g, ""))}`
     : "#";
 
   return (
@@ -133,6 +139,11 @@ export function CustomerServiceFooter() {
                   <MessageCircle className="h-5 w-5 text-green-600 group-hover:scale-110 transition-transform" />
                 </a>
               )}
+              {settings.viber_number && (
+                <a href={viberLink} className="h-10 w-10 rounded-full bg-purple-600/10 hover:bg-purple-600/20 flex items-center justify-center transition-colors group" title="Viber" aria-label="تواصل عبر Viber">
+                  <PhoneCall className="h-5 w-5 text-purple-500 group-hover:scale-110 transition-transform" />
+                </a>
+              )}
               {settings.instagram_url && (
                 <a href={settings.instagram_url} target="_blank" rel="noopener noreferrer"
                   className="h-10 w-10 rounded-full bg-pink-600/10 hover:bg-pink-600/20 flex items-center justify-center transition-colors group" title="Instagram">
@@ -168,7 +179,13 @@ export function CustomerServiceFooter() {
               {settings.whatsapp_number && (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <MessageCircle className="h-4 w-4 text-green-600/70" />
-                  <a href={whatsappLink} target="_blank" rel="noopener noreferrer" className="hover:text-green-600 transition-colors">{settings.whatsapp_number}</a>
+                  <a href={whatsappLink} target="_blank" rel="noopener noreferrer" className="hover:text-green-600 transition-colors">تواصل عبر WhatsApp: {settings.whatsapp_number}</a>
+                </div>
+              )}
+              {settings.viber_number && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <PhoneCall className="h-4 w-4 text-purple-500/80" />
+                  <a href={viberLink} className="hover:text-purple-500 transition-colors">تواصل عبر Viber: {settings.viber_number}</a>
                 </div>
               )}
               {settings.gmail_address && (
