@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { Component, useState, useMemo, useEffect, useCallback, useRef } from "react";
 import type { ReactNode, MouseEvent } from "react";
 import { ref, get, set, remove, onValue, off } from "firebase/database";
-import { getFirebaseActorId, realtimeDb } from "@/lib/firebase";
+import { FIREBASE_DATABASE_URL, getFirebaseActorId, realtimeDb } from "@/lib/firebase";
 import { WILAYAS, BRANDS } from "@/lib/wilayas";
 import { formatDZD, formatDZDArabic } from "@/lib/format";
 import { calculateDeal } from "@/lib/pricing";
@@ -346,11 +346,42 @@ function HomeContent() {
       }
     };
 
+    let cancelled = false;
+    const loadRestVehicles = async () => {
+      for (const path of ["vehicles", "listings", "advertisements", "cars"]) {
+        try {
+          const response = await fetch(`${FIREBASE_DATABASE_URL}/${path}.json`);
+          if (!response.ok) continue;
+            const data = await response.json();
+            if (data && typeof data === "object" && Object.keys(data).length > 0) {
+            if (!cancelled) handleSnapshot(data);
+            return true;
+          }
+        } catch (error) {
+          console.warn("[v0] Firebase REST feed failed", error);
+        }
+      }
+      return false;
+    };
+    void loadRestVehicles();
+
     if (!realtimeDb) {
-      let cancelled = false;
       const loadFromFirebase = async () => {
         const client = getFirebaseStore();
         if (!client) {
+          for (const path of ["vehicles", "listings", "advertisements", "cars"]) {
+            try {
+              const response = await fetch(`${FIREBASE_DATABASE_URL}/${path}.json`);
+              if (!response.ok) continue;
+              const data = await response.json();
+              if (data && typeof data === "object" && Object.keys(data).length > 0) {
+                if (!cancelled) handleSnapshot(data);
+                return;
+              }
+            } catch (error) {
+              console.warn("[v0] Firebase REST fallback failed", error);
+            }
+          }
           if (!cancelled) { setVehicles([]); setVehiclesError(true); setLoading(false); }
           return;
         }
@@ -373,11 +404,17 @@ function HomeContent() {
       const value = snapshot.val();
       if (value && typeof value === "object" && Object.keys(value as Record<string, unknown>).length > 0) handleSnapshot(value);
     };
-    const handleError = (error: Error) => console.warn(`[v0] Firebase ${path} unavailable`, error.message);
+    const handleError = (error: Error) => {
+      console.warn(`[v0] Firebase ${path} unavailable`, error.message);
+      void fetch(`${FIREBASE_DATABASE_URL}/${path}.json`)
+        .then((response) => response.ok ? response.json() : null)
+        .then((value) => { if (value && typeof value === "object") handleSnapshot(value); })
+        .catch((fallbackError) => console.warn("[v0] Firebase REST fallback failed", fallbackError));
+    };
     onValue(vehiclesRef, handleValue, handleError);
     return () => off(vehiclesRef, "value", handleValue);
   });
-  return () => handles.forEach((unsubscribe) => unsubscribe());
+  return () => { cancelled = true; handles.forEach((unsubscribe) => unsubscribe()); };
   }, [vehiclesRetryKey]);
 
   const loadLikes = useCallback(async () => {
@@ -539,8 +576,9 @@ function HomeContent() {
     return list;
   }, [validVehicles, filters, localPinned]);
 
-  const reelsVehicles = (Array.isArray(filtered) ? filtered : [])
-    .filter(isValidVehicle)
+  const safeFiltered = (Array.isArray(filtered) ? filtered : []).filter(isValidVehicle);
+  const popularVehicles = safeFiltered.filter((vehicle) => vehicle && vehicle.id && ((effectiveLikeData[vehicle.id]?.count ?? 0) >= 3 || (effectiveViewData[vehicle.id] ?? vehicle.views ?? 0) >= 10));
+  const reelsVehicles = safeFiltered
     .filter((vehicle) => typeof vehicle.video_url === "string" && vehicle.video_url.length > 0);
 
   const openComments = useCallback((item: Vehicle | null | undefined) => {
@@ -663,13 +701,13 @@ function HomeContent() {
 
       {/* Tabs */}
       <section className="max-w-7xl mx-auto px-3 sm:px-6 py-4">
-        {filtered.some((vehicle) => (effectiveLikeData[vehicle.id]?.count ?? 0) >= 3 || (effectiveViewData[vehicle.id] ?? vehicle.views ?? 0) >= 10) && (
+        {popularVehicles.length > 0 && (
           <div className="mb-4 rounded-xl border border-gold/20 bg-gold-soft/10 px-4 py-3">
             <div className="flex items-center justify-between gap-3 mb-2">
               <div><p className="text-[10px] uppercase tracking-[0.2em] text-gold">Popular in Algeria</p><p className="text-xs text-muted-foreground">High-interest vehicles right now</p></div>
               <TrendingDown className="h-4 w-4 text-gold rotate-180" />
             </div>
-            <div className="flex gap-2 overflow-x-auto pb-1">{filtered.filter((vehicle) => (effectiveLikeData[vehicle.id]?.count ?? 0) >= 3 || (effectiveViewData[vehicle.id] ?? vehicle.views ?? 0) >= 10).slice(0, 4).map((vehicle) => <Link key={vehicle.id} to="/vehicle/$id" params={{ id: vehicle.id }} className="shrink-0 rounded-lg bg-charcoal px-3 py-2 text-xs hover:border-gold/40 border border-transparent">{vehicle.brand} {vehicle.model}</Link>)}</div>
+            <div className="flex gap-2 overflow-x-auto pb-1">{popularVehicles.slice(0, 4).map((vehicle) => <Link key={vehicle.id} to="/vehicle/$id" params={{ id: vehicle.id }} className="shrink-0 rounded-lg bg-charcoal px-3 py-2 text-xs hover:border-gold/40 border border-transparent">{vehicle.brand} {vehicle.model}</Link>)}</div>
           </div>
         )}
         <Tabs defaultValue="grid">
