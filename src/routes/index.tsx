@@ -637,7 +637,8 @@ function HomeContent() {
   const handleLike = useCallback(async (item: Vehicle | null | undefined) => {
     if (!item?.id) return;
     const vehicleId = item.id;
-    if (!realtimeDb || !firebaseActorId || firebaseAuth?.currentUser?.uid !== firebaseActorId) {
+    const actorId = firebaseAuth?.currentUser?.uid;
+    if (!realtimeDb || !actorId || actorId !== firebaseActorId) {
       toast.error("جارٍ الاتصال بحساب Firebase. أعد المحاولة بعد لحظة.");
       return;
     }
@@ -646,40 +647,48 @@ function HomeContent() {
     setLikeData((prev) => ({ ...prev, [vehicleId]: { count: Math.max(0, current.count + (newLiked ? 1 : -1)), liked: newLiked } }));
     setLocalLikes({ ...localLikes, [vehicleId]: Math.max(0, (localLikes[vehicleId] ?? current.count) + (newLiked ? 1 : -1)) });
     setLocalLiked((previous) => ({ ...previous, [vehicleId]: newLiked }));
-  try {
-    const actorId = await getFirebaseActorId();
-    const likeRef = ref(realtimeDb, `vehicleLikes/${vehicleId}/${actorId}`);
-    if (newLiked) await set(likeRef, { user_id: actorId, vehicle_id: vehicleId, created_at: new Date().toISOString() });
-    else await remove(likeRef);
-  } catch {
-      setLikeData(prev => ({
-        ...prev,
-        [vehicleId]: { count: current.count, liked: current.liked }
+    try {
+      const confirmedActorId = await getFirebaseActorId();
+      if (confirmedActorId !== actorId || firebaseAuth?.currentUser?.uid !== actorId) {
+        throw new Error("Firebase authentication changed during the like request");
+      }
+      const likeRef = ref(realtimeDb, `vehicleLikes/${vehicleId}/${actorId}`);
+      if (newLiked) await set(likeRef, { user_id: actorId, vehicle_id: vehicleId, created_at: new Date().toISOString() });
+      else await remove(likeRef);
+    } catch (error) {
+      setLikeData((previous) => ({
+        ...previous,
+        [vehicleId]: { count: current.count, liked: current.liked },
       }));
-      setLocalLikes({ ...localLikes, [vehicleId]: current.count });
+      setLocalLikes((previous) => ({ ...previous, [vehicleId]: current.count }));
       setLocalLiked((previous) => ({ ...previous, [vehicleId]: current.liked }));
-      toast.error("تعذر حفظ الإعجاب، حاول مرة أخرى");
+      console.error("[v0] Firebase like write failed", error);
+      toast.error("تعذر حفظ الإعجاب. تحقق من صلاحيات قاعدة البيانات ثم أعد المحاولة.");
     }
   }, [firebaseActorId, effectiveLikeData, localLikes, setLocalLikes]);
 
   const handleFavorite = useCallback(async (item: Vehicle | null | undefined) => {
     if (!item?.id) return;
     const vehicleId = item.id;
-    if (!realtimeDb || !firebaseActorId || firebaseAuth?.currentUser?.uid !== firebaseActorId) {
+    const actorId = firebaseAuth?.currentUser?.uid;
+    if (!realtimeDb || !actorId || actorId !== firebaseActorId) {
       toast.error("جارٍ الاتصال بحساب Firebase. أعد المحاولة بعد لحظة.");
       return;
     }
     const isFav = effectiveFavorites[vehicleId] ?? false;
     setFavorites((previous) => ({ ...previous, [vehicleId]: !isFav }));
     try {
-      const actorId = await getFirebaseActorId();
+      const confirmedActorId = await getFirebaseActorId();
+      if (confirmedActorId !== actorId || firebaseAuth?.currentUser?.uid !== actorId) {
+        throw new Error("Firebase authentication changed during the favorite request");
+      }
       const favoriteRef = ref(realtimeDb, `vehicleFavorites/${vehicleId}/${actorId}`);
       if (!isFav) await set(favoriteRef, { user_id: actorId, vehicle_id: vehicleId, created_at: new Date().toISOString() });
       else await remove(favoriteRef);
     } catch (error) {
       setFavorites((prev) => ({ ...prev, [vehicleId]: isFav }));
       console.error("[v0] Firebase favorite write failed", error);
-      toast.error("تعذر حفظ الإعلان في المحفوظات. تحقق من صلاحيات قاعدة البيانات.");
+      toast.error("تعذر حفظ الإعلان في المحفوظات. تحقق من صلاحيات قاعدة البيانات ثم أعد المحاولة.");
     }
   }, [firebaseActorId, effectiveFavorites]);
 
