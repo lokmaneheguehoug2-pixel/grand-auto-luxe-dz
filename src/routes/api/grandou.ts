@@ -44,38 +44,43 @@ export const Route = createFileRoute("/api/grandou")({
           } else if (body?.image?.data && typeof body.image.data === "string" && typeof body.image.mimeType === "string") {
             parts.push({ inlineData: { mimeType: body.image.mimeType, data: body.image.data } });
           }
-          const request = {
-            model: "gemini-3.8-flash",
+          const generationRequest = {
+            model: "gemini-3.5-flash",
             contents: [...history, { role: "user" as const, parts }],
             config: { systemInstruction: SYSTEM_PROMPT, temperature: 0.4, maxOutputTokens: 700 },
           };
-          let stream;
-          let lastError: unknown;
-          for (let attempt = 0; attempt < 3; attempt += 1) {
-            try {
-              stream = await ai.models.generateContentStream(request);
-              break;
-            } catch (error) {
-              lastError = error;
-              const status = (error as { status?: number })?.status;
-              if (status !== 429 && status !== 503) throw error;
-              await new Promise((resolve) => setTimeout(resolve, 250 * 2 ** attempt));
-            }
-          }
-          if (!stream) throw lastError instanceof Error ? lastError : new Error("Grandou model unavailable");
+          const retryable = (error: unknown) => {
+            const candidate = error as { status?: number; code?: number; cause?: { status?: number } };
+            return [408, 429, 500, 502, 503, 504].includes(Number(candidate?.status ?? candidate?.code ?? candidate?.cause?.status));
+          };
           const encoder = new TextEncoder();
           const readable = new ReadableStream({
             async start(controller) {
-              try {
-                for await (const chunk of stream) {
-                  const text = chunk.text ?? "";
-                  if (text) controller.enqueue(encoder.encode(text));
+              for (let attempt = 0; attempt < 3; attempt += 1) {
+                let sentAnyText = false;
+                try {
+                  const stream = await ai.models.generateContentStream(generationRequest);
+                  for await (const chunk of stream) {
+                    const text = chunk.text ?? "";
+                    if (text) {
+                      sentAnyText = true;
+                      controller.enqueue(encoder.encode(text));
+                    }
+                  }
+                  controller.close();
+                  return;
+                } catch (error) {
+                  if (attempt < 2 && !sentAnyText && retryable(error)) {
+                    await new Promise((resolve) => setTimeout(resolve, 400 * 2 ** attempt));
+                    continue;
+                  }
+                  console.error("[v0] Grandou stream failed", error instanceof Error ? error.message : "unknown error");
+                  controller.enqueue(encoder.encode("تعذر إكمال الرد. أعد المحاولة بعد لحظات."));
+                  controller.close();
+                  return;
                 }
-                controller.close();
-              } catch (error) {
-                console.error("[v0] Grandou stream failed", error instanceof Error ? error.message : "unknown error");
-                controller.error(error);
               }
+              controller.close();
             },
           });
           return new Response(readable, { headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-cache, no-transform" } });

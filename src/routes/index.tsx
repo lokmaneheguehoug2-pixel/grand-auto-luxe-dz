@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { Component, useState, useMemo, useEffect, useCallback, useRef } from "react";
 import type { ReactNode, MouseEvent } from "react";
 import { ref, get, set, remove, onValue, off } from "firebase/database";
-import { FIREBASE_DATABASE_URL, getFirebaseActorId, realtimeDb } from "@/lib/firebase";
+import { auth as firebaseAuth, FIREBASE_DATABASE_URL, getFirebaseActorId, realtimeDb } from "@/lib/firebase";
 import { WILAYAS, BRANDS } from "@/lib/wilayas";
 import { formatDZD, formatDZDArabic } from "@/lib/format";
 import { calculateDeal } from "@/lib/pricing";
@@ -252,10 +252,11 @@ function HomeContent() {
     }
   });
   const userId = auth?.user?.id ?? auth?.user?.phone ?? guestId;
+  const [firebaseActorId, setFirebaseActorId] = useState(firebaseAuth?.currentUser?.uid ?? "");
   const [likeData, setLikeData] = useState<LikeData>({});
   const [favorites, setFavorites] = useState<FavoriteData>({});
   const [viewData, setViewData] = useState<ViewData>({});
-  const [localLikes, setLocalLikes] = useDemoCounterMap(demoKeys.likes);
+  const [localLikes, , setLocalLikes] = useDemoCounterMap(demoKeys.likes);
   const [localLiked, setLocalLiked] = useState<Record<string, boolean>>({});
   const [localSaved, toggleLocalSaved] = useDemoSet(demoKeys.saved);
   const [localViews, incrementLocalView] = useDemoCounterMap(demoKeys.views);
@@ -265,6 +266,14 @@ function HomeContent() {
   const [commentText, setCommentText] = useState("");
   const [comments, setComments] = useState<Record<string, FeedComment[]>>({});
   const shuffleSeed = useRef<string>("");
+
+  useEffect(() => {
+    if (firebaseAuth?.currentUser?.uid) {
+      setFirebaseActorId(firebaseAuth.currentUser.uid);
+      return;
+    }
+    void getFirebaseActorId().then(setFirebaseActorId).catch((error) => console.warn("[v0] Firebase sign-in failed", error));
+  }, []);
 
   useEffect(() => {
 
@@ -317,7 +326,7 @@ function HomeContent() {
               status: typeof v.status === "string" ? v.status : "active",
               created_at: typeof v.created_at === "string" ? v.created_at : new Date().toISOString(),
               previous_price: Number.isFinite(Number(v.previous_price)) ? Number(v.previous_price) : null,
-              pinned: v.pinned === true || localPinned.has(id),
+              pinned: v.isPinned === true || v.pinned === true || localPinned.has(id),
               condition: typeof v.condition === "string" ? v.condition : undefined,
               documents_status: typeof v.documents_status === "string" ? v.documents_status : undefined,
               original_color: typeof v.original_color === "string" ? v.original_color : undefined,
@@ -329,9 +338,8 @@ function HomeContent() {
   comments_count: Number(v.comments_count) || 0,
             } satisfies Vehicle;
           })
-          .filter((vehicle): vehicle is Vehicle => {
-            if (!vehicle) return false;
-            const status = String(vehicle.status ?? vehicle.listing_status ?? "").toLowerCase();
+          .filter((vehicle) => {
+            const status = String(vehicle.status ?? "").toLowerCase();
             return !status || ["active", "sold", "published", "available", "approved"].includes(status);
           });
 
@@ -397,9 +405,11 @@ function HomeContent() {
       void loadFromFirebase();
       return () => { cancelled = true; };
     }
+  const database = realtimeDb;
+  if (!database) return;
   const vehiclePaths = ["vehicles", "listings", "advertisements", "cars"];
   const handles = vehiclePaths.map((path) => {
-    const vehiclesRef = ref(realtimeDb, path);
+    const vehiclesRef = ref(database, path);
     const handleValue = (snapshot: { val: () => unknown }) => {
       const value = snapshot.val();
       if (value && typeof value === "object" && Object.keys(value as Record<string, unknown>).length > 0) handleSnapshot(value);
@@ -487,38 +497,44 @@ function HomeContent() {
   }, []);
 
   useEffect(() => {
-  void Promise.allSettled([loadLikes(), loadFavorites(), loadViews()]).catch(() => undefined);
-  if (!realtimeDb) return;
-  const subscriptions = ["vehicleLikes", "vehicle_views", "vehicleFavorites"].map((table) => {
-    const path = ref(realtimeDb, table);
-    const handleValue = (snapshot: { val: () => unknown }) => {
+    if (!realtimeDb || !firebaseActorId) {
+      void Promise.allSettled([loadLikes(), loadFavorites(), loadViews()]);
+      return;
+    }
+    const likesRef = ref(realtimeDb, "vehicleLikes");
+    const favoritesRef = ref(realtimeDb, "vehicleFavorites");
+    const viewsRef = ref(realtimeDb, "vehicle_views");
+    const handleLikes = (snapshot: { val: () => unknown }) => {
       const raw = snapshot.val();
-      const rows = raw && typeof raw === "object" ? Object.values(raw as Record<string, unknown>) : [];
-      if (table === "vehicleLikes") {
-        const next: LikeData = {};
-        Object.entries(raw && typeof raw === "object" ? raw as Record<string, unknown> : {}).forEach(([vehicleId, value]) => {
-          const users = value && typeof value === "object" ? Object.keys(value as Record<string, unknown>) : [];
-          next[vehicleId] = { count: users.length, liked: users.includes(userId) };
-        });
-        setLikeData(next);
-      } else if (table === "vehicle_views") {
-        const next: ViewData = {};
-        rows.forEach((value) => { const id = typeof (value as Record<string, unknown>).vehicle_id === "string" ? (value as Record<string, unknown>).vehicle_id as string : ""; if (id) next[id] = (next[id] ?? 0) + 1; });
-        setViewData(next);
-      } else {
-        const next: FavoriteData = {};
-        Object.entries(raw && typeof raw === "object" ? raw as Record<string, unknown> : {}).forEach(([vehicleId, value]) => {
-          const users = value && typeof value === "object" ? Object.keys(value as Record<string, unknown>) : [];
-          if (users.includes(userId)) next[vehicleId] = true;
-        });
-        setFavorites(next);
-      }
+      const next: LikeData = {};
+      if (raw && typeof raw === "object") Object.entries(raw as Record<string, unknown>).forEach(([vehicleId, value]) => {
+        const users = value && typeof value === "object" ? Object.keys(value as Record<string, unknown>) : [];
+        next[vehicleId] = { count: users.length, liked: users.includes(firebaseActorId) };
+      });
+      setLikeData(next);
     };
-    onValue(path, handleValue);
-    return () => off(path, "value", handleValue);
-  });
-  return () => subscriptions.forEach((unsubscribe) => unsubscribe());
-  }, [loadLikes, loadFavorites, loadViews, userId]);
+    const handleFavorites = (snapshot: { val: () => unknown }) => {
+      const raw = snapshot.val();
+      const next: FavoriteData = {};
+      if (raw && typeof raw === "object") Object.entries(raw as Record<string, unknown>).forEach(([vehicleId, value]) => {
+        if (value && typeof value === "object" && Object.prototype.hasOwnProperty.call(value, firebaseActorId)) next[vehicleId] = true;
+      });
+      setFavorites(next);
+    };
+    const handleViews = (snapshot: { val: () => unknown }) => {
+      const raw = snapshot.val();
+      const next: ViewData = {};
+      if (raw && typeof raw === "object") Object.values(raw as Record<string, unknown>).forEach((value) => {
+        const vehicleId = value && typeof value === "object" ? (value as Record<string, unknown>).vehicle_id : null;
+        if (typeof vehicleId === "string") next[vehicleId] = (next[vehicleId] ?? 0) + 1;
+      });
+      setViewData(next);
+    };
+    onValue(likesRef, handleLikes, (error) => console.error("[v0] Likes permission/read failed", error));
+    onValue(favoritesRef, handleFavorites, (error) => console.error("[v0] Favorites permission/read failed", error));
+    onValue(viewsRef, handleViews, (error) => console.error("[v0] Views permission/read failed", error));
+    return () => { off(likesRef, "value", handleLikes); off(favoritesRef, "value", handleFavorites); off(viewsRef, "value", handleViews); };
+  }, [firebaseActorId, loadLikes, loadFavorites, loadViews]);
 
   const effectiveLikeData = likeData;
   const effectiveFavorites = favorites;
@@ -533,7 +549,7 @@ function HomeContent() {
     const list = validVehicles
       .filter((vehicle): vehicle is Vehicle => Boolean(vehicle?.id))
       .map((vehicle) => ({ ...vehicle, pinned: vehicle.pinned === true || localPinned.has(vehicle.id) }))
-      .filter((vehicle): vehicle is Vehicle => {
+      .filter((vehicle) => {
       if (!isValidVehicle(vehicle)) return false;
       const v = vehicle;
       const brand = typeof v.brand === "string" ? v.brand : "";
@@ -554,9 +570,9 @@ function HomeContent() {
       return true;
     });
 
-    if (filters.sort === "price_asc") list.sort((a, b) => priceOf(a) - priceOf(b));
-    else if (filters.sort === "price_desc") list.sort((a, b) => priceOf(b) - priceOf(a));
-    else if (filters.sort === "year_desc") list.sort((a, b) => b.year - a.year);
+    if (filters.sort === "price_asc") list.sort((a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)) || priceOf(a) - priceOf(b));
+    else if (filters.sort === "price_desc") list.sort((a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)) || priceOf(b) - priceOf(a));
+    else if (filters.sort === "year_desc") list.sort((a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)) || b.year - a.year);
     else {
       // Default: pinned first, then randomized with a stable seed
       const pinned = list.filter((v) => v.pinned);
@@ -621,14 +637,17 @@ function HomeContent() {
   const handleLike = useCallback(async (item: Vehicle | null | undefined) => {
     if (!item?.id) return;
     const vehicleId = item.id;
+    if (!realtimeDb || !firebaseActorId || firebaseAuth?.currentUser?.uid !== firebaseActorId) {
+      toast.error("جارٍ الاتصال بحساب Firebase. أعد المحاولة بعد لحظة.");
+      return;
+    }
     const current = effectiveLikeData[vehicleId] ?? { count: item.likes ?? 0, liked: false };
     const newLiked = !current.liked;
     setLikeData((prev) => ({ ...prev, [vehicleId]: { count: Math.max(0, current.count + (newLiked ? 1 : -1)), liked: newLiked } }));
-    setLocalLikes((prev) => ({ ...prev, [vehicleId]: Math.max(0, (prev[vehicleId] ?? current.count) + (newLiked ? 1 : -1)) }));
+    setLocalLikes({ ...localLikes, [vehicleId]: Math.max(0, (localLikes[vehicleId] ?? current.count) + (newLiked ? 1 : -1)) });
     setLocalLiked((previous) => ({ ...previous, [vehicleId]: newLiked }));
-  if (!realtimeDb) return;
   try {
-    const actorId = await getFirebaseActorId(userId);
+    const actorId = await getFirebaseActorId();
     const likeRef = ref(realtimeDb, `vehicleLikes/${vehicleId}/${actorId}`);
     if (newLiked) await set(likeRef, { user_id: actorId, vehicle_id: vehicleId, created_at: new Date().toISOString() });
     else await remove(likeRef);
@@ -637,27 +656,32 @@ function HomeContent() {
         ...prev,
         [vehicleId]: { count: current.count, liked: current.liked }
       }));
-      setLocalLikes((previous) => ({ ...previous, [vehicleId]: current.count }));
+      setLocalLikes({ ...localLikes, [vehicleId]: current.count });
       setLocalLiked((previous) => ({ ...previous, [vehicleId]: current.liked }));
       toast.error("تعذر حفظ الإعجاب، حاول مرة أخرى");
     }
-  }, [userId, effectiveLikeData, localLikes, setLocalLikes]);
+  }, [firebaseActorId, effectiveLikeData, localLikes, setLocalLikes]);
 
   const handleFavorite = useCallback(async (item: Vehicle | null | undefined) => {
     if (!item?.id) return;
     const vehicleId = item.id;
-    if (!realtimeDb) return;
+    if (!realtimeDb || !firebaseActorId || firebaseAuth?.currentUser?.uid !== firebaseActorId) {
+      toast.error("جارٍ الاتصال بحساب Firebase. أعد المحاولة بعد لحظة.");
+      return;
+    }
     const isFav = effectiveFavorites[vehicleId] ?? false;
     setFavorites((previous) => ({ ...previous, [vehicleId]: !isFav }));
     try {
-      const actorId = await getFirebaseActorId(userId);
+      const actorId = await getFirebaseActorId();
       const favoriteRef = ref(realtimeDb, `vehicleFavorites/${vehicleId}/${actorId}`);
       if (!isFav) await set(favoriteRef, { user_id: actorId, vehicle_id: vehicleId, created_at: new Date().toISOString() });
       else await remove(favoriteRef);
-    } catch {
-      setFavorites(prev => ({ ...prev, [vehicleId]: isFav }));
+    } catch (error) {
+      setFavorites((prev) => ({ ...prev, [vehicleId]: isFav }));
+      console.error("[v0] Firebase favorite write failed", error);
+      toast.error("تعذر حفظ الإعلان في المحفوظات. تحقق من صلاحيات قاعدة البيانات.");
     }
-  }, [userId, effectiveFavorites]);
+  }, [firebaseActorId, effectiveFavorites]);
 
   return (
     <div>

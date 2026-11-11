@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
-import { realtimeDb } from "@/lib/firebase";
+import { getFirebaseActorId, realtimeDb } from "@/lib/firebase";
 import { ref, get, set, remove, onValue, off, push } from "firebase/database";
 import { uploadImageToCloudinary } from "@/lib/cloudinary";
 import { ChatDialog } from "@/components/ChatDialog";
@@ -368,36 +368,34 @@ function SellerProfile() {
   const activeVehicles = vehicles.filter((v) => v.status === "active" || !v.status);
   const soldVehicles = vehicles.filter((v) => v.status === "sold");
 
-  // Load saved vehicles when saved tab is opened
+  // Load saved vehicles from the same RTDB paths used by the feed and details page.
   useEffect(() => {
     if (!isOwnProfile || activeTab !== "saved") return;
-const client = getFirebaseStore();
-  const uid = user?.id ?? user?.phone;
-  const localIds = getDemoValue<string[]>(demoKeys.saved, []);
-  if (!client || !user) {
-    if (localIds.length === 0) { setSavedVehicles([]); return; }
-    get(ref(realtimeDb, "vehicles")).then((snap) => {
-      const allV = snap.exists() ? snap.val() as Record<string, any> : {};
-      setSavedVehicles(localIds.map((vid) => allV?.[vid] ? { ...allV[vid], id: vid } : null).filter(Boolean) as Vehicle[]);
-    }).catch(() => setSavedVehicles([]));
-    return;
-  }
-  client.from("vehicle_favorites").select("vehicle_id").eq("user_id", uid).then(({ data, error }) => {
-      const favoriteRows = !error && Array.isArray(data) && data.length > 0
-        ? data
-        : localIds.map((vehicle_id) => ({ vehicle_id }));
-      if (favoriteRows.length === 0) { setSavedVehicles([]); return; }
-      const favIds = favoriteRows.map((d) => d.vehicle_id);
-      const vehiclesRef = ref(realtimeDb, "vehicles");
-      get(vehiclesRef).then((snap) => {
-        if (!snap.exists()) { setSavedVehicles([]); return; }
-        const allV = snap.val() as Record<string, any>;
-        const saved = favIds
-          .map((vid) => allV[vid] ? { ...allV[vid], id: vid } : null)
+    let cancelled = false;
+    const loadSaved = async () => {
+      try {
+        if (!realtimeDb) throw new Error("Firebase is unavailable");
+        const actorId = await getFirebaseActorId();
+        const [favoritesSnapshot, vehiclesSnapshot] = await Promise.all([
+          get(ref(realtimeDb, "vehicleFavorites")),
+          get(ref(realtimeDb, "vehicles")),
+        ]);
+        const favorites = favoritesSnapshot.val() as Record<string, Record<string, unknown>> | null;
+        const allVehicles = vehiclesSnapshot.val() as Record<string, Record<string, unknown>> | null;
+        const savedIds = Object.entries(favorites ?? {})
+          .filter(([, actors]) => actors && Object.prototype.hasOwnProperty.call(actors, actorId))
+          .map(([vehicleId]) => vehicleId);
+        const saved = savedIds
+          .map((vehicleId) => allVehicles?.[vehicleId] ? { ...allVehicles[vehicleId], id: vehicleId } : null)
           .filter(Boolean) as Vehicle[];
-        setSavedVehicles(saved);
-      }).catch(() => setSavedVehicles([]));
-    }).catch(() => setSavedVehicles([]));
+        if (!cancelled) setSavedVehicles(saved);
+      } catch (error) {
+        console.error("[v0] Failed to load saved vehicles", error);
+        if (!cancelled) setSavedVehicles([]);
+      }
+    };
+    void loadSaved();
+    return () => { cancelled = true; };
   }, [isOwnProfile, activeTab, user]);
   const canSeeContact = !!user && (access === "active" || isOwnProfile || isAdmin);
 
