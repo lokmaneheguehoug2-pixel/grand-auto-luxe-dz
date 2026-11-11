@@ -149,8 +149,10 @@
   }
   .snap-y-mandatory { scroll-snap-type: y mandatory; }
   .snap-start { scroll-snap-align: start; }
-  .no-scrollbar::-webkit-scrollbar { display: none; }
-  .no-scrollbar { scrollbar-width: none; }
+  .no-scrollbar::-webkit-scrollbar,
+  .scrollbar-none::-webkit-scrollbar { display: none; }
+  .no-scrollbar,
+  .scrollbar-none { scrollbar-width: none; }
   .safe-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }
 
   /* === Reels / Ken Burns animation keyframes === */

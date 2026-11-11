@@ -163,11 +163,16 @@ function VehicleDetail() {
     if (!database) return;
     let unsubscribe: (() => void) | undefined;
     let cancelled = false;
-    void getFirebaseActorId().then((actorId) => {
+    void getFirebaseActorId().then((authenticatedUid) => {
       if (cancelled) return;
-      const favoriteRef = ref(database, `vehicleFavorites/${id}/${actorId}`);
+      const uid = firebaseAuth?.currentUser?.uid;
+      if (!uid || uid !== authenticatedUid) throw new Error("Firebase authentication is not ready");
+      const favoriteRef = ref(database, `vehicleFavorites/${id}/${uid}`);
       const listener = (snapshot: { exists: () => boolean }) => setIsFavorited(snapshot.exists());
-      onValue(favoriteRef, listener, (error) => console.error("[v0] Favorite status read failed", error));
+      onValue(favoriteRef, listener, (error) => {
+        console.error("[v0] Favorite status read failed", error);
+        toast.error("تعذر قراءة حالة الحفظ. تحقق من صلاحيات قاعدة البيانات.");
+      });
       unsubscribe = () => off(favoriteRef, "value", listener);
     }).catch((error) => console.error("[v0] Firebase sign-in failed", error));
     return () => { cancelled = true; unsubscribe?.(); };
@@ -189,8 +194,9 @@ function VehicleDetail() {
     const next = !isFavorited;
     setIsFavorited(next);
     try {
-      const uid = await getFirebaseActorId();
-      if (firebaseAuth?.currentUser?.uid !== uid) throw new Error("Firebase authentication is not ready");
+      const authenticatedUid = await getFirebaseActorId();
+      const uid = firebaseAuth?.currentUser?.uid;
+      if (!uid || uid !== authenticatedUid) throw new Error("Firebase authentication is not ready");
       const favoriteRef = ref(database, `vehicleFavorites/${id}/${uid}`);
       if (next) await set(favoriteRef, { user_id: uid, vehicle_id: id, created_at: new Date().toISOString() });
       else await remove(favoriteRef);
@@ -208,16 +214,21 @@ function VehicleDetail() {
     if (!id || !database) return;
     let unsubscribe: (() => void) | undefined;
     let cancelled = false;
-    void getFirebaseActorId().then((actorId) => {
+    void getFirebaseActorId().then((authenticatedUid) => {
       if (cancelled) return;
+      const uid = firebaseAuth?.currentUser?.uid;
+      if (!uid || uid !== authenticatedUid) throw new Error("Firebase authentication is not ready");
       const likesRef = ref(database, `vehicleLikes/${id}`);
       const handleLikes = (snapshot: { val: () => unknown }) => {
         const raw = snapshot.val();
         const users = raw && typeof raw === "object" ? Object.keys(raw as Record<string, unknown>) : [];
         setLikeCount(users.length);
-        setHasLiked(users.includes(actorId));
+        setHasLiked(users.includes(uid));
       };
-      onValue(likesRef, handleLikes, (error) => console.error("[v0] Likes read failed", error));
+      onValue(likesRef, handleLikes, (error) => {
+        console.error("[v0] Likes read failed", error);
+        toast.error("تعذر قراءة الإعجابات. تحقق من صلاحيات قاعدة البيانات.");
+      });
       unsubscribe = () => off(likesRef, "value", handleLikes);
     }).catch((error) => console.error("[v0] Firebase sign-in failed", error));
     return () => { cancelled = true; unsubscribe?.(); };
@@ -226,16 +237,22 @@ function VehicleDetail() {
   const toggleLike = useCallback(async () => {
     const database = realtimeDb;
     if (!id || !database) return;
+    const wasLiked = hasLiked;
+    const next = !wasLiked;
+    setHasLiked(next);
+    setLikeCount((count) => Math.max(0, count + (next ? 1 : -1)));
     try {
-      const actorId = await getFirebaseActorId();
-      if (firebaseAuth?.currentUser?.uid !== actorId) throw new Error("Firebase authentication is not ready");
-      const next = !hasLiked;
-      const likeRef = ref(database, `vehicleLikes/${id}/${actorId}`);
-      if (next) await set(likeRef, { user_id: actorId, vehicle_id: id, created_at: new Date().toISOString() });
+      const authenticatedUid = await getFirebaseActorId();
+      const uid = firebaseAuth?.currentUser?.uid;
+      if (!uid || uid !== authenticatedUid) throw new Error("Firebase authentication is not ready");
+      const likeRef = ref(database, `vehicleLikes/${id}/${uid}`);
+      if (next) await set(likeRef, { user_id: uid, vehicle_id: id, created_at: new Date().toISOString() });
       else await remove(likeRef);
     } catch (error) {
+      setHasLiked(wasLiked);
+      setLikeCount((count) => Math.max(0, count + (wasLiked ? 1 : -1)));
       console.error("[v0] Like write failed", error);
-      toast.error("تعذر تحديث الإعجاب. تحقق من صلاحيات قاعدة البيانات.");
+      toast.error("تعذر تحديث الإعجاب. تحقق من تسجيل الدخول وصلاحيات قاعدة البيانات.");
     }
   }, [hasLiked, id]);
 

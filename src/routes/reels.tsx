@@ -150,7 +150,7 @@ function ReelsPage() {
       )}
 
       {!loading && reels.length > 0 && (
-        <div className="mx-auto h-screen w-full max-w-[520px] overflow-y-auto snap-y snap-mandatory overscroll-y-contain no-scrollbar">
+        <div className="mx-auto h-screen w-full max-w-[520px] overflow-y-scroll snap-y snap-mandatory scrollbar-none overscroll-y-contain">
           {reels.map((r) => (
             <ReelCard key={r.id} reel={r} currentUserId={viewerId} isAdmin={isAdmin} onRefresh={() => setRetryKey((key) => key + 1)} />
           ))}
@@ -345,7 +345,7 @@ function ReelCard({ reel, currentUserId, isAdmin, onRefresh }: { reel: Reel; cur
     <>
       <div
         ref={containerRef}
-        className="snap-start relative flex h-screen min-h-screen w-full flex-col items-center justify-center overflow-hidden bg-black"
+        className="h-screen w-full snap-start relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-black"
       >
         <div
           className="relative h-full w-full bg-black flex items-center justify-center"
