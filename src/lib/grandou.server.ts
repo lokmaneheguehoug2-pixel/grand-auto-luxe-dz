@@ -1,3 +1,4 @@
+import { GoogleGenAI } from "@google/genai";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
@@ -35,15 +36,27 @@ export const askGrandou = createServerFn({ method: "POST" })
       }
 
       const ai = new GoogleGenAI({ apiKey });
-      const response = await ai.models.generateContent({
-        model: "gemini-3.8-flash",
-        contents,
-        config: {
-          systemInstruction: SYSTEM_PROMPT,
-          temperature: 0.4,
-          maxOutputTokens: 500,
-        },
-      });
+      let response;
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        try {
+          response = await ai.models.generateContent({
+            model: "gemini-3.5-flash",
+            contents,
+            config: {
+              systemInstruction: SYSTEM_PROMPT,
+              temperature: 0.4,
+              maxOutputTokens: 500,
+            },
+          });
+          break;
+        } catch (error) {
+          const candidate = error as { status?: number; code?: number; cause?: { status?: number } };
+          const retryable = [408, 429, 500, 502, 503, 504].includes(Number(candidate?.status ?? candidate?.code ?? candidate?.cause?.status));
+          if (!retryable || attempt === 2) throw error;
+          await new Promise((resolve) => setTimeout(resolve, 400 * 2 ** attempt));
+        }
+      }
+      if (!response) throw new Error("Grandou model unavailable after retries");
       const text = response.text?.trim();
       if (!text) {
         return { ok: false as const, error: "لم تصل إجابة من المساعد. حاول مرة أخرى." };

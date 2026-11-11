@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState, useCallback } from "react";
 import { onValue, ref, off, update, get, runTransaction, remove, set, push } from "firebase/database";
-import { realtimeDb } from "@/lib/firebase";
+import { auth as firebaseAuth, getFirebaseActorId, realtimeDb } from "@/lib/firebase";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -150,7 +150,7 @@ function ReelsPage() {
       )}
 
       {!loading && reels.length > 0 && (
-        <div className="mx-auto h-[calc(100svh-3.5rem)] w-full max-w-[520px] overflow-y-scroll snap-y snap-mandatory no-scrollbar pb-16 md:pb-0">
+        <div className="mx-auto h-screen w-full max-w-[520px] overflow-y-auto snap-y snap-mandatory overscroll-y-contain no-scrollbar">
           {reels.map((r) => (
             <ReelCard key={r.id} reel={r} currentUserId={viewerId} isAdmin={isAdmin} onRefresh={() => setRetryKey((key) => key + 1)} />
           ))}
@@ -166,6 +166,7 @@ function ReelCard({ reel, currentUserId, isAdmin, onRefresh }: { reel: Reel; cur
   const [playing, setPlaying] = useState(false);
   const [videoFailed, setVideoFailed] = useState(false);
   const [liked, setLiked] = useState(false);
+  const [actorId, setActorId] = useState(firebaseAuth?.currentUser?.uid ?? "");
   const [likes, setLikes] = useState(Number(reel.likesCount) || 0);
   const [views, setViews] = useState(Number(reel.viewsCount) || 0);
   const viewedRef = useRef(false);
@@ -182,7 +183,8 @@ function ReelCard({ reel, currentUserId, isAdmin, onRefresh }: { reel: Reel; cur
   const canEdit = isOwner || isAdmin;
 
   useEffect(() => {
-    if (!realtimeDb) return;
+    const database = realtimeDb;
+    if (!database) return;
     const video = videoRef.current;
     const container = containerRef.current;
     if (!video || !container) return;
@@ -195,7 +197,7 @@ function ReelCard({ reel, currentUserId, isAdmin, onRefresh }: { reel: Reel; cur
             if (!viewedRef.current) {
               viewedRef.current = true;
               try {
-                const result = await runTransaction(ref(realtimeDb, `reels/${reel.id}/viewsCount`), (current) => (Number(current) || 0) + 1);
+                const result = await runTransaction(ref(database, `reels/${reel.id}/viewsCount`), (current) => (Number(current) || 0) + 1);
                 setViews(Number(result.snapshot.val()) || 0);
               } catch (e) {
                 console.error("Failed to increment views:", e);
@@ -215,11 +217,25 @@ function ReelCard({ reel, currentUserId, isAdmin, onRefresh }: { reel: Reel; cur
   }, [reel.id]);
 
   useEffect(() => {
-    if (!currentUserId || !realtimeDb) return;
-    get(ref(realtimeDb, `reels/${reel.id}/likedBy/${currentUserId}`)).then((snap) => {
-      setLiked(snap.exists());
-    }).catch(() => {});
-  }, [currentUserId, reel.id]);
+    const database = realtimeDb;
+    if (!database) return;
+    let cancelled = false;
+    let likedRef: ReturnType<typeof ref> | undefined;
+    let handleValue: ((snapshot: { val: () => unknown }) => void) | undefined;
+    void getFirebaseActorId().then((uid) => {
+      if (cancelled) return;
+      setActorId(uid);
+      likedRef = ref(database, `reels/${reel.id}/likedBy`);
+      handleValue = (snapshot) => {
+        const users = snapshot.val();
+        const likedUsers = users && typeof users === "object" ? users as Record<string, unknown> : {};
+        setLiked(Object.prototype.hasOwnProperty.call(likedUsers, uid));
+        setLikes(Object.keys(likedUsers).length);
+      };
+      onValue(likedRef, handleValue, (error) => console.error("[v0] Reel like status read failed", error));
+    }).catch((error) => console.error("[v0] Firebase sign-in failed", error));
+    return () => { cancelled = true; if (likedRef && handleValue) off(likedRef, "value", handleValue); };
+  }, [reel.id]);
 
   const togglePlay = useCallback(() => {
     const video = videoRef.current;
@@ -233,33 +249,41 @@ function ReelCard({ reel, currentUserId, isAdmin, onRefresh }: { reel: Reel; cur
   }, []);
 
   const handleLike = async () => {
-    if (!currentUserId || !realtimeDb) {
-      toast.error("تعذر حفظ الإعجاب الآن");
+    const database = realtimeDb;
+    if (!database || !actorId || firebaseAuth?.currentUser?.uid !== actorId) {
+      toast.error("جارٍ الاتصال بحساب Firebase. أعد المحاولة بعد لحظة.");
       return;
     }
     const newLiked = !liked;
+    const previousCount = likes;
     setLiked(newLiked);
-    const newCount = newLiked ? likes + 1 : Math.max(0, likes - 1);
-    setLikes(newCount);
-
+    setLikes(Math.max(0, previousCount + (newLiked ? 1 : -1)));
     try {
-      const updates: Record<string, any> = {
-        [`reels/${reel.id}/likesCount`]: newCount,
-        [`reels/${reel.id}/likedBy/${currentUserId}`]: newLiked ? true : null,
-      };
-      await update(ref(realtimeDb), updates);
-    } catch (e) {
-      console.error("Failed to update likes:", e);
+      const likedByRef = ref(database, `reels/${reel.id}/likedBy`);
+      const result = await runTransaction(likedByRef, (current) => {
+        const users = current && typeof current === "object" ? { ...current } as Record<string, boolean> : {};
+        if (newLiked) users[actorId] = true;
+        else delete users[actorId];
+        return users;
+      });
+      if (!result.committed) throw new Error("Reel like transaction was not committed");
+      const count = Object.keys(result.snapshot.val() ?? {}).length;
+      setLikes(count);
+    } catch (error) {
+      console.error("[v0] Failed to update Reel like", error);
       setLiked(!newLiked);
-      setLikes(newLiked ? likes : likes + 1);
+      setLikes(previousCount);
+      toast.error("تعذر تحديث الإعجاب. تحقق من صلاحيات قاعدة البيانات.");
     }
   };
 
   const handleReport = async () => {
     if (!reportReason.trim()) { toast.error("Please describe the issue"); return; }
+    const database = realtimeDb;
+    if (!database) { toast.error("Firebase is unavailable"); return; }
     setReporting(true);
     try {
-      const reportRef = push(ref(realtimeDb, "reports"));
+      const reportRef = push(ref(database, "reports"));
       await set(reportRef, {
         id: reportRef.key,
         contentType: "reel",
@@ -281,9 +305,11 @@ function ReelCard({ reel, currentUserId, isAdmin, onRefresh }: { reel: Reel; cur
   };
 
   const handleEdit = async () => {
+    const database = realtimeDb;
+    if (!database) { toast.error("Firebase is unavailable"); return; }
     setSaving(true);
     try {
-      await update(ref(realtimeDb, `reels/${reel.id}`), {
+      await update(ref(database, `reels/${reel.id}`), {
         caption: editCaption || null,
         vehicleId: editVehicleId || null,
       });
@@ -299,9 +325,11 @@ function ReelCard({ reel, currentUserId, isAdmin, onRefresh }: { reel: Reel; cur
   };
 
   const handleDelete = async () => {
+    const database = realtimeDb;
+    if (!database) { toast.error("Firebase is unavailable"); return; }
     setSaving(true);
     try {
-      await remove(ref(realtimeDb, `reels/${reel.id}`));
+      await remove(ref(database, `reels/${reel.id}`));
       toast.success("تم حذف الريل");
       setShowDeleteDialog(false);
       onRefresh();
@@ -317,7 +345,7 @@ function ReelCard({ reel, currentUserId, isAdmin, onRefresh }: { reel: Reel; cur
     <>
       <div
         ref={containerRef}
-        className="snap-start relative flex h-[calc(100svh-3.5rem)] w-full flex-col items-center justify-center overflow-hidden bg-black"
+        className="snap-start relative flex h-screen min-h-screen w-full flex-col items-center justify-center overflow-hidden bg-black"
       >
         <div
           className="relative h-full w-full bg-black flex items-center justify-center"

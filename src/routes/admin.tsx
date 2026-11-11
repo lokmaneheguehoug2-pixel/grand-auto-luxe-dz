@@ -64,6 +64,7 @@ type FirebaseVehicle = {
   description?: string;
   created_at: string;
   pinned?: boolean;
+  isPinned?: boolean;
 };
 
 type FirebaseReel = {
@@ -771,7 +772,7 @@ function ListingsTab() {
         {filteredVehicles.map((v) => (
           <div key={v.id} className="premium-card rounded-xl p-4 border border-gold/20 flex items-center gap-4">
             <div className="flex-1 min-w-0">
-              <div className="font-medium truncate flex items-center gap-2">{v.brand} {v.model} ({v.year}) {(v.pinned || demoPinned.includes(v.id)) && <span className="text-[10px] text-gold">PINNED</span>}</div>
+              <div className="font-medium truncate flex items-center gap-2">{v.brand} {v.model} ({v.year}) {(v.isPinned || v.pinned || demoPinned.includes(v.id)) && <span className="text-[10px] text-gold">PINNED</span>}</div>
               <div className="text-xs text-muted-foreground">{v.wilaya} · Seller: {v.sellerId?.slice(0, 8)}...</div>
               <div className="text-xs flex items-center gap-2 mt-1 flex-wrap">
                 <Badge variant="outline" className={`${v.status === "active" ? "border-green-500 text-green-400" : ""} ${v.status === "pending" ? "border-yellow-500 text-yellow-400" : ""} ${v.status === "sold" ? "border-blue-500 text-blue-400" : ""} ${v.status === "rejected" ? "border-red-500 text-red-400" : ""}`}>{v.status}</Badge>
@@ -784,7 +785,7 @@ function ListingsTab() {
               <Button variant="outline" size="sm" onClick={() => setReviewVehicle(v)} title="Review details"><Eye className="h-4 w-4" /></Button>
               {v.status === "pending" && (<><Button variant="gold" size="sm" onClick={() => updateVehicleStatus(v, "active")} title="Approve"><Check className="h-4 w-4" /></Button><Button variant="destructive" size="sm" onClick={() => updateVehicleStatus(v, "rejected")} title="Reject"><X className="h-4 w-4" /></Button></>)}
               {v.status === "active" && <Button variant="outline" size="sm" onClick={() => updateVehicleStatus(v, "sold")} title="Mark Sold"><DollarSign className="h-4 w-4" /></Button>}
-              <Button variant={v.pinned || demoPinned.includes(v.id) ? "gold" : "outline"} size="sm" onClick={async () => { const nextPinned = !(v.pinned || demoPinned.includes(v.id)); try { await update(ref(realtimeDb, `vehicles/${v.id}`), { pinned: nextPinned }); setDemoPinned((current) => nextPinned ? [...new Set([...current, v.id])] : current.filter((id) => id !== v.id)); setDemoValue(demoKeys.pinned, nextPinned ? [...new Set([...demoPinned, v.id])] : demoPinned.filter((id) => id !== v.id)); toast.success(nextPinned ? "Listing pinned" : "Listing unpinned"); } catch { toast.error("Could not update pin status"); } }} title="Pin listing"><Pin className="h-4 w-4" /></Button>
+              <Button variant={v.isPinned || v.pinned || demoPinned.includes(v.id) ? "gold" : "outline"} size="sm" onClick={async () => { const nextPinned = !(v.isPinned || v.pinned || demoPinned.includes(v.id)); try { const database = realtimeDb; if (!database) throw new Error("Firebase is unavailable"); await update(ref(database, `vehicles/${v.id}`), { isPinned: nextPinned, pinned: nextPinned }); setVehicles((current) => current.map((item) => item.id === v.id ? { ...item, isPinned: nextPinned, pinned: nextPinned } : item)); setDemoPinned((current) => nextPinned ? [...new Set([...current, v.id])] : current.filter((id) => id !== v.id)); setDemoValue(demoKeys.pinned, nextPinned ? [...new Set([...demoPinned, v.id])] : demoPinned.filter((id) => id !== v.id)); toast.success(nextPinned ? "Listing pinned" : "Listing unpinned"); } catch (error) { console.error("[v0] Failed to update pin state", error); toast.error("Could not update pin status. Check database permissions."); } }} title="Pin listing"><Pin className="h-4 w-4" /></Button>
               <Button variant="destructive" size="sm" onClick={() => setDeleteVehicle(v)} title="Delete permanently"><Trash2 className="h-4 w-4" /></Button>
             </div>
           </div>

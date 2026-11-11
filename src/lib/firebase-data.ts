@@ -101,7 +101,7 @@ export function normalizeVehicleImages(...values: unknown[]): string[] {
     if (Array.isArray(value)) { value.forEach(visit); return; }
     if (value && typeof value === "object") {
       const record = value as Record<string, unknown>;
-      [record.url, record.secure_url, record.downloadURL, record.src, record.image_url, record.imageUrl, record.photo_url, record.photoUrl].forEach(visit);
+      [record.url, record.secure_url, record.downloadURL, record.src, record.image_url, record.imageUrl, record.photo_url, record.photoUrl, record.download_url, record.path].forEach(visit);
       Object.entries(record).forEach(([key, item]) => {
         if (!["url", "secure_url", "downloadURL", "src", "image_url"].includes(key)) visit(item);
       });

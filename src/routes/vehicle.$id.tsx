@@ -15,9 +15,9 @@ import { ChatDialog } from "@/components/ChatDialog";
 import { AppointmentBooking } from "@/components/AppointmentBooking";
 import { PremiumPaywallModal } from "@/components/PremiumPaywallModal";
 import { ref, get, onValue, off, push, set, remove } from "firebase/database";
-import { realtimeDb } from "@/lib/firebase";
+import { auth as firebaseAuth, getFirebaseActorId, realtimeDb } from "@/lib/firebase";
 import { getFirebaseStore, normalizeVehicleImages } from "@/lib/firebase-data";
-import { isVerifiedShowroom, dataOperationSucceeded } from "@/lib/listing-interactions";
+import { isVerifiedShowroom } from "@/lib/listing-interactions";
 
 function normalizeAlgPhone(raw: string): string {
   const digits = (raw ?? "").replace(/\D/g, "");
@@ -151,22 +151,27 @@ function VehicleDetail() {
     setCommentText("");
   }, [commentText, comments, id]);
 
-  // Load inquiry count and favorite status
+  // Inquiry counts use the Firebase compatibility layer; favorites use RTDB directly.
   useEffect(() => {
     if (!id) return;
     const client = getFirebaseStore();
-    if (!client) return;
-    client.from("vehicle_inquiries").select("vehicle_id", { count: "exact", head: true }).eq("vehicle_id", id).then(({ count }) => {
-      if (count !== null) setInquiryCount(count);
+    client?.from("vehicle_inquiries").select("vehicle_id", { count: "exact", head: true }).eq("vehicle_id", id).then(({ count }) => {
+      if (count !== null && count !== undefined) setInquiryCount(count);
     }).catch(() => { /* non-blocking */ });
 
-    const uid = user?.id ?? user?.phone ?? viewerId;
-    if (uid) {
-      client.from("vehicle_favorites").select("vehicle_id").eq("vehicle_id", id).eq("user_id", uid).maybeSingle().then(({ data }) => {
-        setIsFavorited(!!data);
-      }).catch(() => { /* non-blocking */ });
-    }
-  }, [id, user?.id, user?.phone]);
+    const database = realtimeDb;
+    if (!database) return;
+    let unsubscribe: (() => void) | undefined;
+    let cancelled = false;
+    void getFirebaseActorId().then((actorId) => {
+      if (cancelled) return;
+      const favoriteRef = ref(database, `vehicleFavorites/${id}/${actorId}`);
+      const listener = (snapshot: { exists: () => boolean }) => setIsFavorited(snapshot.exists());
+      onValue(favoriteRef, listener, (error) => console.error("[v0] Favorite status read failed", error));
+      unsubscribe = () => off(favoriteRef, "value", listener);
+    }).catch((error) => console.error("[v0] Firebase sign-in failed", error));
+    return () => { cancelled = true; unsubscribe?.(); };
+  }, [id]);
 
   const recordInquiry = useCallback((type: "call" | "whatsapp" | "viber" | "chat") => {
     if (!id) return;
@@ -179,51 +184,60 @@ function VehicleDetail() {
   }, [id, user?.id, user?.phone]);
 
   const toggleFavorite = useCallback(async () => {
-    if (!id) return;
-    const client = getFirebaseStore();
-    const uid = user?.id ?? user?.phone ?? viewerId;
-    if (isFavorited) {
-      setIsFavorited(false);
-      const result = await client.from("vehicle_favorites").delete().eq("vehicle_id", id).eq("user_id", uid);
-      if (dataOperationSucceeded(result)) toast.info("Removed from watchlist"); else throw result.error;
-    } else {
-      setIsFavorited(true);
-      const result = await client.from("vehicle_favorites").insert({ vehicle_id: id, user_id: uid });
-      if (dataOperationSucceeded(result)) toast.success("Added to watchlist — you'll be notified of price drops"); else throw result.error;
+    const database = realtimeDb;
+    if (!id || !database) return;
+    const next = !isFavorited;
+    setIsFavorited(next);
+    try {
+      const uid = await getFirebaseActorId();
+      if (firebaseAuth?.currentUser?.uid !== uid) throw new Error("Firebase authentication is not ready");
+      const favoriteRef = ref(database, `vehicleFavorites/${id}/${uid}`);
+      if (next) await set(favoriteRef, { user_id: uid, vehicle_id: id, created_at: new Date().toISOString() });
+      else await remove(favoriteRef);
+      toast.success(next ? "Added to saved listings" : "Removed from saved listings");
+    } catch (error) {
+      setIsFavorited(!next);
+      console.error("[v0] Favorite write failed", error);
+      toast.error("تعذر تحديث المحفوظات. تحقق من صلاحيات قاعدة البيانات.");
     }
-  }, [user, isFavorited, id]);
+  }, [isFavorited, id]);
 
   // Load like count and liked status from Firebase Realtime Database.
   useEffect(() => {
-    if (!id || !realtimeDb) return;
-    const likesRef = ref(realtimeDb, `vehicleLikes/${id}`);
-    const uid = user?.id ?? user?.phone ?? "guest";
-    const handleLikes = (snapshot: { val: () => unknown }) => {
-      const raw = snapshot.val();
-      const users = raw && typeof raw === "object" ? Object.keys(raw as Record<string, unknown>) : [];
-      setLikeCount(users.length);
-      setHasLiked(users.includes(uid));
-    };
-    onValue(likesRef, handleLikes);
-    return () => off(likesRef, "value", handleLikes);
-  }, [id, user?.id, user?.phone]);
+    const database = realtimeDb;
+    if (!id || !database) return;
+    let unsubscribe: (() => void) | undefined;
+    let cancelled = false;
+    void getFirebaseActorId().then((actorId) => {
+      if (cancelled) return;
+      const likesRef = ref(database, `vehicleLikes/${id}`);
+      const handleLikes = (snapshot: { val: () => unknown }) => {
+        const raw = snapshot.val();
+        const users = raw && typeof raw === "object" ? Object.keys(raw as Record<string, unknown>) : [];
+        setLikeCount(users.length);
+        setHasLiked(users.includes(actorId));
+      };
+      onValue(likesRef, handleLikes, (error) => console.error("[v0] Likes read failed", error));
+      unsubscribe = () => off(likesRef, "value", handleLikes);
+    }).catch((error) => console.error("[v0] Firebase sign-in failed", error));
+    return () => { cancelled = true; unsubscribe?.(); };
+  }, [id]);
 
   const toggleLike = useCallback(async () => {
-    if (!id) return;
-    if (!realtimeDb) return;
-    const uid = user?.id ?? user?.phone ?? "guest";
-    const newLiked = !hasLiked;
-    setHasLiked(newLiked);
-    setLikeCount(prev => newLiked ? prev + 1 : Math.max(0, prev - 1));
+    const database = realtimeDb;
+    if (!id || !database) return;
     try {
-      const likeRef = ref(realtimeDb, `vehicleLikes/${id}/${uid}`);
-      if (newLiked) await set(likeRef, true);
+      const actorId = await getFirebaseActorId();
+      if (firebaseAuth?.currentUser?.uid !== actorId) throw new Error("Firebase authentication is not ready");
+      const next = !hasLiked;
+      const likeRef = ref(database, `vehicleLikes/${id}/${actorId}`);
+      if (next) await set(likeRef, { user_id: actorId, vehicle_id: id, created_at: new Date().toISOString() });
       else await remove(likeRef);
-    } catch {
-      setHasLiked(!newLiked);
-      setLikeCount(prev => newLiked ? Math.max(0, prev - 1) : prev + 1);
+    } catch (error) {
+      console.error("[v0] Like write failed", error);
+      toast.error("تعذر تحديث الإعجاب. تحقق من صلاحيات قاعدة البيانات.");
     }
-  }, [user, hasLiked, id]);
+  }, [hasLiked, id]);
 
   useEffect(() => {
     if (!realtimeDb) {

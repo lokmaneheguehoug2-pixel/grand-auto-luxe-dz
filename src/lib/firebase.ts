@@ -10,7 +10,7 @@ const isBrowser =
 export const FIREBASE_DATABASE_URL = "https://grand-auto-luxe-default-rtdb.firebaseio.com";
 
 const firebaseConfig = {
-  apiKey: "process.env.apiKey",
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: "grand-auto-luxe.firebaseapp.com",
   databaseURL: "https://grand-auto-luxe-default-rtdb.firebaseio.com",
   projectId: "grand-auto-luxe",
@@ -59,12 +59,17 @@ export const db = safeInit(() => getFirestore(getApp()));
 export const realtimeDb = safeInit(() => getDatabase(getApp()));
 export const storage = safeInit(() => getStorage(getApp()));
 
-let anonymousSignIn: Promise<string | null> | null = null;
-export function getFirebaseActorId(fallback: string): Promise<string> {
-  if (auth?.currentUser?.uid) return Promise.resolve(auth.currentUser.uid);
-  if (!auth) return Promise.resolve(fallback);
-  anonymousSignIn ??= signInAnonymously(auth).then((credential) => credential.user.uid).catch(() => null);
-  return anonymousSignIn.then((uid) => uid ?? fallback);
+let anonymousSignIn: Promise<string> | null = null;
+export async function getFirebaseActorId(): Promise<string> {
+  if (!auth) throw new Error("Firebase Authentication is unavailable");
+  if (auth.currentUser?.uid) return auth.currentUser.uid;
+  anonymousSignIn ??= signInAnonymously(auth)
+    .then((credential) => credential.user.uid)
+    .catch((error) => {
+      anonymousSignIn = null;
+      throw error;
+    });
+  return anonymousSignIn;
 }
 
 export const ADMIN_PHONES = ["0781606765", "781606765"];
