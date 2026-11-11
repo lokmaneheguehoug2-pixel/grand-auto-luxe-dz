@@ -1,6 +1,6 @@
 // Cloudinary UNSIGNED uploads via upload preset (no backend signature needed).
 
-const CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
+const CLOUD_NAME = "kovqew6t";
 const UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
 
 const IMAGE_ENDPOINT = `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`;
