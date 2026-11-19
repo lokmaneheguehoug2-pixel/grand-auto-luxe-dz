@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Component, useState, useMemo, useEffect, useCallback, useRef } from "react";
 import type { ReactNode, MouseEvent } from "react";
-import { ref, get, set, remove, onValue, off } from "firebase/database";
+import { ref, set, remove, onValue, off } from "firebase/database";
 import { auth as firebaseAuth, FIREBASE_DATABASE_URL, getFirebaseActorId, realtimeDb } from "@/lib/firebase";
 import { WILAYAS, BRANDS } from "@/lib/wilayas";
 import { formatDZD, formatDZDArabic } from "@/lib/format";
@@ -19,8 +19,9 @@ import { StoriesStrip } from "@/components/StoriesStrip";
 import { toast } from "sonner";
 import { ShareButton } from "@/components/ShareButton";
 import { AnalyzeWithGrandouButton } from "@/components/AnalyzeWithGrandouButton";
-import { demoKeys, useDemoCounterMap, useDemoSet } from "@/lib/demo-state";
+import { demoKeys, useDemoSet } from "@/lib/demo-state";
 import { getFirebaseStore, normalizeVehicleImages } from "@/lib/firebase-data";
+import { addVehicleComment, readVehicleFavoriteState, readVehicleLikeState, recordVehicleViewOnce, subscribeAllVehicleComments, type VehicleComment } from "@/lib/vehicle-engagement";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -46,6 +47,7 @@ type Vehicle = {
   photos?: unknown;
   image_urls?: unknown;
   image_url?: unknown;
+  image?: unknown;
   thumbnail_url?: unknown;
   video_url: string | null;
   price_type: "fixed" | "auction";
@@ -73,7 +75,7 @@ type FavoriteData = Record<string, boolean>;
 type ViewData = Record<string, number>;
 
 type MaybeVehicle = Vehicle | null | undefined;
-type FeedComment = { id: string; text: string; authorId: string; createdAt: string };
+type FeedComment = VehicleComment;
 
 function isValidVehicle(value: MaybeVehicle): value is Vehicle {
   return Boolean(value && typeof value === "object" && typeof value.id === "string" && value.id.length > 0);
@@ -256,14 +258,12 @@ function HomeContent() {
   const [likeData, setLikeData] = useState<LikeData>({});
   const [favorites, setFavorites] = useState<FavoriteData>({});
   const [viewData, setViewData] = useState<ViewData>({});
-  const [localLikes, , setLocalLikes] = useDemoCounterMap(demoKeys.likes);
-  const [localLiked, setLocalLiked] = useState<Record<string, boolean>>({});
-  const [localSaved, toggleLocalSaved] = useDemoSet(demoKeys.saved);
-  const [localViews, incrementLocalView] = useDemoCounterMap(demoKeys.views);
+  const [viewsLoaded, setViewsLoaded] = useState(false);
   const [localPinned] = useDemoSet(demoKeys.pinned);
   const [localAlerts, toggleLocalAlert] = useDemoSet(demoKeys.alerts);
   const [commentVehicleId, setCommentVehicleId] = useState<string | null>(null);
   const [commentText, setCommentText] = useState("");
+  const [commentSubmitting, setCommentSubmitting] = useState(false);
   const [comments, setComments] = useState<Record<string, FeedComment[]>>({});
   const shuffleSeed = useRef<string>("");
 
@@ -290,7 +290,7 @@ function HomeContent() {
           if (!value || typeof value !== "object") return;
           if (Array.isArray(value)) { value.forEach((item, index) => collectRows(item, String(index))); return; }
           const record = value as Record<string, unknown>;
-          const looksLikeVehicle = ["brand", "model", "make", "price", "fixed_price", "photos", "images"].some((key) => key in record);
+          const looksLikeVehicle = ["brand", "model", "make", "price", "fixed_price", "photos", "images", "image_urls", "image"].some((key) => key in record);
           if (looksLikeVehicle) rows.push({ ...record, id: record.id ?? fallbackId });
           else Object.entries(record).forEach(([id, child]) => collectRows(child, id));
         };
@@ -300,7 +300,7 @@ function HomeContent() {
           .map((raw) => {
             const v = raw as Record<string, unknown>;
             const id = String(v.id);
-            const images = normalizeVehicleImages(v.images, v.photos, v.image_urls, v.image_url, v.thumbnail_url);
+            const images = normalizeVehicleImages(v.images, v.photos, v.image_urls, v.image, v.image_url, v.thumbnail_url);
             const videoUrl = typeof v.video_url === "string" && v.video_url.length > 0 ? v.video_url : null;
             return {
               id,
@@ -451,16 +451,7 @@ function HomeContent() {
     if (realtimeDb) return;
     const client = getFirebaseStore();
     if (!client || !userId) {
-      if (typeof window !== "undefined") {
-        try {
-          const saved = JSON.parse(window.localStorage.getItem("grand-auto-luxe-saved") || "[]") as unknown;
-          const map: FavoriteData = {};
-          if (Array.isArray(saved)) saved.forEach((id) => { if (typeof id === "string") map[id] = true; });
-          setFavorites(map);
-        } catch {
-          setFavorites({});
-        }
-      }
+      setFavorites({});
       return;
     }
     try {
@@ -490,6 +481,7 @@ function HomeContent() {
       map[row.vehicle_id] = (map[row.vehicle_id] ?? 0) + 1;
     }
       setViewData(map);
+      setViewsLoaded(true);
     } catch (error) {
       console.warn("[v0] Views unavailable", error);
       setViewData({});
@@ -529,6 +521,7 @@ function HomeContent() {
         if (typeof vehicleId === "string") next[vehicleId] = (next[vehicleId] ?? 0) + 1;
       });
       setViewData(next);
+      setViewsLoaded(true);
     };
     onValue(likesRef, handleLikes, (error) => console.error("[v0] Likes permission/read failed", error));
     onValue(favoritesRef, handleFavorites, (error) => console.error("[v0] Favorites permission/read failed", error));
@@ -593,46 +586,58 @@ function HomeContent() {
   }, [validVehicles, filters, localPinned]);
 
   const safeFiltered = (Array.isArray(filtered) ? filtered : []).filter(isValidVehicle);
-  const popularVehicles = safeFiltered.filter((vehicle) => vehicle && vehicle.id && ((effectiveLikeData[vehicle.id]?.count ?? 0) >= 3 || (effectiveViewData[vehicle.id] ?? vehicle.views ?? 0) >= 10));
+  const popularVehicles = safeFiltered.filter((vehicle) => vehicle && vehicle.id && ((effectiveLikeData[vehicle.id]?.count ?? 0) >= 3 || (effectiveViewData[vehicle.id] ?? (viewsLoaded ? 0 : vehicle.views ?? 0)) >= 10));
   const reelsVehicles = safeFiltered
     .filter((vehicle) => typeof vehicle.video_url === "string" && vehicle.video_url.length > 0);
 
   const openComments = useCallback((item: Vehicle | null | undefined) => {
     if (!item?.id) return;
-    const vehicleId = item.id;
-    setCommentVehicleId(vehicleId);
+    setCommentVehicleId(item.id);
     setCommentText("");
-    try {
-      const stored = JSON.parse(window.localStorage.getItem(`grand-auto-luxe-comments-${vehicleId}`) || "[]") as unknown;
-      const safeComments: FeedComment[] = Array.isArray(stored)
-        ? stored.filter((item): item is FeedComment => Boolean(item && typeof item === "object" && typeof (item as FeedComment).id === "string" && typeof (item as FeedComment).text === "string" && typeof (item as FeedComment).authorId === "string" && typeof (item as FeedComment).createdAt === "string"))
-        : [];
-      setComments((current) => ({ ...current, [vehicleId]: safeComments }));
-    } catch { setComments((current) => ({ ...current, [vehicleId]: [] })); }
   }, []);
 
-  const submitFeedComment = useCallback(() => {
-    if (!commentVehicleId || !commentText.trim()) return;
-    const next = [...(comments[commentVehicleId] ?? []), { id: `${Date.now()}-${Math.random()}`, text: commentText.trim(), authorId: userId, createdAt: new Date().toISOString() }];
-    setComments((current) => ({ ...current, [commentVehicleId]: next }));
-    setCommentText("");
-    try { window.localStorage.setItem(`grand-auto-luxe-comments-${commentVehicleId}`, JSON.stringify(next)); } catch { /* optional storage */ }
-  }, [commentText, commentVehicleId, comments]);
+  useEffect(() => {
+    if (!firebaseActorId) return;
+    return subscribeAllVehicleComments(
+      (next) => setComments(next),
+      (error) => {
+        console.error("[v0] Firebase comments read failed", error);
+        toast.error("تعذر تحميل التعليقات من قاعدة البيانات.");
+      },
+    );
+  }, [firebaseActorId]);
+
+  const submitFeedComment = useCallback(async () => {
+    const text = commentText.trim();
+    const actorId = firebaseAuth?.currentUser?.uid;
+    if (!commentVehicleId || !text || commentSubmitting) return;
+    if (!realtimeDb || !actorId || actorId !== firebaseActorId) {
+      toast.error("جارٍ الاتصال بحساب Firebase. أعد المحاولة بعد لحظة.");
+      return;
+    }
+
+    setCommentSubmitting(true);
+    try {
+      await addVehicleComment(commentVehicleId, actorId, text);
+      setCommentText("");
+    } catch (error) {
+      console.error("[v0] Firebase comment write failed", error);
+      toast.error("تعذر إرسال التعليق. تحقق من صلاحيات قاعدة البيانات ثم أعد المحاولة.");
+    } finally {
+      setCommentSubmitting(false);
+    }
+  }, [commentSubmitting, commentText, commentVehicleId, firebaseActorId]);
 
   const handleView = useCallback(async (item: Vehicle | null | undefined) => {
     if (!item?.id) return;
-    const vehicleId = item.id;
-    setViewData((previous) => ({ ...previous, [vehicleId]: (previous[vehicleId] ?? 0) + 1 }));
-    const client = getFirebaseStore();
-    if (!client) return;
     try {
-      const result = await client.from("vehicle_views").insert({ vehicle_id: vehicleId, viewer_id: userId });
-      if (result.error) throw result.error;
+      const actorId = await getFirebaseActorId();
+      if (!actorId || firebaseAuth?.currentUser?.uid !== actorId) throw new Error("Firebase authentication is not ready");
+      await recordVehicleViewOnce(item.id, actorId);
     } catch (error) {
-      setViewData((previous) => ({ ...previous, [vehicleId]: Math.max(0, (previous[vehicleId] ?? 1) - 1) }));
       console.error("[v0] Failed to record vehicle view", error);
     }
-  }, [userId, localViews, incrementLocalView]);
+  }, []);
 
   const handleLike = useCallback(async (item: Vehicle | null | undefined) => {
     if (!item?.id) return;
@@ -645,8 +650,6 @@ function HomeContent() {
     const current = effectiveLikeData[vehicleId] ?? { count: item.likes ?? 0, liked: false };
     const newLiked = !current.liked;
     setLikeData((prev) => ({ ...prev, [vehicleId]: { count: Math.max(0, current.count + (newLiked ? 1 : -1)), liked: newLiked } }));
-    setLocalLikes({ ...localLikes, [vehicleId]: Math.max(0, (localLikes[vehicleId] ?? current.count) + (newLiked ? 1 : -1)) });
-    setLocalLiked((previous) => ({ ...previous, [vehicleId]: newLiked }));
     try {
       const confirmedActorId = await getFirebaseActorId();
       if (confirmedActorId !== actorId || firebaseAuth?.currentUser?.uid !== actorId) {
@@ -656,16 +659,17 @@ function HomeContent() {
       if (newLiked) await set(likeRef, { user_id: actorId, vehicle_id: vehicleId, created_at: new Date().toISOString() });
       else await remove(likeRef);
     } catch (error) {
-      setLikeData((previous) => ({
-        ...previous,
-        [vehicleId]: { count: current.count, liked: current.liked },
-      }));
-      setLocalLikes((previous) => ({ ...previous, [vehicleId]: current.count }));
-      setLocalLiked((previous) => ({ ...previous, [vehicleId]: current.liked }));
+      let actual = { count: current.count, liked: current.liked };
+      try {
+        actual = await readVehicleLikeState(vehicleId, actorId);
+      } catch (readError) {
+        console.error("[v0] Firebase like state refresh failed", readError);
+      }
+      setLikeData((previous) => ({ ...previous, [vehicleId]: actual }));
       console.error("[v0] Firebase like write failed", error);
       toast.error("تعذر حفظ الإعجاب. تحقق من صلاحيات قاعدة البيانات ثم أعد المحاولة.");
     }
-  }, [firebaseActorId, effectiveLikeData, localLikes, setLocalLikes]);
+  }, [firebaseActorId, effectiveLikeData]);
 
   const handleFavorite = useCallback(async (item: Vehicle | null | undefined) => {
     if (!item?.id) return;
@@ -686,7 +690,13 @@ function HomeContent() {
       if (!isFav) await set(favoriteRef, { user_id: actorId, vehicle_id: vehicleId, created_at: new Date().toISOString() });
       else await remove(favoriteRef);
     } catch (error) {
-      setFavorites((prev) => ({ ...prev, [vehicleId]: isFav }));
+      let actual = isFav;
+      try {
+        actual = await readVehicleFavoriteState(vehicleId, actorId);
+      } catch (readError) {
+        console.error("[v0] Firebase favorite state refresh failed", readError);
+      }
+      setFavorites((previous) => ({ ...previous, [vehicleId]: actual }));
       console.error("[v0] Firebase favorite write failed", error);
       toast.error("تعذر حفظ الإعلان في المحفوظات. تحقق من صلاحيات قاعدة البيانات ثم أعد المحاولة.");
     }
@@ -774,7 +784,7 @@ function HomeContent() {
                       allVehicles={validVehicles}
 likeInfo={v?.id ? effectiveLikeData[v.id] ?? { count: v.likes ?? 0, liked: false } : undefined}
   isFavorite={v?.id ? effectiveFavorites[v.id] ?? false : false}
-  viewCount={v?.id ? effectiveViewData[v.id] ?? v.views ?? 0 : 0}
+  viewCount={v?.id ? effectiveViewData[v.id] ?? (viewsLoaded ? 0 : v.views ?? 0) : 0}
                     onLike={() => handleLike(v)}
                       onFavorite={() => handleFavorite(v)}
                       onView={() => handleView(v)}
@@ -796,9 +806,13 @@ likeInfo={v?.id ? effectiveLikeData[v.id] ?? { count: v.likes ?? 0, liked: false
                   <VehicleRenderBoundary key={v?.id ? `car-${v.id}` : `car-index-${index}`}>
                     <VehicleReelCard
                       vehicle={v}
-                      likeInfo={v?.id ? effectiveLikeData[v.id] : undefined}
-                      viewCount={v?.id ? effectiveViewData[v.id] ?? 0 : 0}
+                      likeInfo={v?.id ? effectiveLikeData[v.id] ?? { count: v.likes ?? 0, liked: false } : undefined}
+                      isFavorite={v?.id ? effectiveFavorites[v.id] ?? false : false}
+                      viewCount={v?.id ? effectiveViewData[v.id] ?? (viewsLoaded ? 0 : v.views ?? 0) : 0}
+                      commentCount={v?.id ? comments[v.id]?.length ?? v.comments_count ?? v.comments ?? 0 : 0}
                       onLike={() => handleLike(v)}
+                      onFavorite={() => handleFavorite(v)}
+                      onComments={() => openComments(v)}
                       onView={() => handleView(v)}
                     />
                   </VehicleRenderBoundary>
@@ -817,6 +831,7 @@ likeInfo={v?.id ? effectiveLikeData[v.id] ?? { count: v.likes ?? 0, liked: false
               commentText={commentText}
               onChange={setCommentText}
               onSubmit={submitFeedComment}
+              submitting={commentSubmitting}
             />
           ) : null}
         </DialogContent>
@@ -825,11 +840,12 @@ likeInfo={v?.id ? effectiveLikeData[v.id] ?? { count: v.likes ?? 0, liked: false
   );
 }
 
-function CommentList({ comments, commentText, onChange, onSubmit }: {
+function CommentList({ comments, commentText, onChange, onSubmit, submitting }: {
   comments: FeedComment[];
   commentText: string;
   onChange: (value: string) => void;
-  onSubmit: () => void;
+  onSubmit: () => void | Promise<void>;
+  submitting: boolean;
 }) {
   return (
     <>
@@ -840,14 +856,15 @@ function CommentList({ comments, commentText, onChange, onSubmit }: {
       </div>
       <div className="flex gap-2">
         <Input
+          aria-label="Write a comment"
           value={commentText}
           onChange={(event) => onChange(event.target.value)}
           placeholder="Write a comment"
           onKeyDown={(event) => {
-            if (event.key === "Enter" && !event.nativeEvent.isComposing && event.keyCode !== 229) onSubmit();
+            if (event.key === "Enter" && !event.nativeEvent.isComposing && event.keyCode !== 229) void onSubmit();
           }}
         />
-        <Button type="button" variant="gold" disabled={!commentText.trim()} onClick={onSubmit}>Post</Button>
+        <Button type="button" variant="gold" disabled={!commentText.trim() || submitting} onClick={() => { void onSubmit(); }}>{submitting ? "Sending…" : "Post"}</Button>
       </div>
     </>
   );
@@ -871,7 +888,7 @@ function VehicleCard({ vehicle: v, allVehicles, likeInfo, isFavorite, viewCount,
   const [imageIndex, setImageIndex] = useState(0);
   if (!v?.id) return null;
   const fallbackImage = "/my-logo.png.PNG";
-  const gallery = normalizeVehicleImages(v.photos, v.images, v.image_urls, v.image_url, v.thumbnail_url);
+  const gallery = normalizeVehicleImages(v.images, v.photos, v.image_urls, v.image, v.image_url, v.thumbnail_url);
   const imageUrl = gallery[imageIndex] ?? gallery[0] ?? fallbackImage;
   const moveImage = (event: MouseEvent, direction: number) => {
     event.preventDefault();
@@ -885,196 +902,153 @@ function VehicleCard({ vehicle: v, allVehicles, likeInfo, isFavorite, viewCount,
   const hasPriceDrop = v.previous_price && v.previous_price > price;
 
   return (
-    <Link
-      to="/vehicle/$id"
-      params={{ id: v.id }}
-      className="group premium-card rounded-xl overflow-hidden border border-gold/20 block relative"
-      onClick={onView}
-  >
+    <article className="group premium-card rounded-xl overflow-hidden border border-gold/20 relative">
       {v.status === "sold" && <SoldOverlay />}
 
       <div className="relative aspect-[4/3] overflow-hidden bg-charcoal">
-  <img
-  src={imageUrl}
-  alt={`${v.brand} ${v.model} — image ${imageIndex + 1} of ${Math.max(gallery.length, 1)}`}
-  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-  loading="lazy"
-  onError={(event) => {
-  if (event.currentTarget.src.endsWith(fallbackImage)) return;
-  event.currentTarget.src = fallbackImage;
-  }}
-  />
-  {gallery.length > 1 && (
-  <>
-  <button type="button" aria-label="Previous image" onClick={(event) => moveImage(event, -1)} className="absolute left-2 top-1/2 z-10 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-full bg-black/65 text-lg text-white">‹</button>
-  <button type="button" aria-label="Next image" onClick={(event) => moveImage(event, 1)} className="absolute right-2 top-1/2 z-10 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-full bg-black/65 text-lg text-white">›</button>
-  <div className="absolute bottom-2 left-1/2 z-10 -translate-x-1/2 rounded-full bg-black/65 px-2 py-0.5 text-[10px] text-white">{imageIndex + 1} / {gallery.length}</div>
-  </>
-  )}
-  {v.pinned && (
-          <div className="absolute top-2 left-2 bg-gold text-gold-foreground text-[9px] px-1.5 py-0.5 rounded-full font-bold flex items-center gap-0.5 z-10">
-            <Pin className="h-2.5 w-2.5" /> Pinned
-          </div>
+        <Link to="/vehicle/$id" params={{ id: v.id }} onClick={onView} aria-label={`View ${v.brand} ${v.model}`} className="absolute inset-0 z-0 block">
+          <img
+            src={imageUrl}
+            alt={`${v.brand} ${v.model} — image ${imageIndex + 1} of ${Math.max(gallery.length, 1)}`}
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+            loading="lazy"
+            onError={(event) => {
+              if (event.currentTarget.src.endsWith(fallbackImage)) return;
+              event.currentTarget.src = fallbackImage;
+            }}
+          />
+        </Link>
+        {gallery.length > 1 && (
+          <>
+            <button type="button" aria-label="Previous image" onClick={(event) => moveImage(event, -1)} className="absolute left-2 top-1/2 z-10 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-full bg-black/65 text-lg text-white">‹</button>
+            <button type="button" aria-label="Next image" onClick={(event) => moveImage(event, 1)} className="absolute right-2 top-1/2 z-10 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-full bg-black/65 text-lg text-white">›</button>
+            <div className="absolute bottom-2 left-1/2 z-10 -translate-x-1/2 rounded-full bg-black/65 px-2 py-0.5 text-[10px] text-white">{imageIndex + 1} / {gallery.length}</div>
+          </>
         )}
-        {v.video_url && (
-          <div className="absolute bottom-2 right-2 bg-black/70 rounded-full p-1">
-            <Play className="h-3 w-3 text-gold" />
-          </div>
-        )}
-        {v.price_type === "auction" && v.auction_ends_at && (
-          <div className="absolute top-2 left-2 bg-red-500/90 text-white text-[10px] px-2 py-0.5 rounded-full font-medium">
-            LIVE
-          </div>
-        )}
-
-        {/* Favorite bookmark */}
-        <button
-          onClick={(e) => { e.preventDefault(); e.stopPropagation(); onFavorite(); }}
-          className="absolute top-2 right-2 z-10"
-          aria-label="Save to watchlist"
-        >
+        {v.pinned && <div className="absolute top-2 left-2 z-10 flex items-center gap-0.5 rounded-full bg-gold px-1.5 py-0.5 text-[9px] font-bold text-gold-foreground"><Pin className="h-2.5 w-2.5" />Pinned</div>}
+        {v.video_url && <div className="absolute bottom-2 right-2 z-10 rounded-full bg-black/70 p-1"><Play className="h-3 w-3 text-gold" /></div>}
+        {v.price_type === "auction" && v.auction_ends_at && <div className="absolute top-2 left-2 z-10 rounded-full bg-red-500/90 px-2 py-0.5 text-[10px] text-white">LIVE</div>}
+        <button type="button" onClick={onFavorite} className="absolute top-2 right-2 z-10" aria-label="Save to watchlist">
           <Bookmark className={`h-5 w-5 ${isFavorite ? "text-gold fill-gold" : "text-white/80"} drop-shadow-lg`} />
         </button>
       </div>
 
       <div className="p-2.5 sm:p-3">
-        <div className="font-medium text-xs sm:text-sm mb-1 truncate">{v.brand} {v.model} ({v.year})</div>
-        <div className="text-[10px] sm:text-xs text-muted-foreground flex items-center gap-1.5 mb-1.5">
-          <MapPin className="h-3 w-3 shrink-0" />{v.wilaya}
-        </div>
-
-        {/* Deal badge */}
-        <div className="mb-1.5">
-          <DealBadge vehicle={v} allVehicles={allVehicles} />
-        </div>
-
-        {/* Price with drop */}
+        <Link to="/vehicle/$id" params={{ id: v.id }} onClick={onView} className="mb-1 block truncate text-xs font-medium sm:text-sm">{v.brand} {v.model} ({v.year})</Link>
+        <div className="mb-1.5 flex items-center gap-1.5 text-[10px] text-muted-foreground sm:text-xs"><MapPin className="h-3 w-3 shrink-0" />{v.wilaya}</div>
+        <div className="mb-1.5"><DealBadge vehicle={v} allVehicles={allVehicles} /></div>
         {hasPriceDrop ? (
           <div className="mb-1.5 flex items-center justify-between gap-1">
             <PriceDropTag vehicle={v} />
-            <button type="button" onClick={(event) => { event.preventDefault(); event.stopPropagation(); onPriceAlert(); }} className={`inline-flex items-center gap-1 text-[9px] ${priceAlert ? "text-gold" : "text-muted-foreground"}`} aria-label="Watch price"><Bell className={`h-3 w-3 ${priceAlert ? "fill-gold" : ""}`} />{priceAlert ? "Watching" : "Alert"}</button>
+            <button type="button" onClick={onPriceAlert} className={`inline-flex items-center gap-1 text-[9px] ${priceAlert ? "text-gold" : "text-muted-foreground"}`} aria-label="Watch price"><Bell className={`h-3 w-3 ${priceAlert ? "fill-gold" : ""}`} />{priceAlert ? "Watching" : "Alert"}</button>
           </div>
         ) : (
-          <div className="flex items-baseline gap-1.5 mb-1.5">
-            <span className="text-gold font-display text-sm sm:text-base">{formatDZD(price)}</span>
-            <span className="text-[9px] text-muted-foreground">{formatDZDArabic(price)}</span>
-          </div>
+          <div className="mb-1.5 flex items-baseline gap-1.5"><span className="text-sm text-gold font-display sm:text-base">{formatDZD(price)}</span><span className="text-[9px] text-muted-foreground">{formatDZDArabic(price)}</span></div>
         )}
-
-        {v.price_type === "auction" && v.auction_ends_at && (
-          <Countdown endsAt={v.auction_ends_at} />
-        )}
+        {v.price_type === "auction" && v.auction_ends_at && <Countdown endsAt={v.auction_ends_at} />}
 
         <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border/50 pt-2">
-          <button
-            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onLike(); }}
-            className="flex items-center gap-1 transition-transform active:scale-90"
-            aria-label="Like"
-          >
-            <Heart className={`h-4 w-4 ${liked ? "text-red-500 fill-red-500" : "text-muted-foreground"}`} />
-            <span className="text-[10px] text-muted-foreground">{likeCount}</span>
+          <button type="button" onClick={onLike} className="flex items-center gap-1 transition-transform active:scale-90" aria-label="Like">
+            <Heart className={`h-4 w-4 ${liked ? "text-red-500 fill-red-500" : "text-muted-foreground"}`} /><span className="text-[10px] text-muted-foreground">{likeCount}</span>
           </button>
-          <div className="flex items-center gap-1">
-            <Eye className="h-4 w-4 text-muted-foreground" />
-            <span className="text-[10px] text-muted-foreground">{viewCount || 0}</span>
-          </div>
-          <button type="button" onClick={(event) => { event.preventDefault(); event.stopPropagation(); onComments(); }} className="flex items-center gap-1 text-muted-foreground hover:text-gold" aria-label="Comments">
-            <MessageCircle className="h-4 w-4" /><span className="text-[10px]">{commentCount || 0}</span>
-          </button>
-          <AnalyzeWithGrandouButton listing={`${v.brand} ${v.model} ${v.year} - ${v.price} ${v.location ?? ""}`} />
+          <div className="flex items-center gap-1"><Eye className="h-4 w-4 text-muted-foreground" /><span className="text-[10px] text-muted-foreground">{viewCount || 0}</span></div>
+          <button type="button" onClick={onComments} className="flex items-center gap-1 text-muted-foreground hover:text-gold" aria-label="Comments"><MessageCircle className="h-4 w-4" /><span className="text-[10px]">{commentCount || 0}</span></button>
+          <AnalyzeWithGrandouButton listing={`${v.brand} ${v.model} ${v.year} - ${formatDZD(price)} ${v.wilaya}`} />
           <ShareButton title={`${v.brand} ${v.model} (${v.year})`} text="إعلان سيارة من GRAND Auto Luxe" path={`/vehicle/${v.id}`} />
-          <button
-            onClick={(e) => { e.preventDefault(); e.stopPropagation(); if (compare.includes(v.id) || compareStore.canAdd()) compareStore.toggle(v.id); }}
-            className={`ml-auto w-5 h-5 rounded-md border flex items-center justify-center transition ${
-              compare.includes(v.id) ? "bg-gold border-gold" : compareStore.canAdd() ? "border-gold/40 hover:border-gold" : "border-muted/30 opacity-40 cursor-not-allowed"
-            }`}
-            title={compare.includes(v.id) ? "Remove from compare" : compareStore.canAdd() ? "Add to compare" : "Compare is full (4/4)"}
-          >
+          <button type="button" onClick={() => { if (compare.includes(v.id) || compareStore.canAdd()) compareStore.toggle(v.id); }} className={`ml-auto flex size-5 items-center justify-center rounded-md border transition ${compare.includes(v.id) ? "bg-gold border-gold" : compareStore.canAdd() ? "border-gold/40 hover:border-gold" : "border-muted/30 opacity-40 cursor-not-allowed"}`} title={compare.includes(v.id) ? "Remove from compare" : compareStore.canAdd() ? "Add to compare" : "Compare is full (4/4)"}>
             {compare.includes(v.id) && <span className="text-black text-[8px] font-bold">✓</span>}
           </button>
         </div>
       </div>
-    </Link>
+    </article>
   );
 }
 
-function VehicleReelCard({ vehicle: v, likeInfo, viewCount, onLike, onView }: {
+function VehicleReelCard({ vehicle: v, likeInfo, isFavorite, viewCount, commentCount, onLike, onFavorite, onComments, onView }: {
   vehicle: Vehicle | null | undefined;
   likeInfo?: { count: number; liked: boolean };
+  isFavorite: boolean;
   viewCount: number;
+  commentCount: number;
   onLike: () => void;
+  onFavorite: () => void;
+  onComments: () => void;
   onView: () => void;
 }) {
   const [videoFailed, setVideoFailed] = useState(false);
+  const [showPhotos, setShowPhotos] = useState(false);
+  const [imageIndex, setImageIndex] = useState(0);
   if (!v?.id) return null;
   const likeCount = likeInfo?.count ?? 0;
   const liked = likeInfo?.liked ?? false;
   const price = priceOf(v);
-  const videoUrl = typeof v?.video_url === "string" && v.video_url.length > 0 ? v.video_url : null;
-  const imageUrl = Array.isArray(v?.images) && typeof v.images[0] === "string" && v.images[0].length > 0 ? v.images[0] : "/my-logo.png.PNG";
+  const videoUrl = typeof v.video_url === "string" && v.video_url.length > 0 ? v.video_url : null;
+  const gallery = normalizeVehicleImages(v.images, v.photos, v.image_urls, v.image, v.image_url, v.thumbnail_url);
+  const fallbackImage = "/my-logo.png.PNG";
+  const imageUrl = gallery[imageIndex] ?? gallery[0] ?? fallbackImage;
+  const showingVideo = Boolean(videoUrl && !videoFailed && !showPhotos);
 
   return (
-    <Link
-      to="/vehicle/$id"
-      params={{ id: v.id }}
-      className="group rounded-xl overflow-hidden border border-gold/20 block relative aspect-[9/16] bg-charcoal"
-      onClick={onView}
-  >
-      {videoUrl && !videoFailed ? (
-        <video
-          src={videoUrl}
-          poster={imageUrl}
-          className="w-full h-full object-cover"
-          muted
-          loop
-          playsInline
-          preload="metadata"
-          onError={() => setVideoFailed(true)}
-          onMouseOver={(event) => { void event.currentTarget.play().catch(() => undefined); }}
-          onMouseOut={(event) => event.currentTarget.pause()}
-        />
-      ) : (
-        <img
-          src={imageUrl}
-          alt={`${v.brand} ${v.model}`}
-          className="w-full h-full object-cover"
-          onError={(event) => {
-            const image = event.currentTarget;
-            if (image.dataset.fallbackApplied === "true") return;
-            image.dataset.fallbackApplied = "true";
-            image.src = "/my-logo.png.PNG";
-          }}
-        />
+    <article className="group relative aspect-[9/16] overflow-hidden rounded-xl border border-gold/20 bg-charcoal">
+      <Link to="/vehicle/$id" params={{ id: v.id }} onClick={onView} aria-label={`View ${v.brand} ${v.model}`} className="absolute inset-0 z-0 block">
+        {showingVideo ? (
+          <video
+            src={videoUrl ?? undefined}
+            poster={gallery[0] ?? fallbackImage}
+            className="h-full w-full object-cover"
+            muted
+            loop
+            playsInline
+            preload="metadata"
+            onError={() => setVideoFailed(true)}
+            onMouseOver={(event) => { void event.currentTarget.play().catch(() => undefined); }}
+            onMouseOut={(event) => event.currentTarget.pause()}
+          />
+        ) : (
+          <img
+            src={imageUrl}
+            alt={`${v.brand} ${v.model} — image ${imageIndex + 1} of ${Math.max(gallery.length, 1)}`}
+            className="h-full w-full object-cover"
+            loading="lazy"
+            onError={(event) => {
+              const image = event.currentTarget;
+              if (image.dataset.fallbackApplied === "true") return;
+              image.dataset.fallbackApplied = "true";
+              image.src = fallbackImage;
+            }}
+          />
+        )}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-transparent to-black/15" />
+      </Link>
+
+      {videoUrl && gallery.length > 0 && (
+        <button type="button" onClick={() => setShowPhotos((showing) => !showing)} className="absolute right-3 top-3 z-10 rounded-full bg-black/70 px-2.5 py-1 text-[10px] text-white" aria-label={showPhotos ? "Return to video" : "Show car photos"}>
+          {showPhotos ? "Video" : `Photos ${gallery.length}`}
+        </button>
+      )}
+      {!showingVideo && gallery.length > 1 && (
+        <>
+          <button type="button" aria-label="Previous image" onClick={() => setImageIndex((current) => (current - 1 + gallery.length) % gallery.length)} className="absolute left-2 top-1/2 z-10 grid size-8 -translate-y-1/2 place-items-center rounded-full bg-black/70 text-lg text-white">‹</button>
+          <button type="button" aria-label="Next image" onClick={() => setImageIndex((current) => (current + 1) % gallery.length)} className="absolute right-2 top-1/2 z-10 grid size-8 -translate-y-1/2 place-items-center rounded-full bg-black/70 text-lg text-white">›</button>
+          <div className="absolute left-1/2 top-3 z-10 -translate-x-1/2 rounded-full bg-black/70 px-2 py-0.5 text-[10px] text-white">{imageIndex + 1} / {gallery.length}</div>
+        </>
       )}
 
-      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
+      <div className="pointer-events-none absolute bottom-[4.25rem] left-0 right-0 p-3 text-white">
+        <div className="mb-1 font-display text-base sm:text-lg">{v.brand} {v.model}</div>
+        <div className="text-[10px] text-white/70 sm:text-xs">{v.year} · {v.wilaya}</div>
+        <div className="mt-1 flex items-baseline gap-1.5"><span className="text-sm text-gold font-display sm:text-base">{formatDZD(price)}</span><span className="text-[9px] text-white/60">{formatDZDArabic(price)}</span></div>
+      </div>
 
-      <div className="absolute bottom-0 left-0 right-0 p-3">
-        <div className="font-display text-base sm:text-lg mb-1">{v.brand} {v.model}</div>
-        <div className="text-[10px] sm:text-xs text-white/60">{v.year} · {v.wilaya}</div>
-        <div className="flex items-baseline gap-1.5 mt-1">
-          <span className="text-gold font-display text-sm sm:text-base">{formatDZD(price)}</span>
-          <span className="text-[9px] text-white/50">{formatDZDArabic(price)}</span>
-        </div>
-
-        <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-white/15 pt-2">
-          <button
-            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onLike(); }}
-            className="flex items-center gap-1"
-            aria-label="Like"
-          >
-            <Heart className={`h-4 w-4 ${liked ? "text-red-500 fill-red-500" : "text-white/80"}`} />
-            <span className="text-[10px] text-white/80">{likeCount}</span>
-          </button>
-          <div className="flex items-center gap-1">
-            <Eye className="h-4 w-4 text-white/80" />
-            <span className="text-[10px] text-white/80">{viewCount}</span>
-          </div>
-          <ShareButton title={`${v.brand} ${v.model}`} text="شاهد هذا الريل على GRAND Auto Luxe" path={`/vehicle/${v.id}`} className="text-white/80" />
-        </div>
+      <div className="absolute bottom-3 left-3 right-3 z-10 flex flex-wrap items-center gap-3 border-t border-white/20 pt-2 text-white/80">
+        <button type="button" onClick={onLike} className="flex items-center gap-1" aria-label="Like"><Heart className={`h-4 w-4 ${liked ? "fill-red-500 text-red-500" : "text-white/80"}`} /><span className="text-[10px]">{likeCount}</span></button>
+        <button type="button" onClick={onFavorite} className="flex items-center gap-1" aria-label="Save to watchlist"><Bookmark className={`h-4 w-4 ${isFavorite ? "fill-gold text-gold" : "text-white/80"}`} /></button>
+        <button type="button" onClick={onComments} className="flex items-center gap-1" aria-label="Comments"><MessageCircle className="h-4 w-4" /><span className="text-[10px]">{commentCount}</span></button>
+        <div className="flex items-center gap-1"><Eye className="h-4 w-4" /><span className="text-[10px]">{viewCount}</span></div>
+        <ShareButton title={`${v.brand} ${v.model}`} text="شاهد هذا الريل على GRAND Auto Luxe" path={`/vehicle/${v.id}`} className="text-white/80" />
       </div>
 
       {v.status === "sold" && <SoldOverlay />}
-    </Link>
+    </article>
   );
 }
