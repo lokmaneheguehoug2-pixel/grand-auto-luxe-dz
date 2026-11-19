@@ -8,7 +8,7 @@ import { calculateDeal, calculateGrandScore } from "@/lib/pricing";
 import { Flag, Calendar, Gauge, Fuel, Cog, Gavel, Trophy, Phone, MessageCircle, Lock, Pencil, Trash2, MapPin, Crown, CircleCheck, RotateCcw, Star, TrendingDown, Heart, Eye, Bookmark } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Countdown } from "@/components/Countdown";
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
 import { ChatDialog } from "@/components/ChatDialog";
@@ -17,6 +17,7 @@ import { PremiumPaywallModal } from "@/components/PremiumPaywallModal";
 import { ref, get, onValue, off, push, set, remove } from "firebase/database";
 import { auth as firebaseAuth, getFirebaseActorId, realtimeDb } from "@/lib/firebase";
 import { getFirebaseStore, normalizeVehicleImages } from "@/lib/firebase-data";
+import { addVehicleComment, readVehicleFavoriteState, readVehicleLikeState, recordVehicleViewOnce, subscribeVehicleComments, type VehicleComment } from "@/lib/vehicle-engagement";
 import { isVerifiedShowroom } from "@/lib/listing-interactions";
 
 function normalizeAlgPhone(raw: string): string {
@@ -57,6 +58,7 @@ type Vehicle = {
   status: string;
   description?: string;
   engine_type?: string;
+  views?: number;
 };
 
 type Bid = {
@@ -86,16 +88,6 @@ function VehicleDetail() {
   const auth = useAuth();
   const user = auth?.user;
   const access = auth?.access ?? "locked";
-  const [guestId] = useState(() => {
-    if (typeof window === "undefined") return "guest-preview";
-    const key = "grand-auto-luxe-guest-id";
-    const existing = window.localStorage.getItem(key);
-    if (existing) return existing;
-    const created = `guest-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    window.localStorage.setItem(key, created);
-    return created;
-  });
-  const viewerId = user?.id ?? user?.phone ?? guestId;
   const [v, setV] = useState<Vehicle | null>(null);
   const [vehicleLoadError, setVehicleLoadError] = useState(false);
   const [bids, setBids] = useState<Bid[]>([]);
@@ -106,50 +98,89 @@ function VehicleDetail() {
   const [reporting, setReporting] = useState(false);
   const [owner, setOwner] = useState<OwnerProfile | null>(null);
   const [allVehicles, setAllVehicles] = useState<any[]>([]);
-  const [viewCount, setViewCount] = useState(0);
+  const [viewCount, setViewCount] = useState<number | null>(null);
   const [inquiryCount, setInquiryCount] = useState(0);
   const [isFavorited, setIsFavorited] = useState(false);
   const [likeCount, setLikeCount] = useState(0);
   const [hasLiked, setHasLiked] = useState(false);
   const [commentOpen, setCommentOpen] = useState(false);
   const [commentText, setCommentText] = useState("");
-  const [comments, setComments] = useState<Array<{ id: string; text: string; createdAt: string }>>([]);
-  const viewedVehicleRef = useRef<string | null>(null);
-
-  // Record one Firebase view and subscribe to the live Firebase count.
-  useEffect(() => {
-    if (!id || !realtimeDb || viewedVehicleRef.current === id) return;
-    viewedVehicleRef.current = id;
-    const viewsRef = ref(realtimeDb, "vehicle_views");
-    const handleViews = (snapshot: { val: () => unknown }) => {
-      const raw = snapshot.val();
-      const rows = raw && typeof raw === "object" ? Object.values(raw as Record<string, unknown>) : [];
-      setViewCount(rows.filter((row) => (row as Record<string, unknown>)?.vehicle_id === id).length);
-    };
-    onValue(viewsRef, handleViews);
-    void set(push(viewsRef), { vehicle_id: id, viewer_id: viewerId, created_at: new Date().toISOString() });
-    return () => off(viewsRef, "value", handleViews);
-  }, [id, viewerId]);
+  const [commentSubmitting, setCommentSubmitting] = useState(false);
+  const [comments, setComments] = useState<VehicleComment[]>([]);
 
   useEffect(() => {
-    if (!id || !realtimeDb) return;
-    const commentsRef = ref(realtimeDb, `vehicle_comments/${id}`);
-    const handleComments = (snapshot: { val: () => unknown }) => {
-      const raw = snapshot.val();
-      const next = raw && typeof raw === "object" ? Object.entries(raw as Record<string, unknown>).map(([commentId, value]) => ({ id: commentId, text: String((value as Record<string, unknown>)?.text ?? ""), createdAt: String((value as Record<string, unknown>)?.createdAt ?? "") })).filter((comment) => comment.text) : [];
-      setComments(next);
+    const database = realtimeDb;
+    if (!id || !database) {
+      setViewCount(null);
+      return;
+    }
+    let cancelled = false;
+    let unsubscribe: (() => void) | undefined;
+    void getFirebaseActorId().then(async (actorId) => {
+      if (cancelled) return;
+      if (!actorId || firebaseAuth?.currentUser?.uid !== actorId) throw new Error("Firebase authentication is not ready");
+      const viewsRef = ref(database, "vehicle_views");
+      const handleViews = (snapshot: { val: () => unknown }) => {
+        const raw = snapshot.val();
+        const rows = raw && typeof raw === "object" ? Object.values(raw as Record<string, unknown>) : [];
+        setViewCount(rows.filter((row) => (row as Record<string, unknown>)?.vehicle_id === id).length);
+      };
+      onValue(viewsRef, handleViews, (error) => {
+        console.error("[v0] Vehicle views read failed", error);
+        setViewCount(null);
+      });
+      unsubscribe = () => off(viewsRef, "value", handleViews);
+      await recordVehicleViewOnce(id, actorId);
+    }).catch((error) => console.error("[v0] Failed to record vehicle view", error));
+    return () => {
+      cancelled = true;
+      unsubscribe?.();
     };
-    onValue(commentsRef, handleComments);
-    return () => off(commentsRef, "value", handleComments);
   }, [id]);
 
-  const submitComment = useCallback(() => {
+  useEffect(() => {
+    if (!id) return;
+    let cancelled = false;
+    let unsubscribe: (() => void) | undefined;
+    void getFirebaseActorId().then((actorId) => {
+      if (cancelled) return;
+      if (!actorId || firebaseAuth?.currentUser?.uid !== actorId) throw new Error("Firebase authentication is not ready");
+      unsubscribe = subscribeVehicleComments(id, setComments, (error) => {
+        console.error("[v0] Vehicle comments read failed", error);
+        toast.error("تعذر تحميل التعليقات من قاعدة البيانات.");
+      });
+    }).catch((error) => {
+      console.error("[v0] Failed to subscribe to vehicle comments", error);
+      toast.error("تعذر تحميل التعليقات من قاعدة البيانات.");
+    });
+    return () => {
+      cancelled = true;
+      unsubscribe?.();
+    };
+  }, [id]);
+
+  const submitComment = useCallback(async () => {
     const text = commentText.trim();
-    if (!id || !text) return;
-    if (!realtimeDb) return;
-    void set(push(ref(realtimeDb, `vehicle_comments/${id}`)), { text, createdAt: new Date().toISOString(), authorId: viewerId });
-    setCommentText("");
-  }, [commentText, comments, id]);
+    const actorId = firebaseAuth?.currentUser?.uid;
+    if (!id || !text || commentSubmitting) return;
+    if (!actorId || !realtimeDb) {
+      toast.error("جارٍ الاتصال بحساب Firebase. أعد المحاولة بعد لحظة.");
+      return;
+    }
+
+    setCommentSubmitting(true);
+    try {
+      const confirmedActorId = await getFirebaseActorId();
+      if (confirmedActorId !== actorId || firebaseAuth?.currentUser?.uid !== actorId) throw new Error("Firebase authentication changed during comment submission");
+      await addVehicleComment(id, actorId, text);
+      setCommentText("");
+    } catch (error) {
+      console.error("[v0] Firebase comment write failed", error);
+      toast.error("تعذر إرسال التعليق. تحقق من صلاحيات قاعدة البيانات ثم أعد المحاولة.");
+    } finally {
+      setCommentSubmitting(false);
+    }
+  }, [commentText, commentSubmitting, id]);
 
   // Inquiry counts use the Firebase compatibility layer; favorites use RTDB directly.
   useEffect(() => {
@@ -192,17 +223,23 @@ function VehicleDetail() {
     const database = realtimeDb;
     if (!id || !database) return;
     const next = !isFavorited;
+    let uid: string | null = null;
     setIsFavorited(next);
     try {
       const authenticatedUid = await getFirebaseActorId();
-      const uid = firebaseAuth?.currentUser?.uid;
+      uid = firebaseAuth?.currentUser?.uid ?? null;
       if (!uid || uid !== authenticatedUid) throw new Error("Firebase authentication is not ready");
       const favoriteRef = ref(database, `vehicleFavorites/${id}/${uid}`);
       if (next) await set(favoriteRef, { user_id: uid, vehicle_id: id, created_at: new Date().toISOString() });
       else await remove(favoriteRef);
       toast.success(next ? "Added to saved listings" : "Removed from saved listings");
     } catch (error) {
-      setIsFavorited(!next);
+      let actual = !next;
+      if (uid) {
+        try { actual = await readVehicleFavoriteState(id, uid); }
+        catch (readError) { console.error("[v0] Favorite state refresh failed", readError); }
+      }
+      setIsFavorited(actual);
       console.error("[v0] Favorite write failed", error);
       toast.error("تعذر تحديث المحفوظات. تحقق من صلاحيات قاعدة البيانات.");
     }
@@ -238,23 +275,30 @@ function VehicleDetail() {
     const database = realtimeDb;
     if (!id || !database) return;
     const wasLiked = hasLiked;
+    const previousCount = likeCount;
     const next = !wasLiked;
+    let uid: string | null = null;
     setHasLiked(next);
     setLikeCount((count) => Math.max(0, count + (next ? 1 : -1)));
     try {
       const authenticatedUid = await getFirebaseActorId();
-      const uid = firebaseAuth?.currentUser?.uid;
+      uid = firebaseAuth?.currentUser?.uid ?? null;
       if (!uid || uid !== authenticatedUid) throw new Error("Firebase authentication is not ready");
       const likeRef = ref(database, `vehicleLikes/${id}/${uid}`);
       if (next) await set(likeRef, { user_id: uid, vehicle_id: id, created_at: new Date().toISOString() });
       else await remove(likeRef);
     } catch (error) {
-      setHasLiked(wasLiked);
-      setLikeCount((count) => Math.max(0, count + (wasLiked ? 1 : -1)));
+      let actual = { count: previousCount, liked: wasLiked };
+      if (uid) {
+        try { actual = await readVehicleLikeState(id, uid); }
+        catch (readError) { console.error("[v0] Like state refresh failed", readError); }
+      }
+      setHasLiked(actual.liked);
+      setLikeCount(actual.count);
       console.error("[v0] Like write failed", error);
       toast.error("تعذر تحديث الإعجاب. تحقق من تسجيل الدخول وصلاحيات قاعدة البيانات.");
     }
-  }, [hasLiked, id]);
+  }, [hasLiked, id, likeCount]);
 
   useEffect(() => {
     if (!realtimeDb) {
@@ -313,7 +357,7 @@ function VehicleDetail() {
           brand: data.brand || "Unknown", model: data.model || "", year: data.year || 0,
           mileage: data.mileage ?? 0, fuel_type: data.fuel_type || "N/A", transmission: data.transmission || "N/A",
           wilaya: data.wilaya || "N/A", phone: data.phone || "", sellerPhone: data.seller_phone || data.sellerPhone || "",
-          sellerId: data.seller_id || data.sellerId || "", images: normalizeVehicleImages(data.images, data.photos, data.image_urls, data.image_url, data.thumbnail_url),
+          sellerId: data.seller_id || data.sellerId || "", images: normalizeVehicleImages(data.images, data.photos, data.image_urls, data.image, data.image_url, data.thumbnail_url),
           video_url: data.video_url || null, fixed_price: data.fixed_price ?? null, starting_price: data.starting_price ?? null,
           current_highest_bid: data.current_highest_bid ?? null, current_highest_bidder: data.current_highest_bidder ?? null,
           auction_ends_at: data.auction_ends_at ?? null, status: data.status || "active",
@@ -344,8 +388,7 @@ function VehicleDetail() {
         if (data) {
           window.clearTimeout(timeout);
           setVehicleLoadError(false);
-          setViewCount(Number(data.views ?? 0));
-          setLikeCount(Number(data.likes ?? 0));
+          if (!realtimeDb) setLikeCount(Number(data.likes ?? 0));
           setInquiryCount(Number(data.inquiry_count ?? data.inquiries ?? 0));
           setV({
             ...data,
@@ -360,7 +403,7 @@ function VehicleDetail() {
             phone: data.phone || "",
             sellerPhone: data.sellerPhone || "",
             sellerId: data.sellerId || "",
-            images: normalizeVehicleImages(data.images, data.photos, data.image_urls, data.image_url, data.thumbnail_url),
+            images: normalizeVehicleImages(data.images, data.photos, data.image_urls, data.image, data.image_url, data.thumbnail_url),
             video_url: data.video_url || null,
             fixed_price: data.fixed_price ?? null,
             starting_price: data.starting_price ?? null,
@@ -651,7 +694,7 @@ function VehicleDetail() {
             <span className={hasLiked ? "text-red-500" : "text-muted-foreground"}>{likeCount}</span>
           </button>
           <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-            <Eye className="h-4 w-4" /> {viewCount} views
+            <Eye className="h-4 w-4" /> {viewCount ?? v.views ?? 0} views
           </div>
           <button type="button" onClick={() => setCommentOpen(true)} className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-gold">
             <MessageCircle className="h-4 w-4" /> {comments.length} comments
@@ -883,7 +926,7 @@ function VehicleDetail() {
           <div className="max-h-64 overflow-y-auto space-y-2">
             {comments.length === 0 ? <p className="text-sm text-muted-foreground">No comments yet.</p> : comments.map((comment) => <div key={comment.id} className="rounded-lg bg-charcoal px-3 py-2 text-sm">{comment.text}</div>)}
           </div>
-          <div className="flex gap-2"><Input value={commentText} onChange={(event) => setCommentText(event.target.value)} placeholder="Write a comment" onKeyDown={(event) => { if (event.key === "Enter" && !event.nativeEvent.isComposing && event.keyCode !== 229) submitComment(); }} /><Button type="button" variant="gold" onClick={submitComment} disabled={!commentText.trim()}>Post</Button></div>
+          <div className="flex gap-2"><Input aria-label="Write a comment" value={commentText} onChange={(event) => setCommentText(event.target.value)} placeholder="Write a comment" onKeyDown={(event) => { if (event.key === "Enter" && !event.nativeEvent.isComposing && event.keyCode !== 229) void submitComment(); }} /><Button type="button" variant="gold" onClick={() => { void submitComment(); }} disabled={!commentText.trim() || commentSubmitting}>{commentSubmitting ? "Sending…" : "Post"}</Button></div>
         </DialogContent>
       </Dialog>
 
