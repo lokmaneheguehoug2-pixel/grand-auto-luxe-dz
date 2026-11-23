@@ -603,20 +603,33 @@ function VehicleDetail() {
     }
   };
 
+  const gallery = normalizeVehicleImages(v);
+  const fallbackImage = "/my-logo.png.PNG";
+
   return (
     <div className="pb-20">
       {/* Gallery */}
       <div className="max-w-4xl mx-auto px-4 sm:px-6 pt-6">
-        {v.images && v.images.length > 0 ? (
+        {gallery.length > 0 ? (
           <Carousel className="w-full">
             <CarouselContent>
-              {v.images.map((url, i) => (
-                <CarouselItem key={i}>
-                  <img src={url} alt={`${v.brand} ${v.model} ${i + 1}`} className="w-full aspect-[4/3] object-cover rounded-xl" />
+              {gallery.map((url, i) => (
+                <CarouselItem key={`${url}-${i}`}>
+                  <img
+                    src={url}
+                    alt={`${v.brand} ${v.model} ${i + 1}`}
+                    className="w-full aspect-[4/3] object-cover rounded-xl"
+                    onError={(event) => {
+                      const image = event.currentTarget;
+                      if (image.dataset.fallbackApplied === "true") return;
+                      image.dataset.fallbackApplied = "true";
+                      image.src = fallbackImage;
+                    }}
+                  />
                 </CarouselItem>
               ))}
             </CarouselContent>
-            {v.images.length > 1 && (
+            {gallery.length > 1 && (
               <>
                 <CarouselPrevious className="left-2 bg-black/70 border-gold/40 text-gold hover:bg-black/90" />
                 <CarouselNext className="right-2 bg-black/70 border-gold/40 text-gold hover:bg-black/90" />

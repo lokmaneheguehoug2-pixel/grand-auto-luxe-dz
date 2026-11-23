@@ -90,23 +90,24 @@ export async function fetchPlatformSettings(): Promise<Record<string, unknown> |
 }
 
 export function normalizeVehicleImages(...values: unknown[]): string[] {
-  const urls: string[] = [];
+  const urls = new Set<string>();
   const visit = (value: unknown) => {
     if (typeof value === "string") {
-      value.split(/[\n,|]+/).map((item) => item.trim()).filter(Boolean).forEach((url) => {
-        if (/^(https?:|data:image\/|blob:)\S+$/i.test(url) && !urls.includes(url)) urls.push(url);
+      value.split(/[\n,|]+/).forEach((item) => {
+        const url = item.trim();
+        if (/^(https?:|data:image\/|blob:)\S+$/i.test(url)) urls.add(url);
       });
       return;
     }
-    if (Array.isArray(value)) { value.forEach(visit); return; }
+    if (Array.isArray(value)) {
+      value.forEach(visit);
+      return;
+    }
     if (value && typeof value === "object") {
       const record = value as Record<string, unknown>;
-      [record.url, record.secure_url, record.downloadURL, record.src, record.image_url, record.imageUrl, record.photo_url, record.photoUrl, record.download_url, record.path].forEach(visit);
-      Object.entries(record).forEach(([key, item]) => {
-        if (!["url", "secure_url", "downloadURL", "src", "image_url"].includes(key)) visit(item);
-      });
+      ["images", "photos", "image_urls", "image", "url", "secure_url", "downloadURL", "src", "image_url", "imageUrl", "photo_url", "photoUrl", "download_url", "path"].forEach((key) => visit(record[key]));
     }
   };
   values.forEach(visit);
-  return urls;
+  return [...urls];
 }
