@@ -888,7 +888,7 @@ function VehicleCard({ vehicle: v, allVehicles, likeInfo, isFavorite, viewCount,
   const [imageIndex, setImageIndex] = useState(0);
   if (!v?.id) return null;
   const fallbackImage = "/my-logo.png.PNG";
-  const gallery = normalizeVehicleImages(v.images, v.photos, v.image_urls, v.image, v.image_url, v.thumbnail_url);
+  const gallery = normalizeVehicleImages(v);
   const imageUrl = gallery[imageIndex] ?? gallery[0] ?? fallbackImage;
   const moveImage = (event: MouseEvent, direction: number) => {
     event.preventDefault();
@@ -983,7 +983,7 @@ function VehicleReelCard({ vehicle: v, likeInfo, isFavorite, viewCount, commentC
   const liked = likeInfo?.liked ?? false;
   const price = priceOf(v);
   const videoUrl = typeof v.video_url === "string" && v.video_url.length > 0 ? v.video_url : null;
-  const gallery = normalizeVehicleImages(v.images, v.photos, v.image_urls, v.image, v.image_url, v.thumbnail_url);
+  const gallery = normalizeVehicleImages(v);
   const fallbackImage = "/my-logo.png.PNG";
   const imageUrl = gallery[imageIndex] ?? gallery[0] ?? fallbackImage;
   const showingVideo = Boolean(videoUrl && !videoFailed && !showPhotos);
