@@ -91,6 +91,7 @@ export async function fetchPlatformSettings(): Promise<Record<string, unknown> |
 
 export function normalizeVehicleImages(...values: unknown[]): string[] {
   const urls = new Set<string>();
+  const visited = new WeakSet<object>();
   const visit = (value: unknown) => {
     if (typeof value === "string") {
       value.split(/[\n,|]+/).forEach((item) => {
@@ -99,15 +100,25 @@ export function normalizeVehicleImages(...values: unknown[]): string[] {
       });
       return;
     }
+    if (!value || typeof value !== "object" || visited.has(value)) return;
+    visited.add(value);
     if (Array.isArray(value)) {
       value.forEach(visit);
       return;
     }
-    if (value && typeof value === "object") {
-      const record = value as Record<string, unknown>;
-      ["images", "photos", "image_urls", "image", "url", "secure_url", "downloadURL", "src", "image_url", "imageUrl", "photo_url", "photoUrl", "download_url", "path"].forEach((key) => visit(record[key]));
-    }
+    const record = value as Record<string, unknown>;
+    ["images", "photos", "image_urls", "image", "url", "secure_url", "downloadURL", "src", "image_url", "imageUrl", "photo_url", "photoUrl", "download_url", "path"].forEach((key) => {
+      try {
+        visit(record[key]);
+      } catch {
+        return;
+      }
+    });
   };
-  values.forEach(visit);
+  try {
+    values.forEach(visit);
+  } catch {
+    return [];
+  }
   return [...urls];
 }

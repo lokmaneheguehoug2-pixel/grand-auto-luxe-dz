@@ -408,18 +408,41 @@ function HomeContent() {
   const database = realtimeDb;
   if (!database) return;
   const vehiclePaths = ["vehicles", "listings", "advertisements", "cars"];
+  const initializedPaths = new Set<string>();
+  let hasFeedData = false;
+  const finishEmptyFeed = () => {
+    if (!hasFeedData && initializedPaths.size === vehiclePaths.length) handleSnapshot({});
+  };
   const handles = vehiclePaths.map((path) => {
     const vehiclesRef = ref(database, path);
     const handleValue = (snapshot: { val: () => unknown }) => {
       const value = snapshot.val();
-      if (value && typeof value === "object" && Object.keys(value as Record<string, unknown>).length > 0) handleSnapshot(value);
+      initializedPaths.add(path);
+      if (value && typeof value === "object" && Object.keys(value as Record<string, unknown>).length > 0) {
+        hasFeedData = true;
+        handleSnapshot(value);
+      } else {
+        finishEmptyFeed();
+      }
     };
     const handleError = (error: Error) => {
       console.warn(`[v0] Firebase ${path} unavailable`, error.message);
       void fetch(`${FIREBASE_DATABASE_URL}/${path}.json`)
         .then((response) => response.ok ? response.json() : null)
-        .then((value) => { if (value && typeof value === "object") handleSnapshot(value); })
-        .catch((fallbackError) => console.warn("[v0] Firebase REST fallback failed", fallbackError));
+        .then((value) => {
+          initializedPaths.add(path);
+          if (value && typeof value === "object" && Object.keys(value as Record<string, unknown>).length > 0) {
+            hasFeedData = true;
+            handleSnapshot(value);
+          } else {
+            finishEmptyFeed();
+          }
+        })
+        .catch((fallbackError) => {
+          console.warn("[v0] Firebase REST fallback failed", fallbackError);
+          initializedPaths.add(path);
+          finishEmptyFeed();
+        });
     };
     onValue(vehiclesRef, handleValue, handleError);
     return () => off(vehiclesRef, "value", handleValue);

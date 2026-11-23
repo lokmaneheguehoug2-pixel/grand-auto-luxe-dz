@@ -31,6 +31,7 @@ const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
 export function StoriesStrip() {
   const { user, access, isAdmin } = useAuth();
   const [stories, setStories] = useState<Story[]>([]);
+  const [failedVideoIds, setFailedVideoIds] = useState<Set<string>>(() => new Set());
   const [viewingIndex, setViewingIndex] = useState<number | null>(null);
 
   useEffect(() => {
@@ -43,25 +44,28 @@ export function StoriesStrip() {
         if (!data) { setStories([]); return; }
 
         const now = Date.now();
-        const allStories = Object.entries(data)
-          .map(([id, s]: [string, any]) => ({
-            id,
-            authorId: s?.authorId || "",
-            authorPhone: s?.authorPhone || "",
-            videoUrl: s?.videoUrl || "",
-            caption: s?.caption || null,
-            createdAt: s?.createdAt || new Date().toISOString(),
-            duration: s?.duration,
-            quotaMonth: s?.quotaMonth,
-            vehicleId: s?.vehicleId || null,
-            vehicleTitle: s?.vehicleTitle || null,
-            likedBy: Array.isArray(s?.likedBy) ? s.likedBy : [],
-          }))
-          .filter((s) => {
-            const age = now - new Date(s.createdAt).getTime();
-            return age < TWENTY_FOUR_HOURS_MS;
+        const allStories = Object.entries(data as Record<string, unknown>)
+          .flatMap(([id, value]) => {
+            if (!value || typeof value !== "object" || Array.isArray(value)) return [];
+            const story = value as Record<string, unknown>;
+            const parsedCreatedAt = typeof story.createdAt === "string" ? Date.parse(story.createdAt) : Number.NaN;
+            const createdAt = new Date(Number.isFinite(parsedCreatedAt) ? parsedCreatedAt : now).toISOString();
+            if (now - Date.parse(createdAt) >= TWENTY_FOUR_HOURS_MS) return [];
+            return [{
+              id,
+              authorId: typeof story.authorId === "string" ? story.authorId : "",
+              authorPhone: typeof story.authorPhone === "string" ? story.authorPhone : "",
+              videoUrl: typeof story.videoUrl === "string" ? story.videoUrl : "",
+              caption: typeof story.caption === "string" ? story.caption : null,
+              createdAt,
+              duration: Number.isFinite(Number(story.duration)) ? Number(story.duration) : undefined,
+              quotaMonth: typeof story.quotaMonth === "string" ? story.quotaMonth : null,
+              vehicleId: typeof story.vehicleId === "string" ? story.vehicleId : null,
+              vehicleTitle: typeof story.vehicleTitle === "string" ? story.vehicleTitle : null,
+              likedBy: Array.isArray(story.likedBy) ? story.likedBy.filter((item): item is string => typeof item === "string") : [],
+            }];
           })
-          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+          .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
           .slice(0, 20);
 
         const authorPhones = Array.from(new Set(allStories.map((s) => s.authorPhone).filter(Boolean)));
@@ -227,13 +231,14 @@ export function StoriesStrip() {
               return (
                 <div key={s.id} className="shrink-0 w-20 group cursor-pointer" onClick={() => setViewingIndex(i)}>
                   <div className="relative h-28 w-20 rounded-xl overflow-hidden gold-border bg-black">
-                    {s.videoUrl ? (
+                    {s.videoUrl && !failedVideoIds.has(s.id) ? (
                       <video
                         src={s.videoUrl}
                         className="h-full w-full object-cover"
                         muted
                         playsInline
                         preload="metadata"
+                        onError={() => setFailedVideoIds((current) => new Set(current).add(s.id))}
                         onMouseEnter={(e) => (e.currentTarget as HTMLVideoElement).play().catch(() => {})}
                         onMouseLeave={(e) => { const v = e.currentTarget as HTMLVideoElement; v.pause(); v.currentTime = 0; }}
                       />
@@ -308,6 +313,7 @@ function FullScreenStoryViewer({
   const [index, setIndex] = useState(startIndex);
   const [replyText, setReplyText] = useState("");
   const [progress, setProgress] = useState(0);
+  const [failedVideoId, setFailedVideoId] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const progressTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const current = stories[index];
@@ -400,18 +406,27 @@ function FullScreenStoryViewer({
 
       {/* Video - full screen 16:9, no whitespace */}
       <div className="relative w-full h-full flex items-center justify-center bg-black">
-        <video
-          ref={videoRef}
-          src={current.videoUrl}
-          autoPlay
-          playsInline
-          className="w-full h-full object-contain bg-black"
-          onEnded={goNext}
-          onClick={(e) => {
-            const v = e.currentTarget;
-            if (v.paused) v.play().catch(() => {}); else v.pause();
-          }}
-        />
+        {failedVideoId === current.id ? (
+          <div className="flex flex-col items-center gap-3 text-gold/70" role="status">
+            <Film className="h-12 w-12" />
+            <span className="text-sm">تعذر تشغيل القصة</span>
+          </div>
+        ) : (
+          <video
+            key={current.id}
+            ref={videoRef}
+            src={current.videoUrl}
+            autoPlay
+            playsInline
+            className="w-full h-full object-contain bg-black"
+            onError={() => setFailedVideoId(current.id)}
+            onEnded={goNext}
+            onClick={(e) => {
+              const v = e.currentTarget;
+              if (v.paused) v.play().catch(() => {}); else v.pause();
+            }}
+          />
+        )}
 
         {/* Author info overlay - top left */}
         <div className="absolute top-10 left-4 z-20 flex items-center gap-2">
