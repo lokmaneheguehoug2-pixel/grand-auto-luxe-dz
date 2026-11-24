@@ -268,14 +268,6 @@ function HomeContent() {
   const shuffleSeed = useRef<string>("");
 
   useEffect(() => {
-    if (firebaseAuth?.currentUser?.uid) {
-      setFirebaseActorId(firebaseAuth.currentUser.uid);
-      return;
-    }
-    void getFirebaseActorId().then(setFirebaseActorId).catch((error) => console.warn("[v0] Firebase sign-in failed", error));
-  }, []);
-
-  useEffect(() => {
 
     const handleSnapshot = (data: unknown) => {
       try {
@@ -373,6 +365,24 @@ function HomeContent() {
     };
     void loadRestVehicles();
 
+    if (realtimeDb && !firebaseAuth?.currentUser?.uid) {
+      void getFirebaseActorId()
+        .then((actorId) => {
+          if (!cancelled) setFirebaseActorId(actorId);
+        })
+        .catch((error) => {
+          console.warn("[v0] Firebase sign-in failed", error);
+          if (cancelled) return;
+          setVehicles([]);
+          setVehiclesError(true);
+          setLoading(false);
+        });
+      return () => { cancelled = true; };
+    }
+
+    const currentActorId = firebaseAuth?.currentUser?.uid;
+    if (currentActorId && firebaseActorId !== currentActorId) setFirebaseActorId(currentActorId);
+
     if (!realtimeDb) {
       const loadFromFirebase = async () => {
         const client = getFirebaseStore();
@@ -457,7 +467,7 @@ function HomeContent() {
     return () => off(vehiclesRef, "value", handleValue);
   });
   return () => { cancelled = true; handles.forEach((unsubscribe) => unsubscribe()); };
-  }, [vehiclesRetryKey]);
+  }, [vehiclesRetryKey, firebaseActorId]);
 
   const loadLikes = useCallback(async () => {
     if (realtimeDb) return;
