@@ -48,69 +48,92 @@ function ReelsPage() {
       setLoading(false);
       return;
     }
+
+    let isCurrent = true;
+    const reelsRef = ref(realtimeDb, "reels");
     setError(false);
     setLoading(true);
-    const reelsRef = ref(realtimeDb, "reels");
 
-    const handleSnapshot = async (snapshot: { val: () => Record<string, any> | null }) => {
-      const data = snapshot.val();
-      if (!data) {
-        setReels([]);
-        setLoading(false);
-        return;
-      }
-
-      const reelList: Reel[] = Object.entries(data)
-        .filter(([, v]) => Boolean(v && typeof v === "object"))
-        .map(([id, raw]) => {
-          const v = raw as Record<string, unknown>;
-          return {
-        id,
-        authorId: typeof v.authorId === "string" ? v.authorId : "",
-        authorPhone: typeof v.authorPhone === "string" ? v.authorPhone : "",
-        videoUrl: typeof v.videoUrl === "string" ? v.videoUrl : "",
-        caption: typeof v.caption === "string" ? v.caption : null,
-        vehicleId: typeof v.vehicleId === "string" ? v.vehicleId : null,
-        likesCount: Number(v.likesCount) || 0,
-        viewsCount: Number(v.viewsCount) || 0,
-        createdAt: typeof v.createdAt === "string" ? v.createdAt : new Date(0).toISOString(),
-          };
-        })
-        .filter((reel) => Boolean(reel.id && reel.videoUrl));
-
-      reelList.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-
-      const authorPhones = Array.from(new Set(reelList.map((r) => r.authorPhone)));
-      const profilePromises = authorPhones.map((phone) =>
-        get(ref(realtimeDb, `users/${phone}`)),
-      );
-      const profileSnaps = await Promise.all(profilePromises);
-
-      const profileMap = new Map<string, any>();
-      authorPhones.forEach((phone, i) => {
-        if (profileSnaps[i].exists()) {
-          profileMap.set(phone, profileSnaps[i].val());
-        }
-      });
-
-      const reelsWithAuthors = reelList.map((r) => ({
-        ...r,
-        author: profileMap.get(r.authorPhone),
-      }));
-
-      setReels(reelsWithAuthors);
-      setError(false);
+    const timeoutId = window.setTimeout(() => {
+      if (!isCurrent) return;
+      setError(true);
       setLoading(false);
-    };
+    }, 12000);
 
-    onValue(reelsRef, handleSnapshot, () => {
-      console.error("[v0] Failed to load reels");
+    const fail = (error: unknown) => {
+      if (!isCurrent) return;
+      console.error("[v0] Failed to load reels", error);
+      window.clearTimeout(timeoutId);
       setReels([]);
       setError(true);
       setLoading(false);
-    });
+    };
 
-    return () => off(reelsRef);
+    const handleSnapshot = async (snapshot: { val: () => Record<string, unknown> | null }) => {
+      try {
+        const data = snapshot.val();
+        if (!data) {
+          if (!isCurrent) return;
+          window.clearTimeout(timeoutId);
+          setReels([]);
+          setLoading(false);
+          return;
+        }
+
+        const reelList: Reel[] = Object.entries(data)
+          .filter(([, value]) => Boolean(value && typeof value === "object"))
+          .map(([id, raw]) => {
+            const value = raw as Record<string, unknown>;
+            return {
+              id,
+              authorId: typeof value.authorId === "string" ? value.authorId : "",
+              authorPhone: typeof value.authorPhone === "string" ? value.authorPhone : "",
+              videoUrl: typeof value.videoUrl === "string" ? value.videoUrl : "",
+              caption: typeof value.caption === "string" ? value.caption : null,
+              vehicleId: typeof value.vehicleId === "string" ? value.vehicleId : null,
+              likesCount: Number(value.likesCount) || 0,
+              viewsCount: Number(value.viewsCount) || 0,
+              createdAt: typeof value.createdAt === "string" ? value.createdAt : new Date(0).toISOString(),
+            };
+          })
+          .filter((reel) => Boolean(reel.id && reel.videoUrl));
+
+        reelList.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+        const authorPhones = Array.from(new Set(reelList.map((reel) => reel.authorPhone).filter(Boolean)));
+        const profileResults = await Promise.allSettled(
+          authorPhones.map((phone) => get(ref(realtimeDb, `users/${phone}`))),
+        );
+        if (!isCurrent) return;
+
+        const profileMap = new Map<string, { first_name: string; last_name: string; phone: string }>();
+        authorPhones.forEach((phone, index) => {
+          const result = profileResults[index];
+          if (result?.status === "fulfilled" && result.value.exists()) {
+            const profile = result.value.val();
+            profileMap.set(phone, {
+              first_name: typeof profile?.first_name === "string" ? profile.first_name : "",
+              last_name: typeof profile?.last_name === "string" ? profile.last_name : "",
+              phone,
+            });
+          }
+        });
+
+        window.clearTimeout(timeoutId);
+        setReels(reelList.map((reel) => ({ ...reel, author: profileMap.get(reel.authorPhone) })));
+        setError(false);
+        setLoading(false);
+      } catch (error) {
+        fail(error);
+      }
+    };
+
+    onValue(reelsRef, handleSnapshot, fail);
+    return () => {
+      isCurrent = false;
+      window.clearTimeout(timeoutId);
+      off(reelsRef);
+    };
   }, [retryKey]);
 
   return (
