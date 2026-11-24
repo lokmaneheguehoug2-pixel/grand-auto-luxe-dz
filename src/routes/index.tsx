@@ -268,14 +268,6 @@ function HomeContent() {
   const shuffleSeed = useRef<string>("");
 
   useEffect(() => {
-    if (firebaseAuth?.currentUser?.uid) {
-      setFirebaseActorId(firebaseAuth.currentUser.uid);
-      return;
-    }
-    void getFirebaseActorId().then(setFirebaseActorId).catch((error) => console.warn("[v0] Firebase sign-in failed", error));
-  }, []);
-
-  useEffect(() => {
 
     const handleSnapshot = (data: unknown) => {
       try {
@@ -373,6 +365,24 @@ function HomeContent() {
     };
     void loadRestVehicles();
 
+    if (realtimeDb && !firebaseAuth?.currentUser?.uid) {
+      void getFirebaseActorId()
+        .then((actorId) => {
+          if (!cancelled) setFirebaseActorId(actorId);
+        })
+        .catch((error) => {
+          console.warn("[v0] Firebase sign-in failed", error);
+          if (cancelled) return;
+          setVehicles([]);
+          setVehiclesError(true);
+          setLoading(false);
+        });
+      return () => { cancelled = true; };
+    }
+
+    const currentActorId = firebaseAuth?.currentUser?.uid;
+    if (currentActorId && firebaseActorId !== currentActorId) setFirebaseActorId(currentActorId);
+
     if (!realtimeDb) {
       const loadFromFirebase = async () => {
         const client = getFirebaseStore();
@@ -410,8 +420,16 @@ function HomeContent() {
   const vehiclePaths = ["vehicles", "listings", "advertisements", "cars"];
   const initializedPaths = new Set<string>();
   let hasFeedData = false;
+  let primaryFeedUnavailable = false;
   const finishEmptyFeed = () => {
-    if (!hasFeedData && initializedPaths.size === vehiclePaths.length) handleSnapshot({});
+    if (hasFeedData || initializedPaths.size !== vehiclePaths.length) return;
+    if (primaryFeedUnavailable) {
+      setVehicles([]);
+      setVehiclesError(true);
+      setLoading(false);
+      return;
+    }
+    handleSnapshot({});
   };
   const handles = vehiclePaths.map((path) => {
     const vehiclesRef = ref(database, path);
@@ -427,6 +445,7 @@ function HomeContent() {
     };
     const handleError = (error: Error) => {
       console.warn(`[v0] Firebase ${path} unavailable`, error.message);
+      if (path === "vehicles") primaryFeedUnavailable = true;
       void fetch(`${FIREBASE_DATABASE_URL}/${path}.json`)
         .then((response) => response.ok ? response.json() : null)
         .then((value) => {
@@ -448,7 +467,7 @@ function HomeContent() {
     return () => off(vehiclesRef, "value", handleValue);
   });
   return () => { cancelled = true; handles.forEach((unsubscribe) => unsubscribe()); };
-  }, [vehiclesRetryKey]);
+  }, [vehiclesRetryKey, firebaseActorId]);
 
   const loadLikes = useCallback(async () => {
     if (realtimeDb) return;
@@ -793,7 +812,7 @@ function HomeContent() {
               </div>
             ) : vehiclesError ? (
               <div className="premium-card rounded-xl p-8 text-center">
-                <p className="text-muted-foreground">تعذر تحميل السيارات.</p>
+                <p className="text-muted-foreground">تعذّر الوصول إلى إعلانات السيارات الآن. حاول مرة أخرى لاحقًا.</p>
                 <Button variant="gold" size="sm" className="mt-4" onClick={() => { setVehiclesError(false); setLoading(true); setVehiclesRetryKey((key) => key + 1); }}>إعادة المحاولة</Button>
               </div>
             ) : filtered.length === 0 ? (
