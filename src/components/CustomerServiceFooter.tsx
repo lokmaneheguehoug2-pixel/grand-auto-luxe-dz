@@ -113,7 +113,7 @@ export function CustomerServiceFooter() {
               </div>
             </div>
             <p className="text-sm text-muted-foreground">
-              Premium Algerian vehicle marketplace with live auctions, verified sellers, and trusted transactions.
+              A vehicle marketplace for browsing listings and connecting with sellers across Algeria.
             </p>
           </div>
 

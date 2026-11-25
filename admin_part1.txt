@@ -13,7 +13,6 @@ import { useState, useEffect, useCallback } from "react";
 import { formatDZD } from "@/lib/format";
 import { ref, onValue, set, off, get, push, remove, update } from "firebase/database";
 import { realtimeDb } from "@/lib/firebase";
-import { savePlatformSettings, fetchPlatformSettings } from "@/lib/supabase";
 
 export const Route = createFileRoute("/admin")({
   head: () => ({ meta: [{ title: "Admin · GRAND Auto Luxe" }] }),

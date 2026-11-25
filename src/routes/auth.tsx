@@ -18,7 +18,7 @@ type Lang = "ar" | "en" | "fr";
 const TRANSLATIONS: Record<Lang, Record<string, string>> = {
   ar: {
     title: "الدخول إلى سوق السيارات الفاخرة الجزائري.",
-    subtitle: "3 أيام مجانا. مزادات مباشرة، بائعين موثقين، وتواصل مباشر مع الملاك عبر كل الولايات.",
+    subtitle: "اكتشف إعلانات السيارات وتواصل مباشرة مع البائعين في مختلف ولايات الجزائر.",
     membership: "العضوية",
     signin: "تسجيل الدخول",
     signup: "إنشاء حساب",
@@ -36,7 +36,7 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
   },
   en: {
     title: "Enter the premium Algerian auto market.",
-    subtitle: "3 days free. Live auctions, verified sellers, direct contact with owners across all wilayas.",
+    subtitle: "Browse vehicle listings and contact sellers directly across Algeria.",
     membership: "Membership",
     signin: "Sign In",
     signup: "Create Account",
@@ -54,7 +54,7 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
   },
   fr: {
     title: "Accédez au marché automobile algérien premium.",
-    subtitle: "3 jours gratuits. Enchères en direct, vendeurs vérifiés, contact direct avec les propriétaires.",
+    subtitle: "Parcourez les annonces de véhicules et contactez directement les vendeurs en Algérie.",
     membership: "Adhésion",
     signin: "Connexion",
     signup: "Créer un compte",

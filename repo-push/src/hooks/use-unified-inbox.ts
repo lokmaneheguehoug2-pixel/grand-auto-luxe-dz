@@ -1,8 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
-import { getSupabase } from "@/lib/supabase";
+import { get, onValue, off, ref } from "firebase/database";
 import { realtimeDb } from "@/lib/firebase";
-import { ref, onValue, off } from "firebase/database";
 import { useAuth } from "@/hooks/use-auth";
 
 export type UnifiedInboxItem = {
@@ -20,20 +19,36 @@ export type UnifiedInboxItem = {
   created_at: string;
 };
 
+type FirebaseMessage = {
+  senderId: string;
+  recipientId: string;
+  body: string;
+  vehicleId?: string;
+  readAt?: string | null;
+  createdAt: string;
+};
+
 async function fetchUnifiedInbox(userId: string): Promise<UnifiedInboxItem[]> {
-  const client = getSupabase();
-  if (!client) return [];
+  const snapshot = await get(ref(realtimeDb, "messages"));
+  const messages = snapshot.val() as Record<string, FirebaseMessage> | null;
 
-  const { data, error } = await client.rpc("get_unified_inbox", {
-    p_user_id: userId,
-  });
-
-  if (error) {
-    console.error("[unified-inbox] Failed to fetch:", error);
-    throw error;
-  }
-
-  return (data ?? []) as UnifiedInboxItem[];
+  return Object.entries(messages ?? {})
+    .filter(([, message]) => message.senderId === userId || message.recipientId === userId)
+    .map(([itemId, message]) => ({
+      feed_type: "message",
+      item_id: itemId,
+      sender_id: message.senderId,
+      recipient_id: message.recipientId,
+      body: message.body,
+      vehicle_id: message.vehicleId ?? null,
+      story_id: null,
+      story_video_url: null,
+      story_caption: null,
+      interaction_type: null,
+      read_at: message.readAt ?? null,
+      created_at: message.createdAt,
+    }))
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 }
 
 export function useUnifiedInbox() {
@@ -50,7 +65,7 @@ export function useUnifiedInbox() {
   });
 
   useEffect(() => {
-    if (!user?.id || !realtimeDb) return;
+    if (!user?.id) return;
 
     const messagesRef = ref(realtimeDb, "messages");
     const handler = () => {
@@ -58,33 +73,7 @@ export function useUnifiedInbox() {
     };
     onValue(messagesRef, handler);
 
-    return () => off(messagesRef);
-  }, [user?.id, queryClient]);
-
-  useEffect(() => {
-    const client = getSupabase();
-    if (!client || !user?.id) return;
-
-    const channel = client
-      .channel("story-interactions-changes")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "story_interactions",
-        },
-        () => {
-          queryClient.invalidateQueries({
-            queryKey: ["unified-inbox", user.id],
-          });
-        },
-      )
-      .subscribe();
-
-    return () => {
-      client.removeChannel(channel);
-    };
+    return () => off(messagesRef, "value", handler);
   }, [user?.id, queryClient]);
 
   return query;

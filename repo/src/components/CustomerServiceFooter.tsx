@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { Instagram, Facebook, Mail, MessageCircle, Phone, Music2, Lightbulb, Send } from "lucide-react";
 import { realtimeDb } from "@/lib/firebase";
 import { ref, onValue, off, push, set } from "firebase/database";
-import { fetchPlatformSettings } from "@/lib/supabase";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -42,12 +41,6 @@ export function CustomerServiceFooter() {
   const access = auth?.access ?? "locked";
 
   useEffect(() => {
-    fetchPlatformSettings()
-      .then((supaData) => {
-        if (supaData) setSettings((prev) => ({ ...prev, ...supaData }));
-      })
-      .catch(() => {});
-
     if (!realtimeDb) return;
     const settingsRef = ref(realtimeDb, "site_settings");
     const handle = (snapshot: { val: () => Record<string, string> | null }) => {

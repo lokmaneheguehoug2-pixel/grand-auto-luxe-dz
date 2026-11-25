@@ -27,7 +27,7 @@ export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
       { title: "GRAND Auto Luxe — Premium Algerian Vehicle Marketplace" },
-      { name: "description", content: "Browse and bid on premium vehicles across Algeria. Reels and grid views, live auctions." },
+      { name: "description", content: "Browse vehicle listings across Algeria, compare available details and contact sellers directly." }
     ],
   }),
   component: Home,
