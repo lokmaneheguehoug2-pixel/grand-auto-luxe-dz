@@ -24,7 +24,7 @@ const sections = [
   {
     icon: Database,
     title: "4. تخزين البيانات والوسائط",
-    body: "تتم إدارة البيانات النصية وملفات المستخدمين والملفات الشخصية ومعلومات الاشتراك وحالات التطبيق بشكل آمن عبر Firebase (Firestore وRealtime Database وخدمات Firebase ذات الصلة). تُرفع الصور والفيديوهات والـ Reels وتُخزن وتُعالج عبر Cloudinary فقط. لا تستخدم Grand Auto Luxe Supabase ولا تعتمد عليه في تخزين أو معالجة بيانات المنصة.",
+    body: "تتم إدارة البيانات النصية وملفات المستخدمين والملفات الشخصية ومعلومات الاشتراك وحالات التطبيق بشكل آمن عبر Firebase (Firestore وRealtime Database وخدمات Firebase ذات الصلة). تُرفع الصور والفيديوهات والـ Reels وتُخزن وتُعالج عبر Cloudinary فقط.",
   },
   {
     icon: LockKeyhole,

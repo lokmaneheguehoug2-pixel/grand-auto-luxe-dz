@@ -13,7 +13,6 @@ import { useState, useEffect, useCallback } from "react";
 import { formatDZD } from "@/lib/format";
 import { ref, onValue, set, off, get, push, remove, update } from "firebase/database";
 import { realtimeDb } from "@/lib/firebase";
-import { savePlatformSettings, fetchPlatformSettings } from "@/lib/supabase";
 
 export const Route = createFileRoute("/admin")({
   head: () => ({ meta: [{ title: "Admin · GRAND Auto Luxe" }] }),
@@ -964,13 +963,12 @@ function SettingsTab() {
     const settingsRef = ref(realtimeDb, "site_settings");
     const handleSnapshot = (snapshot: { val: () => SiteSettings | null }) => { const data = snapshot.val(); if (data) setSettings(prev => ({ ...prev, ...data })); setLoading(false); };
     onValue(settingsRef, handleSnapshot);
-    fetchPlatformSettings().then((supaData) => { if (supaData) setSettings(prev => ({ ...prev, ...supaData })); }).catch(() => {});
     return () => off(settingsRef);
   }, []);
 
   const saveSettings = async () => {
     setSaving(true);
-    try { await set(ref(realtimeDb, "site_settings"), settings); await savePlatformSettings(settings); toast.success("Settings saved"); } catch { toast.error("Failed to save"); }
+    try { await set(ref(realtimeDb, "site_settings"), settings); toast.success("Settings saved"); } catch { toast.error("Failed to save"); }
     setSaving(false);
   };
 
@@ -994,64 +992,6 @@ function SettingsTab() {
         {fields.map((f) => (<div key={f.key} className="space-y-1.5"><label className="text-xs font-medium text-muted-foreground">{f.label}</label><Input value={settings[f.key] || ""} onChange={(e) => setSettings({ ...settings, [f.key]: e.target.value })} placeholder={f.placeholder} type={f.type || "text"} className="bg-charcoal" /></div>))}
       </div>
       <Button variant="gold" onClick={saveSettings} disabled={saving}>{saving ? "Saving..." : "Save Settings"}</Button>
-      <WeeklyReminderSection />
-    </div>
-  );
-}
-
-function WeeklyReminderSection() {
-  const [sending, setSending] = useState(false);
-  const [result, setResult] = useState<{ remindersSent: number; message: string } | null>(null);
-
-  const sendReminders = async () => {
-    setSending(true);
-    setResult(null);
-    try {
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const firebaseDbUrl = import.meta.env.VITE_FIREBASE_DATABASE_URL;
-
-      if (!firebaseDbUrl) {
-        toast.error("Firebase database URL not configured. Set VITE_FIREBASE_DATABASE_URL in your environment.");
-        return;
-      }
-
-      const response = await fetch(`${supabaseUrl}/functions/v1/weekly-unsold-reminder`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ firebaseDbUrl }),
-      });
-
-      const text = await response.text();
-      let data: any;
-      try {
-        data = JSON.parse(text);
-      } catch {
-        throw new Error(`Server returned a non-JSON response (status ${response.status}). The edge function may be misconfigured.`);
-      }
-
-      if (response.ok) {
-        setResult({ remindersSent: data.remindersSent || 0, message: data.message || "Reminders sent" });
-        toast.success(`${data.remindersSent || 0} reminder(s) sent to owners of unsold listings`);
-      } else {
-        throw new Error(data.error || "Failed to send reminders");
-      }
-    } catch (err: any) {
-      toast.error(err?.message || "Failed to send reminders");
-      console.error(err);
-    } finally {
-      setSending(false);
-    }
-  };
-
-  return (
-    <div className="premium-card rounded-xl p-4 border border-gold/20">
-      <h3 className="font-medium mb-3 flex items-center gap-2"><Clock className="h-5 w-5 text-gold" />Automated Weekly Reminder — Unsold Listings</h3>
-      <p className="text-sm text-muted-foreground mb-3">Sends a notification to owners of unsold (active) listings older than 7 days: "Is your vehicle still available? Please update your listing status or mark it as sold."</p>
-      <div className="flex items-center gap-3">
-        <Button variant="gold" onClick={sendReminders} disabled={sending}>{sending ? (<><RefreshCw className="h-4 w-4 mr-2 animate-spin" /> Sending reminders...</>) : (<><Send className="h-4 w-4 mr-2" /> Send Reminders Now</>)}</Button>
-        {result && <span className="text-sm text-green-400">{result.remindersSent} reminder(s) sent successfully</span>}
-      </div>
-      <p className="text-xs text-muted-foreground mt-2">This runs automatically every 7 days via a scheduled edge function. Use the button above to trigger it manually.</p>
     </div>
   );
 }

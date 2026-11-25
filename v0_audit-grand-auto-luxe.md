@@ -41,4 +41,4 @@ Date: 2026-10-20
 5. Add verification/report workflow safeguards and test mobile routes.
 
 ## Architecture constraint
-Per the latest project instruction, Supabase is banned. No Supabase packages, clients, environment variables, migrations, storage, or references should be introduced. Firebase is the text/database source and Cloudinary is the media source.
+Firebase is the text/database source and Cloudinary is the media source.
