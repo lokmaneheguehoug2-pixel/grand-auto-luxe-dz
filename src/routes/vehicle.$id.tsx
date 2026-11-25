@@ -5,9 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { formatDZD, formatDZDArabic } from "@/lib/format";
 import { calculateDeal, calculateGrandScore } from "@/lib/pricing";
-import { Flag, Calendar, Gauge, Fuel, Cog, Gavel, Trophy, Phone, MessageCircle, Lock, Pencil, Trash2, MapPin, Crown, CircleCheck, RotateCcw, Star, TrendingDown, Heart, Eye, Bookmark } from "lucide-react";
+import { Flag, Calendar, Gauge, Fuel, Cog, Gavel, Phone, MessageCircle, Lock, Pencil, Trash2, MapPin, Crown, CircleCheck, RotateCcw, Star, TrendingDown, Heart, Eye, Bookmark } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
-import { Countdown } from "@/components/Countdown";
 import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
@@ -61,14 +60,6 @@ type Vehicle = {
   views?: number;
 };
 
-type Bid = {
-  id: string;
-  bidderId: string;
-  bidderName: string;
-  amount: number;
-  createdAt: string;
-};
-
 type OwnerProfile = {
   phone: string;
   first_name: string;
@@ -80,6 +71,8 @@ type OwnerProfile = {
   subscription_until?: string;
   subscription_tier?: string;
   is_showroom?: boolean;
+  is_verified?: boolean;
+  verification_status?: string;
   instagram?: string;
 };
 
@@ -90,8 +83,6 @@ function VehicleDetail() {
   const access = auth?.access ?? "locked";
   const [v, setV] = useState<Vehicle | null>(null);
   const [vehicleLoadError, setVehicleLoadError] = useState(false);
-  const [bids, setBids] = useState<Bid[]>([]);
-  const [bidAmount, setBidAmount] = useState("");
   const [paywallOpen, setPaywallOpen] = useState(false);
   const [showReportDialog, setShowReportDialog] = useState(false);
   const [reportReason, setReportReason] = useState("");
@@ -438,27 +429,6 @@ function VehicleDetail() {
   }, [id]);
 
   useEffect(() => {
-    if (!v || v.price_type !== "auction" || !realtimeDb) return;
-    const bidsRef = ref(realtimeDb, `bids/${id}`);
-    const handleBids = (snapshot: { val: () => Record<string, Bid> | null }) => {
-      try {
-        const data = snapshot.val();
-        if (data) {
-          const list = Object.values(data).sort((a, b) => b.amount - a.amount);
-          setBids(list);
-        } else {
-          setBids([]);
-        }
-      } catch (err) {
-        console.error("Error loading bids:", err);
-        setBids([]);
-      }
-    };
-    onValue(bidsRef, handleBids);
-    return () => off(bidsRef);
-  }, [id, v?.price_type]);
-
-  useEffect(() => {
     async function loadOwner() {
       if (!realtimeDb || !v?.sellerPhone && !v?.sellerId) return;
       let phoneKey = v.sellerPhone || v.sellerId;
@@ -492,7 +462,9 @@ function VehicleDetail() {
             subscription_status: data.subscription_status || "trial",
             subscription_until: data.subscription_until,
             subscription_tier: data.subscription_tier,
-            is_showroom: data.subscription_tier === "dealer" || data.subscription_tier === "showroom",
+            is_showroom: data.is_showroom === true || data.subscription_tier === "dealer" || data.subscription_tier === "showroom",
+            is_verified: data.is_verified === true,
+            verification_status: typeof data.verification_status === "string" ? data.verification_status : undefined,
             instagram: data.instagram,
           });
         }
@@ -513,38 +485,11 @@ function VehicleDetail() {
   }
 
   const isSeller = user?.id === v.sellerId;
-  const isWinner = user?.id === v.current_highest_bidder;
   const canSeeContact = access === "active" || isSeller;
   const ownerVerified = isVerifiedShowroom(owner);
   const ownerName = owner
     ? (owner.showroom_name || `${owner.first_name ?? ""} ${owner.last_name ?? ""}`.trim() || "Seller")
     : "Seller";
-
-  const handleBid = async () => {
-    if (!user) { toast.error("Please sign in to bid"); return; }
-    const amount = Number(bidAmount);
-    if (!amount || amount <= 0) { toast.error("Enter a valid amount"); return; }
-    const minBid = (v.current_highest_bid ?? v.starting_price ?? 0) + 1000;
-    if (amount < minBid) { toast.error(`Minimum bid is ${formatDZD(minBid)}`); return; }
-
-    try {
-      const bidRef = push(ref(realtimeDb, `bids/${id}`));
-      const bid: Bid = {
-        id: bidRef.key!,
-        bidderId: user.id,
-        bidderName: auth?.profile?.first_name || user.phone,
-        amount,
-        createdAt: new Date().toISOString(),
-      };
-      await set(bidRef, bid);
-      await set(ref(realtimeDb, `vehicles/${id}/current_highest_bid`), amount);
-      await set(ref(realtimeDb, `vehicles/${id}/current_highest_bidder`), user.id);
-      setBidAmount("");
-      toast.success("Bid placed!");
-    } catch (err) {
-      toast.error("Failed to place bid");
-    }
-  };
 
   const handleReport = async () => {
     if (!reportReason.trim()) { toast.error("Please describe the issue"); return; }
@@ -665,7 +610,7 @@ function VehicleDetail() {
                 <TrendingDown className="h-3 w-3" /> Save {formatDZD(v.previous_price - (v.fixed_price ?? 0))}
               </div>
             )}
-            {v.price_type === "auction" && <div className="text-xs text-muted-foreground uppercase tracking-widest">Current bid</div>}
+            {v.price_type === "auction" && <div className="text-xs text-muted-foreground uppercase tracking-widest">Last reported bid</div>}
             {v.price_type === "fixed" && <div className="text-xs text-muted-foreground uppercase tracking-widest">Price</div>}
           </div>
         </div>
@@ -802,33 +747,13 @@ function VehicleDetail() {
   </div>
   )}
 
-        {/* Auction */}
-        {v.price_type === "auction" && v.auction_ends_at && v.status !== "sold" && (
-          <div className="mb-6 premium-card rounded-xl p-4 border border-gold/20">
-            <div className="flex items-center gap-2 mb-3">
+        {v.price_type === "auction" && v.status !== "sold" && (
+          <div className="mb-6 premium-card rounded-xl p-4 border border-gold/20" role="status">
+            <div className="flex items-center gap-2 mb-2">
               <Gavel className="h-5 w-5 text-gold" />
-              <h3 className="font-display text-lg">Live Auction</h3>
+              <h3 className="font-display text-lg">Auction</h3>
             </div>
-            <Countdown endsAt={v.auction_ends_at} />
-            {isWinner && <div className="mt-2 text-sm text-green-400 flex items-center gap-1"><Trophy className="h-4 w-4" /> You are the highest bidder!</div>}
-            {bids.length > 0 && (
-              <div className="mt-3 space-y-1">
-                <div className="text-xs uppercase tracking-widest text-muted-foreground mb-1">Bid History</div>
-                {bids.filter((bid): bid is Bid => Boolean(bid && bid.id)).map((b) => (
-                  <div key={b.id} className="text-sm flex justify-between">
-                    <span>{b.bidderName}</span>
-                    <span className="text-gold">{formatDZD(b.amount)}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-            {!isSeller && user && (
-              <div className="mt-4 flex gap-2">
-                <Input type="number" value={bidAmount} onChange={(e) => setBidAmount(e.target.value)} placeholder={`Min: ${formatDZD((v.current_highest_bid ?? v.starting_price ?? 0) + 1000)}`} className="bg-charcoal" />
-                <Button variant="gold" onClick={handleBid}>Place Bid</Button>
-              </div>
-            )}
-            {!user && <p className="text-sm text-muted-foreground mt-3">Sign in to place a bid.</p>}
+            <p className="text-sm text-muted-foreground">Bidding is temporarily unavailable while auction security is being completed.</p>
           </div>
         )}
 

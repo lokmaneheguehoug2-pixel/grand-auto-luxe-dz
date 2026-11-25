@@ -12,7 +12,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Search, MapPin, Play, Grid3x2 as Grid3X3, Film, Heart, Eye, Star, TrendingDown, Bookmark, Pin, Bell, MessageCircle } from "lucide-react";
-import { Countdown } from "@/components/Countdown";
 import { compareStore, useCompare } from "@/lib/compare";
 import { useAuth } from "@/hooks/use-auth";
 import { StoriesStrip } from "@/components/StoriesStrip";
@@ -467,7 +466,7 @@ function HomeContent() {
     return () => off(vehiclesRef, "value", handleValue);
   });
   return () => { cancelled = true; handles.forEach((unsubscribe) => unsubscribe()); };
-  }, [vehiclesRetryKey, firebaseActorId]);
+  }, [vehiclesRetryKey, firebaseActorId, localPinned]);
 
   const loadLikes = useCallback(async () => {
     if (realtimeDb) return;
@@ -969,7 +968,7 @@ function VehicleCard({ vehicle: v, allVehicles, likeInfo, isFavorite, viewCount,
         )}
         {v.pinned && <div className="absolute top-2 left-2 z-10 flex items-center gap-0.5 rounded-full bg-gold px-1.5 py-0.5 text-[9px] font-bold text-gold-foreground"><Pin className="h-2.5 w-2.5" />Pinned</div>}
         {v.video_url && <div className="absolute bottom-2 right-2 z-10 rounded-full bg-black/70 p-1"><Play className="h-3 w-3 text-gold" /></div>}
-        {v.price_type === "auction" && v.auction_ends_at && <div className="absolute top-2 left-2 z-10 rounded-full bg-red-500/90 px-2 py-0.5 text-[10px] text-white">LIVE</div>}
+        {v.price_type === "auction" && v.auction_ends_at && <div className="absolute top-2 left-2 z-10 rounded-full bg-red-500/90 px-2 py-0.5 text-[10px] text-white">AUCTION</div>}
         <button type="button" onClick={onFavorite} className="absolute top-2 right-2 z-10" aria-label="Save to watchlist">
           <Bookmark className={`h-5 w-5 ${isFavorite ? "text-gold fill-gold" : "text-white/80"} drop-shadow-lg`} />
         </button>
@@ -987,7 +986,6 @@ function VehicleCard({ vehicle: v, allVehicles, likeInfo, isFavorite, viewCount,
         ) : (
           <div className="mb-1.5 flex items-baseline gap-1.5"><span className="text-sm text-gold font-display sm:text-base">{formatDZD(price)}</span><span className="text-[9px] text-muted-foreground">{formatDZDArabic(price)}</span></div>
         )}
-        {v.price_type === "auction" && v.auction_ends_at && <Countdown endsAt={v.auction_ends_at} />}
 
         <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border/50 pt-2">
           <button type="button" onClick={onLike} className="flex items-center gap-1 transition-transform active:scale-90" aria-label="Like">

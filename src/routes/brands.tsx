@@ -615,7 +615,7 @@ function DiscoveryVehicleCard({ vehicle: v, allVehicles, isFavorite, likeInfo, v
         )}
         {v.price_type === "auction" && v.auction_ends_at && (
           <div className="absolute top-2 left-2 bg-red-500/90 text-white text-[10px] px-2 py-0.5 rounded-full font-medium">
-            LIVE
+            AUCTION
           </div>
         )}
 

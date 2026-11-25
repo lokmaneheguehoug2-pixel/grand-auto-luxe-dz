@@ -105,6 +105,10 @@ function PostPage() {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!realtimeDb) {
+      toast.error("Listing service is unavailable. Please try again later.");
+      return;
+    }
     if (photos.length === 0) {
       toast.error("Please upload at least one photo.");
       return;
@@ -334,13 +338,8 @@ function PostPage() {
             >
               Fixed Price
             </Button>
-            <Button
-              type="button"
-              variant={f.price_type === "auction" ? "gold" : "outline"}
-              size="sm"
-              onClick={() => setF({ ...f, price_type: "auction" })}
-            >
-              Auction
+            <Button type="button" variant="outline" size="sm" disabled>
+              Auction temporarily unavailable
             </Button>
           </div>
 

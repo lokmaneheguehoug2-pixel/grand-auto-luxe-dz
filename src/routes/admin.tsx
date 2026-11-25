@@ -1132,6 +1132,7 @@ type SubscriptionRecord = {
   id: string;
   userId: string;
   userPhone: string;
+  senderPhone?: string;
   plan: string;
   amount: number;
   receiptUrl: string | null;
@@ -1146,43 +1147,79 @@ type SubscriptionRecord = {
 function ReceiptsTab() {
   const [subscriptions, setSubscriptions] = useState<SubscriptionRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [retryKey, setRetryKey] = useState(0);
   const [viewingReceipt, setViewingReceipt] = useState<string | null>(null);
   const [verifying, setVerifying] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!realtimeDb) {
+      setSubscriptions([]);
+      setLoadError(true);
+      setLoading(false);
+      return;
+    }
+
     const subsRef = ref(realtimeDb, "subscriptions");
-    const handle = (snapshot: { val: () => Record<string, any> | null }) => {
+    const handle = (snapshot: { val: () => Record<string, unknown> | null }) => {
       try {
         const data = snapshot.val();
-        if (data) {
-          const list: SubscriptionRecord[] = Object.entries(data).map(([id, v]) => ({
-            id,
-            userId: v.userId || "",
-            userPhone: v.userPhone || "",
-  plan: v.plan || "",
-  amount: Number(v.amount) || 0,
-  receiptUrl: v.receiptUrl || null,
-  listingId: v.listingId || null,
-  pinDays: Number(v.pinDays) || null,
-  requestedStartDate: v.requestedStartDate || null,
-  requestedEndDate: v.requestedEndDate || null,
-            status: v.status || "pending",
-            submittedAt: v.submittedAt || new Date().toISOString(),
-          }));
+        if (data && typeof data === "object" && !Array.isArray(data)) {
+          const list: SubscriptionRecord[] = Object.entries(data).map(([id, value]) => {
+            const record = value && typeof value === "object" && !Array.isArray(value)
+              ? value as Record<string, unknown>
+              : {};
+            const pinDays = Number(record.pinDays);
+            const status = record.status === "verified" || record.status === "rejected"
+              ? record.status
+              : "pending";
+            const amount = Number(record.amount);
+            return {
+              id,
+              userId: typeof record.userId === "string" ? record.userId : "",
+              userPhone: typeof record.userPhone === "string" ? record.userPhone : "",
+              senderPhone: typeof record.senderPhone === "string" ? record.senderPhone : "",
+              plan: typeof record.plan === "string" ? record.plan : "",
+              amount: Number.isFinite(amount) && amount > 0 ? amount : 0,
+              receiptUrl: typeof record.receiptUrl === "string" && record.receiptUrl.startsWith("https://res.cloudinary.com/")
+                ? record.receiptUrl
+                : null,
+              listingId: typeof record.listingId === "string" ? record.listingId : null,
+              pinDays: Number.isInteger(pinDays) && pinDays >= 1 && pinDays <= 90 ? pinDays : null,
+              requestedStartDate: typeof record.requestedStartDate === "string" ? record.requestedStartDate : null,
+              requestedEndDate: typeof record.requestedEndDate === "string" ? record.requestedEndDate : null,
+              status,
+              submittedAt: typeof record.submittedAt === "string" ? record.submittedAt : new Date().toISOString(),
+            };
+          });
           list.sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
           setSubscriptions(list);
         } else setSubscriptions([]);
+        setLoadError(false);
       } catch (err) {
         console.error("Failed to load subscriptions:", err);
         setSubscriptions([]);
+        setLoadError(true);
       }
       setLoading(false);
     };
-    onValue(subsRef, handle);
+    const handleError = (error: Error) => {
+      console.error("Failed to subscribe to payment reviews:", error.message);
+      setSubscriptions([]);
+      setLoadError(true);
+      setLoading(false);
+    };
+
+    onValue(subsRef, handle, handleError);
     return () => off(subsRef);
-  }, []);
+  }, [retryKey]);
 
   const verifyAndActivate = async (sub: SubscriptionRecord) => {
+    if (!realtimeDb) {
+      toast.error("Payment service is unavailable.");
+      return;
+    }
+    if (sub.status !== "pending") return;
     setVerifying(sub.id);
     try {
       if (sub.plan === "listing-pin" && sub.listingId) {
@@ -1202,13 +1239,14 @@ function ReceiptsTab() {
       const tier = plan?.tier || "individual";
       const until = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
 
+      const accountPhone = sub.userId || sub.userPhone;
       await set(ref(realtimeDb, `subscriptions/${sub.id}/status`), "verified");
-      await set(ref(realtimeDb, `users/${sub.userPhone}/subscription_status`), "active");
-      await set(ref(realtimeDb, `users/${sub.userPhone}/subscription_until`), until);
-      await set(ref(realtimeDb, `users/${sub.userPhone}/subscription_tier`), tier);
+      await set(ref(realtimeDb, `users/${accountPhone}/subscription_status`), "active");
+      await set(ref(realtimeDb, `users/${accountPhone}/subscription_until`), until);
+      await set(ref(realtimeDb, `users/${accountPhone}/subscription_tier`), tier);
 
       setSubscriptions(subscriptions.map((s) => s.id === sub.id ? { ...s, status: "verified" } : s));
-      toast.success(`Subscription activated for ${sub.userPhone}`);
+      toast.success(`Subscription activated for ${accountPhone}`);
     } catch (err) {
       toast.error("Failed to verify and activate");
     } finally {
@@ -1217,6 +1255,11 @@ function ReceiptsTab() {
   };
 
   const rejectReceipt = async (sub: SubscriptionRecord) => {
+    if (!realtimeDb) {
+      toast.error("Payment service is unavailable.");
+      return;
+    }
+    if (sub.status !== "pending") return;
     try {
       await set(ref(realtimeDb, `subscriptions/${sub.id}/status`), "rejected");
       setSubscriptions(subscriptions.map((s) => s.id === sub.id ? { ...s, status: "rejected" } : s));
@@ -1227,6 +1270,18 @@ function ReceiptsTab() {
   };
 
   if (loading) return <div className="py-10 text-center text-muted-foreground">Loading receipts...</div>;
+  if (loadError) {
+    return (
+      <div role="alert" className="premium-card rounded-xl p-6 text-center">
+        <p className="text-sm text-muted-foreground">Unable to load payment reviews. Check database access and retry.</p>
+        <Button variant="gold" size="sm" className="mt-4" onClick={() => {
+          setLoading(true);
+          setLoadError(false);
+          setRetryKey((key) => key + 1);
+        }}>Retry</Button>
+      </div>
+    );
+  }
 
   const pending = subscriptions.filter((s) => s.status === "pending");
   const verified = subscriptions.filter((s) => s.status === "verified");
@@ -1274,7 +1329,8 @@ function ReceiptsTab() {
                 {sub.plan}
                 <Badge variant="outline" className="text-xs border-yellow-500 text-yellow-400">{sub.status}</Badge>
               </div>
-              <div className="text-xs text-muted-foreground mt-1">{sub.userPhone}</div>
+              <div className="text-xs text-muted-foreground mt-1">Account: {sub.userId || sub.userPhone}</div>
+              {sub.senderPhone && <div className="text-xs text-muted-foreground">Payer: {sub.senderPhone}</div>}
               <div className="text-xs text-muted-foreground">{sub.amount.toLocaleString()} DZD {sub.plan === "listing-pin" ? `· ${sub.pinDays || 1} يوم تثبيت` : ""}</div>
               <div className="text-xs text-muted-foreground">Submitted: {new Date(sub.submittedAt).toLocaleString()}</div>
             </div>

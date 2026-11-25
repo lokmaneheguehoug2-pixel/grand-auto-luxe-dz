@@ -16,6 +16,9 @@ export type UserProfile = {
   subscription_until: string | null;
   trial_started_at: string;
   is_banned: boolean;
+  is_showroom?: boolean;
+  is_verified?: boolean;
+  verification_status?: string;
   role: "admin" | "user";
   created_at: string;
 };
@@ -122,6 +125,9 @@ export function useAuth() {
       subscription_until: data.subscription_until,
       trial_started_at: data.trial_started_at,
       is_banned: data.is_banned,
+      is_showroom: data.is_showroom,
+      is_verified: data.is_verified,
+      verification_status: data.verification_status,
       role: data.role ?? "user",
       created_at: data.created_at,
     };

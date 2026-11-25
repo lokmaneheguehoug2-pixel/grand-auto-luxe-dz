@@ -101,7 +101,8 @@ function CheckoutPage() {
         await set(subRef, {
           id: subRef.key,
           userId: user.id,
-          userPhone: senderPhone.trim(),
+          userPhone: user.phone,
+          senderPhone: senderPhone.trim(),
           plan: pinListingId ? "listing-pin" : plan,
           listingId: pinListingId ?? null,
           pinDays: pinListingId ? pinDays : null,
