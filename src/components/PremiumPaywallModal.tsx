@@ -2,8 +2,9 @@ import { Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Crown, ArrowRight, Copy, Check, Zap, Building2, Sparkles } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { SUBSCRIPTION_PLANS, type SubscriptionPlan } from "@/lib/pricing";
 
 type Props = {
   open: boolean;
@@ -19,32 +20,27 @@ const CCP_DETAILS = {
   key: "39",
 };
 
-type PlanTier = "individual" | "showroom";
-type BillingCycle = "monthly";
-
-const PLAN_OPTIONS: Record<PlanTier, { name: string; nameAr: string; icon: typeof Zap; monthly: number; features: string[] }> = {
-  individual: {
-    name: "Individual",
-    nameAr: "الخطة الفردية",
-    icon: Zap,
-    monthly: 1000,
-    features: ["1 post per day", "1 reel per day", "Standard listing"],
-  },
-  showroom: {
-    name: "Showroom",
-    nameAr: "خطة المعرض",
-    icon: Building2,
-    monthly: 2500,
-    features: ["Unlimited posts", "Unlimited reels", "Priority placement", "Verified dealer badge"],
-  },
+const PLAN_IDS = Object.keys(SUBSCRIPTION_PLANS) as SubscriptionPlan[];
+const PLAN_FEATURES: Record<SubscriptionPlan, string[]> = {
+  "individual-monthly": ["حتى 30 صورة لكل إعلان", "تفعيل بعد مراجعة الدفع"],
+  "individual-yearly": ["حتى 30 صورة لكل إعلان", "تفعيل بعد مراجعة الدفع"],
+  "showroom-monthly": ["ملف معرض وإدارة المخزون", "التوثيق بعد مراجعة الإدارة"],
+  "showroom-yearly": ["ملف معرض وإدارة المخزون", "التوثيق بعد مراجعة الإدارة"],
 };
+
+function normalizePlanId(value?: string | null): SubscriptionPlan {
+  return value && Object.prototype.hasOwnProperty.call(SUBSCRIPTION_PLANS, value)
+    ? value as SubscriptionPlan
+    : "individual-monthly";
+}
 
 export function PremiumPaywallModal({ open, onOpenChange, reason, selectedPlan: initialPlan }: Props) {
   const [copiedField, setCopiedField] = useState<string | null>(null);
-  const [tier, setTier] = useState<PlanTier>(
-    initialPlan?.startsWith("showroom") ? "showroom" : "individual",
-  );
-  const billing: BillingCycle = "monthly";
+  const [planId, setPlanId] = useState<SubscriptionPlan>(normalizePlanId(initialPlan));
+
+  useEffect(() => {
+    if (open) setPlanId(normalizePlanId(initialPlan));
+  }, [initialPlan, open]);
 
   const copy = (text: string, field: string) => {
     navigator.clipboard.writeText(text);
@@ -53,14 +49,12 @@ export function PremiumPaywallModal({ open, onOpenChange, reason, selectedPlan: 
     setTimeout(() => setCopiedField(null), 1500);
   };
 
-  const planId = `${tier}-${billing}`;
-  const price = PLAN_OPTIONS[tier][billing];
-  const plan = PLAN_OPTIONS[tier];
-  const Icon = plan.icon;
+  const plan = SUBSCRIPTION_PLANS[planId];
+  const Icon = plan.tier === "dealer" ? Building2 : Zap;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-black border-gold/60 max-w-lg p-0 overflow-hidden">
+      <DialogContent className="bg-black border-gold/60 max-w-lg p-0 max-h-[90dvh] overflow-y-auto">
         <div className="relative">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_0%,rgba(212,175,55,0.25),transparent_60%),radial-gradient(circle_at_80%_100%,rgba(212,175,55,0.18),transparent_55%)]" />
           <div className="relative p-6">
@@ -78,32 +72,32 @@ export function PremiumPaywallModal({ open, onOpenChange, reason, selectedPlan: 
               {reason ?? "للنشر على GRAND Auto Luxe (إعلان أو ريلز) يجب تفعيل اشتراكك الفاخر."}
             </p>
 
-            {/* Two subscription tiers */}
             <div className="mt-5 grid grid-cols-2 gap-3">
-              {(Object.keys(PLAN_OPTIONS) as PlanTier[]).map((t) => {
-                const opt = PLAN_OPTIONS[t];
-                const TIcon = opt.icon;
-                const isSelected = tier === t;
+              {PLAN_IDS.map((id) => {
+                const option = SUBSCRIPTION_PLANS[id];
+                const OptionIcon = option.tier === "dealer" ? Building2 : Zap;
+                const isSelected = planId === id;
                 return (
                   <button
-                    key={t}
-                    onClick={() => setTier(t)}
-                    className={`rounded-xl border p-4 text-left transition ${
-                      isSelected
-                        ? "border-gold bg-gold/10 gold-glow"
-                        : "border-white/10 bg-black/40 hover:border-gold/30"
+                    key={id}
+                    type="button"
+                    aria-pressed={isSelected}
+                    onClick={() => setPlanId(id)}
+                    className={`rounded-xl border p-3 text-left transition ${
+                      isSelected ? "border-gold bg-gold/10 gold-glow" : "border-white/10 bg-black/40 hover:border-gold/30"
                     }`}
                   >
-                    <div className="flex items-center gap-2 mb-2">
-                      <TIcon className={`h-5 w-5 ${isSelected ? "text-gold" : "text-white/60"}`} />
-                      <span className="text-sm font-medium text-white">{opt.name}</span>
+                    <div className="flex items-center gap-2 mb-1">
+                      <OptionIcon className={`h-4 w-4 ${isSelected ? "text-gold" : "text-white/60"}`} />
+                      <span className="text-xs font-medium text-white">{option.nameEn}</span>
                     </div>
-                    <div className="text-[10px] text-gold/70 mb-2">{opt.nameAr}</div>
-                    <ul className="space-y-1">
-                      {opt.features.map((f) => (
-                        <li key={f} className="text-[10px] text-white/50 flex items-center gap-1">
-                          <Check className="h-2.5 w-2.5 text-gold/60 shrink-0" />
-                          {f}
+                    <div className="text-[10px] text-gold/70 mb-2">{option.name} · {option.period}</div>
+                    <div className="text-sm font-semibold text-white">{option.price.toLocaleString()} DZD</div>
+                    <ul className="mt-2 space-y-1">
+                      {PLAN_FEATURES[id].map((feature) => (
+                        <li key={feature} className="text-[10px] text-white/60 flex items-start gap-1">
+                          <Check className="h-2.5 w-2.5 text-gold/60 shrink-0 mt-0.5" />
+                          {feature}
                         </li>
                       ))}
                     </ul>
@@ -112,14 +106,11 @@ export function PremiumPaywallModal({ open, onOpenChange, reason, selectedPlan: 
               })}
             </div>
 
-  <p className="mt-4 text-center text-xs text-white/50">الفوترة شهرية فقط</p>
-
-            {/* Price */}
             <div className="mt-4 text-center">
               <div className="flex items-baseline justify-center gap-2">
-                <span className="font-display text-3xl gold-shine">{price.toLocaleString()}</span>
+                <span className="font-display text-3xl gold-shine">{plan.price.toLocaleString()}</span>
                 <span className="text-white/60 text-sm">DZD</span>
-                <span className="text-white/40 text-xs">/ {"شهر"}</span>
+                <span className="text-white/40 text-xs">/ {plan.period}</span>
               </div>
             </div>
 
@@ -162,13 +153,13 @@ export function PremiumPaywallModal({ open, onOpenChange, reason, selectedPlan: 
             </div>
 
             <Button asChild variant="gold" className="w-full mt-5 h-12">
-              <Link to="/checkout" state={{ plan: planId }} onClick={() => onOpenChange(false)}>
+              <Link to="/checkout" state={(previous) => ({ ...previous, plan: planId })} onClick={() => onOpenChange(false)}>
                 <Sparkles className="h-4 w-4 mr-2" />
                 رفع وصل الدفع · Continue <ArrowRight className="h-4 w-4 ml-2" />
               </Link>
             </Button>
             <p className="text-[10px] text-white/40 text-center mt-3">
-              بعد التحويل، أرفع صورة الوصل وسيقوم المسؤول بتفعيل حسابك خلال دقائق.
+              يتم تفعيل الاشتراك بعد مراجعة وصل الدفع يدويًا.
             </p>
           </div>
         </div>

@@ -4,14 +4,7 @@ import { realtimeDb } from "@/lib/firebase";
 
 const isBrowser = typeof window !== "undefined" && typeof window.document !== "undefined";
 
-// Admin credentials - ONLY these work for admin access
-const ADMIN_PHONES = ["0781606765", "781606765"];
-const ADMIN_PASSWORD = "LOK12MANE";
-
-export function isAdminPhone(phone: string): boolean {
-  const normalized = normalizePhone(phone);
-  return ADMIN_PHONES.includes(normalized) || ADMIN_PHONES.includes(phone);
-}
+const RESERVED_ADMIN_PHONES = ["0781606765", "781606765"];
 
 export type UserProfile = {
   id: string;
@@ -34,7 +27,6 @@ export type SessionUser = {
 };
 
 const SESSION_KEY = "gal:session";
-const ADMIN_BYPASS_KEY = "gal:admin:bypass";
 
 export function normalizePhone(raw: unknown): string {
   let digits = String(raw ?? "").replace(/\s|-/g, "");
@@ -46,22 +38,6 @@ export function normalizePhone(raw: unknown): string {
 
 export function phoneToEmail(phone: unknown): string {
   return `${normalizePhone(phone).replace(/[^0-9]/g, "")}@grandauto.dz`;
-}
-
-function buildAdminProfile(phone: string): UserProfile {
-  return {
-    id: "admin-" + phone,
-    phone,
-    first_name: "Admin",
-    last_name: "User",
-    subscription_status: "active",
-    subscription_tier: "dealer",
-    subscription_until: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
-    trial_started_at: new Date().toISOString(),
-    is_banned: false,
-    role: "admin",
-    created_at: new Date().toISOString(),
-  };
 }
 
 function saveSession(phone: string) {
@@ -87,33 +63,10 @@ function clearSession() {
   localStorage.removeItem(SESSION_KEY);
 }
 
-// Synchronously check admin bypass from localStorage (prevents flash)
-function checkAdminBypassSync(): { isAdmin: boolean; phone: string } | null {
-  if (!isBrowser) return null;
-  try {
-    const stored = localStorage.getItem(ADMIN_BYPASS_KEY);
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      if (parsed?.isAdmin && parsed.phone) {
-        return { isAdmin: true, phone: normalizePhone(parsed.phone) };
-      }
-    }
-  } catch {
-    /* ignore */
-  }
-  return null;
-}
-
 export function useAuth() {
-  // Initialize state synchronously from localStorage to prevent flash
-  const adminBypass = checkAdminBypassSync();
-  const [user, setUser] = useState<SessionUser | null>(
-    adminBypass ? { id: "admin-" + adminBypass.phone, uid: "admin-" + adminBypass.phone, phone: adminBypass.phone } : null
-  );
-  const [profile, setProfile] = useState<UserProfile | null>(
-    adminBypass ? buildAdminProfile(adminBypass.phone) : null
-  );
-  const [isAdmin, setIsAdmin] = useState(adminBypass?.isAdmin ?? false);
+  const [user, setUser] = useState<SessionUser | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
 
   // Restore session on mount
@@ -121,19 +74,6 @@ export function useAuth() {
     let cancelled = false;
 
     async function restore() {
-      // 1) Admin bypass via localStorage (already set in initial state, but verify)
-      const storedBypass = checkAdminBypassSync();
-      if (storedBypass) {
-        if (!cancelled) {
-          setUser({ id: "admin-" + storedBypass.phone, uid: "admin-" + storedBypass.phone, phone: storedBypass.phone });
-          setProfile(buildAdminProfile(storedBypass.phone));
-          setIsAdmin(true);
-          setLoading(false);
-        }
-        return;
-      }
-
-      // 2) Regular user session via Realtime Database
       const sessionPhone = readSessionPhone();
       if (sessionPhone && realtimeDb) {
         try {
@@ -143,7 +83,7 @@ export function useAuth() {
             if (!cancelled) {
               setUser({ id: sessionPhone, uid: sessionPhone, phone: sessionPhone });
               setProfile(data);
-              setIsAdmin(data.role === "admin" || isAdminPhone(sessionPhone));
+              setIsAdmin(data.role === "admin");
             }
           }
         } catch (err) {
@@ -158,26 +98,8 @@ export function useAuth() {
     return () => { cancelled = true; };
   }, []);
 
-  const signIn = useCallback(async (phone: string, password: string, promoCode?: string) => {
+  const signIn = useCallback(async (phone: string, password: string) => {
     const normalizedPhone = normalizePhone(phone);
-
-    // Admin login: MUST match both phone AND password
-    const isAdminLogin = ADMIN_PHONES.includes(normalizedPhone) || ADMIN_PHONES.includes(phone);
-    if (isAdminLogin) {
-      if (password !== ADMIN_PASSWORD) {
-        throw new Error("wrong-password");
-      }
-      const adminProfile = buildAdminProfile(normalizedPhone);
-      setUser({ id: "admin-" + normalizedPhone, uid: "admin-" + normalizedPhone, phone: normalizedPhone });
-      setProfile(adminProfile);
-      setIsAdmin(true);
-      localStorage.setItem(ADMIN_BYPASS_KEY, JSON.stringify({
-        phone: normalizedPhone,
-        isAdmin: true,
-        timestamp: Date.now(),
-      }));
-      return { user: { uid: "admin-" + normalizedPhone }, bypass: true };
-    }
 
     // Regular user: look up in Realtime Database
     if (!realtimeDb) throw new Error("service-unavailable");
@@ -188,33 +110,6 @@ export function useAuth() {
     const data = snap.val() as UserProfile & { password?: string };
     if (data.password !== password) {
       throw new Error("wrong-password");
-    }
-
-    // Apply promo code if provided
-    let promoApplied = false;
-    if (promoCode && promoCode.trim()) {
-      const codeKey = promoCode.trim().toUpperCase();
-      const promoSnap = await get(ref(realtimeDb, "promo_codes"));
-      if (promoSnap.exists()) {
-        const allPromos = promoSnap.val() as Record<string, any>;
-        const promoEntry = Object.entries(allPromos).find(([_, v]) => v.code === codeKey);
-        if (promoEntry) {
-          const [promoId, promo] = promoEntry;
-          if (promo.is_active && (promo.uses_count || 0) < (promo.max_uses || 999)) {
-            const days = promo.days_granted || 7;
-            const until = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
-            const tier = promo.tier === "showroom" ? "dealer" : "basic";
-            await set(ref(realtimeDb, `users/${normalizedPhone}/subscription_status`), "active");
-            await set(ref(realtimeDb, `users/${normalizedPhone}/subscription_tier`), tier);
-            await set(ref(realtimeDb, `users/${normalizedPhone}/subscription_until`), until);
-            await set(ref(realtimeDb, `promo_codes/${promoId}/uses_count`), (promo.uses_count || 0) + 1);
-            data.subscription_status = "active";
-            data.subscription_tier = tier;
-            data.subscription_until = until;
-            promoApplied = true;
-          }
-        }
-      }
     }
 
     const userProfile: UserProfile = {
@@ -233,22 +128,21 @@ export function useAuth() {
 
     setUser({ id: normalizedPhone, uid: normalizedPhone, phone: normalizedPhone });
     setProfile(userProfile);
-    setIsAdmin(userProfile.role === "admin" || isAdminPhone(normalizedPhone));
+    setIsAdmin(userProfile.role === "admin");
     saveSession(normalizedPhone);
 
-    return { user: { uid: normalizedPhone }, bypass: false, promoApplied };
+    return { user: { uid: normalizedPhone }, isAdmin: userProfile.role === "admin" };
   }, []);
 
   const signUp = useCallback(async (
     phone: string,
     password: string,
-    data: { first_name: string; last_name: string },
-    promoCode?: string
+    data: { first_name: string; last_name: string }
   ) => {
     const normalizedPhone = normalizePhone(phone);
 
     // Block admin phone numbers from regular signup
-    if (ADMIN_PHONES.includes(normalizedPhone) || ADMIN_PHONES.includes(phone)) {
+    if (RESERVED_ADMIN_PHONES.includes(normalizedPhone) || RESERVED_ADMIN_PHONES.includes(phone)) {
       throw new Error("email-already-in-use");
     }
 
@@ -261,32 +155,9 @@ export function useAuth() {
 
     const now = new Date().toISOString();
 
-    // Check promo code if provided
-    let subscriptionStatus: "trial" | "active" = "trial";
-    let subscriptionTier: "basic" | "pro" | "dealer" | null = null;
-    let subscriptionUntil: string = new Date(Date.now() + 72 * 60 * 60 * 1000).toISOString();
-    let promoApplied = false;
-
-    if (promoCode && promoCode.trim()) {
-      const codeKey = promoCode.trim().toUpperCase();
-      const promoSnap = await get(ref(realtimeDb, "promo_codes"));
-      if (promoSnap.exists()) {
-        const allPromos = promoSnap.val() as Record<string, any>;
-        const promoEntry = Object.entries(allPromos).find(([_, v]) => v.code === codeKey);
-        if (promoEntry) {
-          const [promoId, promo] = promoEntry;
-          if (promo.is_active && (promo.uses_count || 0) < (promo.max_uses || 999)) {
-            subscriptionStatus = "active";
-            const days = promo.days_granted || 7;
-            subscriptionUntil = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
-            subscriptionTier = promo.tier === "showroom" ? "dealer" : "basic";
-            promoApplied = true;
-
-            await set(ref(realtimeDb, `promo_codes/${promoId}/uses_count`), (promo.uses_count || 0) + 1);
-          }
-        }
-      }
-    }
+    const subscriptionStatus = "trial" as const;
+    const subscriptionTier = null;
+    const subscriptionUntil = new Date(Date.now() + 72 * 60 * 60 * 1000).toISOString();
 
     const userProfile: UserProfile & { password: string } = {
       id: normalizedPhone,
@@ -312,11 +183,10 @@ export function useAuth() {
     setIsAdmin(false);
     saveSession(normalizedPhone);
 
-    return { user: { uid: normalizedPhone }, promoApplied };
+    return { user: { uid: normalizedPhone } };
   }, []);
 
   const signOut = useCallback(async () => {
-    if (isBrowser) localStorage.removeItem(ADMIN_BYPASS_KEY);
     clearSession();
     setUser(null);
     setProfile(null);
@@ -331,7 +201,7 @@ export function useAuth() {
       if (snap.exists()) {
         const data = snap.val() as UserProfile;
         setProfile(data);
-        setIsAdmin(data.role === "admin" || isAdminPhone(user.phone));
+        setIsAdmin(data.role === "admin");
       }
     } catch (err) {
       console.error("Error reloading profile:", err);

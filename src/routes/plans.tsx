@@ -5,9 +5,6 @@ import { useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { PremiumPaywallModal } from "@/components/PremiumPaywallModal";
 import { toast } from "sonner";
-import { get, ref, set } from "firebase/database";
-import { realtimeDb } from "@/lib/firebase";
-import { demoKeys, setDemoValue } from "@/lib/demo-state";
 import { SUBSCRIPTION_PRICES } from "@/lib/pricing";
 
 export const Route = createFileRoute("/plans")({
@@ -25,18 +22,16 @@ const PLANS = [
     icon: Zap,
     price: SUBSCRIPTION_PRICES.individualMonthly,
     features: [
-      "إعلان واحد يومياً",
-      "صور حتى 30 صورة",
-      "نشر ريلز GRAND Stories",
-      "دعم فني بالبريد",
-      "تجربة مجانية 72 ساعة",
+      "إدارة إعلاناتك الفردية",
+      "حتى 30 صورة للإعلان",
+      "نشر Reels وفق أهلية الحساب",
+      "تفعيل بعد مراجعة الدفع",
     ],
     featuresEn: [
-      "1 post per day",
-      "Up to 30 images",
-      "Post GRAND Stories reels",
-      "Email support",
-      "72h free trial",
+      "Manage your individual listings",
+      "Up to 30 photos per listing",
+      "Reels subject to account eligibility",
+      "Activation after payment review",
     ],
     popular: false,
   },
@@ -48,8 +43,8 @@ const PLANS = [
     periodEn: "Yearly",
     icon: Zap,
     price: SUBSCRIPTION_PRICES.individualYearly,
-    features: ["إعلان واحد يومياً", "صور حتى 30 صورة", "نشر ريلز GRAND Stories", "وفر شهرين"],
-    featuresEn: ["1 post per day", "Up to 30 images", "Post GRAND Stories reels", "Save 2 months"],
+    features: ["إدارة إعلاناتك الفردية", "حتى 30 صورة للإعلان", "نشر Reels وفق أهلية الحساب", "وفر شهرين"],
+    featuresEn: ["Manage your individual listings", "Up to 30 photos per listing", "Reels subject to account eligibility", "Save 2 months"],
     popular: false,
   },
   {
@@ -61,22 +56,20 @@ const PLANS = [
     icon: Building2,
     price: SUBSCRIPTION_PRICES.showroomMonthly,
     features: [
-      "إعلانات غير محدودة",
-      "صور حتى 30 صورة",
-      "ريلز GRAND Stories",
-      "شارة معرض موثق",
-      "دعم أولوية واتساب",
-      "إحصائيات متقدمة",
-      "تثبيت الإعلانات",
+      "ملف مخصص للمعرض",
+      "إدارة مخزون المعرض",
+      "حتى 30 صورة للإعلان",
+      "نشر Reels وفق أهلية الحساب",
+      "التوثيق بعد مراجعة الإدارة فقط",
+      "تفعيل بعد مراجعة الدفع",
     ],
     featuresEn: [
-      "Unlimited posts",
-      "Up to 30 images",
-      "GRAND Stories reels",
-      "Verified showroom badge",
-      "Priority WhatsApp support",
-      "Advanced analytics",
-      "Pin listings",
+      "Dedicated showroom profile",
+      "Manage showroom inventory",
+      "Up to 30 photos per listing",
+      "Reels subject to account eligibility",
+      "Verification only after admin review",
+      "Activation after payment review",
     ],
     popular: true,
   },
@@ -88,8 +81,8 @@ const PLANS = [
     periodEn: "Yearly",
     icon: Building2,
     price: SUBSCRIPTION_PRICES.showroomYearly,
-    features: ["إعلانات غير محدودة", "شارة معرض موثق", "إحصائيات متقدمة", "وفر 5,000 دج"],
-    featuresEn: ["Unlimited listings", "Verified showroom badge", "Advanced analytics", "Save 5,000 DZD"],
+    features: ["ملف مخصص للمعرض", "إدارة مخزون المعرض", "التوثيق بعد مراجعة الإدارة فقط", "وفر 5,000 دج"],
+    featuresEn: ["Dedicated showroom profile", "Manage showroom inventory", "Verification only after admin review", "Save 5,000 DZD"],
     popular: false,
   },
 
@@ -109,102 +102,14 @@ function PlansPage() {
   const access = auth?.access ?? "locked";
   const [showPaywall, setShowPaywall] = useState(false);
   const [promoCode, setPromoCode] = useState("");
-  const [promoLoading, setPromoLoading] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
 
-  const handleApplyPromo = async () => {
-    // Guard: check input
-    if (!promoCode?.trim()) {
+  const handleApplyPromo = () => {
+    if (!promoCode.trim()) {
       toast.error("أدخل كود الترويج");
       return;
     }
-
-    // Guard: check user is logged in
-    if (!profile?.phone) {
-      toast.error("سجل دخول أولاً");
-      return;
-    }
-
-    setPromoLoading(true);
-
-    try {
-      if (!realtimeDb) {
-        setDemoValue(demoKeys.subscription, { status: "active", tier: "basic", until: new Date(Date.now() + 7 * 86400000).toISOString(), promo: promoCode.trim().toUpperCase() });
-        toast.success("Demo subscription activated for 7 days");
-        return;
-      }
-      // Step 1: Fetch promo codes from database
-      const promoSnap = await get(ref(realtimeDb, "promo_codes"));
-
-      // Guard: check if promo codes exist
-      if (!promoSnap?.exists()) {
-        toast.error("كود غير صالح");
-        return;
-      }
-
-      const promosData = promoSnap.val();
-
-      // Guard: validate data is an object
-      if (!promosData || typeof promosData !== "object") {
-        toast.error("كود غير صالح");
-        return;
-      }
-
-      // Step 2: Find matching promo code
-      const promoEntries = Object.entries(promosData) as [string, any][];
-      const matchedEntry = promoEntries.find(([_, p]) => {
-        const code = p?.code?.toString?.().toUpperCase?.();
-        const isActive = p?.is_active === true;
-        return code === promoCode.trim().toUpperCase() && isActive;
-      });
-
-      // Guard: no matching promo
-      if (!matchedEntry) {
-        toast.error("كود غير صالح أو منتهي");
-        return;
-      }
-
-      const [promoId, promoRaw] = matchedEntry;
-      const promo = {
-        code: String(promoRaw?.code || ""),
-        is_active: Boolean(promoRaw?.is_active),
-        days_granted: Number(promoRaw?.days_granted) || 7,
-        tier: String(promoRaw?.tier || "individual"),
-        max_uses: promoRaw?.max_uses != null ? Number(promoRaw.max_uses) : null,
-        uses_count: Number(promoRaw?.uses_count) || 0,
-      };
-
-      // Guard: check usage limit
-      if (promo.max_uses != null && promo.uses_count >= promo.max_uses) {
-        toast.error("تم استخدام الكود الحد الأقصى");
-        return;
-      }
-
-      // Step 3: Calculate subscription
-      const days = Math.max(1, promo.days_granted);
-      const tier = promo.tier === "showroom" ? "dealer" : "basic";
-      const until = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
-      const userPhone = String(profile.phone);
-
-      // Step 4: Update user subscription
-      await set(ref(realtimeDb, `users/${userPhone}/subscription_status`), "active");
-      await set(ref(realtimeDb, `users/${userPhone}/subscription_tier`), tier);
-      await set(ref(realtimeDb, `users/${userPhone}/subscription_until`), until);
-
-      // Step 5: Increment promo usage
-      const newUsesCount = promo.uses_count + 1;
-      await set(ref(realtimeDb, `promo_codes/${promoId}/uses_count`), newUsesCount);
-
-      // Success
-      toast.success(`تم تطبيق الكود! ${days} يوم مجاني - باقة ${promo.tier === "showroom" ? "معرض" : "عادية"}`);
-
-    } catch (error) {
-      // Log for debugging but show user-friendly message
-      console.error("Promo code application error:", error);
-      toast.error("حدث خطأ أثناء تطبيق الكود. حاول مرة أخرى.");
-    } finally {
-      setPromoLoading(false);
-    }
+    toast.info("استرداد الأكواد متوقف مؤقتًا حتى يصبح التحقق من الخادم.");
   };
 
   const handleSelectPlan = (planId: string) => {
@@ -253,7 +158,7 @@ function PlansPage() {
         <div className="grid md:grid-cols-2 gap-4 mb-12">
           {PLANS.map((plan) => {
             const Icon = plan.icon;
-            const isYearly = false;
+            const isYearly = plan.id.endsWith("-yearly");
 
             return (
               <div
@@ -301,9 +206,6 @@ function PlansPage() {
                     <div className="text-xs text-white/40">
                       {isYearly ? Math.round(plan.price / 12).toLocaleString() + " DZD/شهر" : plan.periodEn}
                     </div>
-                    {plan.savings && (
-                      <div className="text-xs text-green-400 mt-1">{plan.savings}</div>
-                    )}
                   </div>
 
                   {/* Features */}
@@ -396,13 +298,13 @@ function PlansPage() {
               <Button
                 variant="gold"
                 onClick={handleApplyPromo}
-                disabled={promoLoading || !promoCode.trim()}
+                disabled={!promoCode.trim()}
               >
-                {promoLoading ? "..." : "تطبيق"}
+                تطبيق
               </Button>
             </div>
             <p className="text-xs text-white/40 mt-3">
-              الأكواد الترويجية تمنح أيام مجانية إضافية
+              التحقق من الأكواد موقوف مؤقتًا حتى ربطه بخدمة آمنة على الخادم.
             </p>
           </div>
         </div>

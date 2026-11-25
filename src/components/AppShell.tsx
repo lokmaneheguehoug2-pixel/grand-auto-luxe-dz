@@ -9,33 +9,16 @@ import { NotificationBell } from "@/components/NotificationBell";
 import { SubscriptionReminderModal } from "@/components/SubscriptionReminderModal";
 import { CustomerServiceFooter } from "@/components/CustomerServiceFooter";
 import { GrandouAssistant } from "@/components/GrandouAssistant";
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState } from "react";
 import { ref, onValue, off } from "firebase/database";
 import { realtimeDb } from "@/lib/firebase";
-
-function checkAdminSync(): boolean {
-  if (typeof window === "undefined") return false;
-  try {
-    const stored = localStorage.getItem("gal:admin:bypass");
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      return parsed?.isAdmin === true;
-    }
-  } catch {
-    /* ignore */
-  }
-  return false;
-}
 
 export function AppShell() {
   const auth = useAuth();
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
 
-  const isAdminStable = useMemo(() => {
-    if (auth?.isAdmin) return true;
-    return checkAdminSync();
-  }, [auth?.isAdmin]);
+  const isAdminStable = auth?.isAdmin ?? false;
 
   const user = auth?.user ?? null;
   const profile = auth?.profile ?? null;
@@ -142,7 +125,7 @@ export function AppShell() {
 
       {user && access === "locked" && !isAdminStable && !isAuthPage && !["/paywall", "/checkout", "/post", "/post-reel"].includes(pathname) && <PaywallGate />}
       {!isAuthPage && <CompareTray />}
-      {!isAuthPage && <GrandouAssistant />}
+      {!isAuthPage && !["/plans", "/checkout", "/post", "/post-reel"].includes(pathname) && <GrandouAssistant />}
       <SubscriptionReminderModal shouldShow={showReminder} />
       <Toaster theme="dark" />
     </div>
@@ -158,7 +141,7 @@ function NavButton({ icon: Icon, label, to, params, active, accent }: {
   accent?: boolean;
 }) {
   return (
-    <Link to={to as any} params={params as any} className="flex flex-col items-center justify-center gap-0.5 flex-1 h-full">
+    <Link to={to as never} params={params as never} className="flex flex-col items-center justify-center gap-0.5 flex-1 h-full">
       <div className={`grid place-items-center transition-transform ${accent ? "h-8 w-8 rounded-full gold-gradient" : ""} ${active && !accent ? "scale-110" : ""}`}>
         <Icon className={`h-5 w-5 ${accent ? "text-gold-foreground" : active ? "text-gold" : "text-muted-foreground"}`} />
       </div>

@@ -32,61 +32,87 @@ function PostReelPage() {
   const [busy, setBusy] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [preview, setPreview] = useState<string | null>(null);
-  const [dailyLimitReached, setDailyLimitReached] = useState(false);
+  const [monthlyLimitReached, setMonthlyLimitReached] = useState(false);
+  const [limitCheckFailed, setLimitCheckFailed] = useState(false);
   const [checkingLimit, setCheckingLimit] = useState(true);
 
-  const isShowroom = profile?.subscription?.plan === "showroom";
+  const isShowroom = profile?.subscription_tier === "dealer";
+  const monthlyReelLimit = isShowroom
+    ? 50
+    : profile?.subscription_tier === "basic" || profile?.subscription_tier === "pro"
+      ? 15
+      : 1;
 
   useEffect(() => {
-    if (!user) return;
+    const database = realtimeDb;
+    if (!user || !database) {
+      setMyVehicles([]);
+      return;
+    }
+
     const load = async () => {
       try {
-        const snap = await get(dbRef(realtimeDb, "vehicles"));
-        if (snap.exists()) {
-          const vehicles = Object.entries(snap.val()) as [string, any][];
-          const myVehicles = vehicles
-            .filter(([_, v]) => v.sellerId === user.id)
-            .map(([id, v]) => ({
-              id,
-              brand: v.brand,
-              model: v.model,
-              year: v.year,
-            }));
-          setMyVehicles(myVehicles);
+        const snap = await get(dbRef(database, "vehicles"));
+        const raw = snap.val();
+        if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+          setMyVehicles([]);
+          return;
         }
-      } catch (e) {
-        console.error("Error loading vehicles:", e);
+        const vehicles = Object.entries(raw).flatMap(([id, value]) => {
+          if (!value || typeof value !== "object" || Array.isArray(value)) return [];
+          const vehicle = value as Record<string, unknown>;
+          if (vehicle.sellerId !== user.id) return [];
+          return [{
+            id,
+            brand: typeof vehicle.brand === "string" ? vehicle.brand : "",
+            model: typeof vehicle.model === "string" ? vehicle.model : "",
+            year: typeof vehicle.year === "number" ? vehicle.year : 0,
+          }];
+        });
+        setMyVehicles(vehicles);
+      } catch (error) {
+        console.error("Error loading vehicles:", error);
+        setMyVehicles([]);
       }
     };
-    load();
+    void load();
   }, [user]);
 
-  // Check daily reel limit for non-showroom users
   useEffect(() => {
+    const database = realtimeDb;
     if (!user || access === "locked") { setCheckingLimit(false); return; }
-    if (isShowroom) { setCheckingLimit(false); return; }
+    if (!database) {
+      setLimitCheckFailed(true);
+      setCheckingLimit(false);
+      return;
+    }
 
+    let cancelled = false;
     const checkLimit = async () => {
+      setCheckingLimit(true);
+      setLimitCheckFailed(false);
       try {
-        const snap = await get(dbRef(realtimeDb, "reels"));
-        if (!snap.exists()) { setCheckingLimit(false); return; }
-
-        const today = new Date().toISOString().split("T")[0];
-        const myReelsToday = Object.values(snap.val() as Record<string, any>).filter(
-          (r) => r.authorId === user.id && r.createdAt?.startsWith(today),
-        );
-
-        if (myReelsToday.length >= 1) {
-          setDailyLimitReached(true);
+        const reelsQuery = query(dbRef(database, "reels"), orderByChild("authorId"), equalTo(user.id));
+        const snap = await get(reelsQuery);
+        const currentMonth = new Date().toISOString().slice(0, 7);
+        const myReelsThisMonth = snap.exists()
+          ? Object.values(snap.val() as Record<string, { createdAt?: unknown }>).filter(
+              (reel) => typeof reel.createdAt === "string" && reel.createdAt.slice(0, 7) === currentMonth,
+            )
+          : [];
+        if (!cancelled) setMonthlyLimitReached(myReelsThisMonth.length >= monthlyReelLimit);
+      } catch (error) {
+        if (!cancelled) {
+          console.error("Failed to verify monthly Reel quota:", error);
+          setLimitCheckFailed(true);
         }
-      } catch (e) {
-        console.error("Error checking daily limit:", e);
       } finally {
-        setCheckingLimit(false);
+        if (!cancelled) setCheckingLimit(false);
       }
     };
-    checkLimit();
-  }, [user, access, isShowroom]);
+    void checkLimit();
+    return () => { cancelled = true; };
+  }, [user, access, monthlyReelLimit]);
 
   useEffect(() => {
     if (!file) { setPreview(null); return; }
@@ -118,8 +144,13 @@ function PostReelPage() {
   );
 
   const submit = async () => {
+    const database = realtimeDb;
     if (!file || !user) {
       toast.error("اختر ملف فيديو");
+      return;
+    }
+    if (!database) {
+      toast.error("خدمة النشر غير متاحة حاليًا.");
       return;
     }
     if (file.size > 100 * 1024 * 1024) {
@@ -138,7 +169,7 @@ function PostReelPage() {
       setUploadProgress(100);
 
       // Save to Firebase Realtime Database
-      const reelRef = push(dbRef(realtimeDb, "reels"));
+      const reelRef = push(dbRef(database, "reels"));
       const reelId = reelRef.key!;
 
       await set(reelRef, {
@@ -155,8 +186,8 @@ function PostReelPage() {
 
       toast.success("تم نشر الريل بنجاح ✨");
       navigate({ to: "/reels" });
-    } catch (e: any) {
-      toast.error(e.message ?? "فشل النشر");
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "فشل النشر");
     } finally {
       setBusy(false);
       setUploadProgress(0);
@@ -256,19 +287,23 @@ function PostReelPage() {
           </div>
         )}
 
-        {/* Daily limit warning for non-showroom users */}
-        {dailyLimitReached && !isShowroom && (
+        {monthlyLimitReached && (
           <div className="rounded-xl border border-gold/40 bg-gold/10 p-4 flex items-start gap-3">
             <AlertCircle className="h-5 w-5 text-gold shrink-0 mt-0.5" />
             <div>
-              <div className="text-sm font-medium text-gold">Daily Reel Limit Reached</div>
+              <div className="text-sm font-medium text-gold">Monthly Reel Limit Reached</div>
               <div className="text-xs text-muted-foreground mt-1">
-                Your Individual plan allows 1 reel per day. Upgrade to Showroom for unlimited reels.
+                وصل حسابك إلى الحد الشهري البالغ {monthlyReelLimit} ريلز.
               </div>
               <Button asChild variant="gold-outline" size="sm" className="mt-2">
-                <Link to="/plans">Upgrade to Showroom</Link>
+                <Link to="/plans">عرض الخطط</Link>
               </Button>
             </div>
+          </div>
+        )}
+        {limitCheckFailed && (
+          <div role="alert" className="rounded-xl border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive-foreground">
+            تعذر التحقق من حد النشر. أعد المحاولة بعد استعادة اتصال قاعدة البيانات.
           </div>
         )}
 
@@ -277,7 +312,7 @@ function PostReelPage() {
           variant="gold"
           size="lg"
           className="w-full"
-          disabled={busy || !file || dailyLimitReached || checkingLimit}
+          disabled={busy || !file || monthlyLimitReached || checkingLimit || limitCheckFailed}
           onClick={submit}
         >
           {busy ? (

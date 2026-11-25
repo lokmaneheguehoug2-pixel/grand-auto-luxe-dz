@@ -3,28 +3,14 @@ import { Button } from "@/components/ui/button";
 import { Crown, ArrowRight, Check, Zap, Building2, Copy, Sparkles } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { SUBSCRIPTION_PLANS, type SubscriptionPlan } from "@/lib/pricing";
 
-type PlanTier = "individual" | "showroom";
-type BillingCycle = "monthly";
-
-const PLAN_OPTIONS: Record<
-  PlanTier,
-  { name: string; nameAr: string; icon: typeof Zap; monthly: number; features: string[] }
-> = {
-  individual: {
-    name: "Individual",
-    nameAr: "الخطة الفردية",
-    icon: Zap,
-    monthly: 1000,
-    features: ["1 post per day", "1 reel per day", "Standard listing"],
-  },
-  showroom: {
-    name: "Showroom",
-    nameAr: "خطة المعرض",
-    icon: Building2,
-    monthly: 2500,
-    features: ["Unlimited posts", "Unlimited reels", "Priority placement", "Verified dealer badge"],
-  },
+const PLAN_IDS = Object.keys(SUBSCRIPTION_PLANS) as SubscriptionPlan[];
+const PLAN_FEATURES: Record<SubscriptionPlan, string[]> = {
+  "individual-monthly": ["حتى 30 صورة لكل إعلان", "تفعيل بعد مراجعة الدفع"],
+  "individual-yearly": ["حتى 30 صورة لكل إعلان", "تفعيل بعد مراجعة الدفع"],
+  "showroom-monthly": ["ملف معرض وإدارة المخزون", "التوثيق بعد مراجعة الإدارة"],
+  "showroom-yearly": ["ملف معرض وإدارة المخزون", "التوثيق بعد مراجعة الإدارة"],
 };
 
 const CCP_DETAILS = {
@@ -35,13 +21,9 @@ const CCP_DETAILS = {
 };
 
 export function PaywallGate() {
-  const [tier, setTier] = useState<PlanTier>("individual");
-  const billing: BillingCycle = "monthly";
+  const [planId, setPlanId] = useState<SubscriptionPlan>("individual-monthly");
   const [copiedField, setCopiedField] = useState<string | null>(null);
-
-  const plan = PLAN_OPTIONS[tier];
-  const price = plan[billing];
-  const planId = `${tier}-${billing}`;
+  const plan = SUBSCRIPTION_PLANS[planId];
 
   const copy = (text: string, field: string) => {
     navigator.clipboard.writeText(text);
@@ -68,35 +50,35 @@ export function PaywallGate() {
               </div>
             </div>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              Your 3-day free trial has expired. Activate your subscription to keep listing vehicles and reach the premium Algerian automotive market.
+              Access is currently limited. Choose an available plan; payment receipts are reviewed manually before activation.
             </p>
 
-            {/* Tier selector */}
             <div className="mt-5 grid grid-cols-2 gap-3">
-              {(Object.keys(PLAN_OPTIONS) as PlanTier[]).map((t) => {
-                const opt = PLAN_OPTIONS[t];
-                const TIcon = opt.icon;
-                const isSelected = tier === t;
+              {PLAN_IDS.map((id) => {
+                const option = SUBSCRIPTION_PLANS[id];
+                const OptionIcon = option.tier === "dealer" ? Building2 : Zap;
+                const isSelected = planId === id;
                 return (
                   <button
-                    key={t}
-                    onClick={() => setTier(t)}
-                    className={`rounded-xl border p-4 text-left transition ${
-                      isSelected
-                        ? "border-gold bg-gold/10 gold-glow"
-                        : "border-border bg-charcoal hover:border-gold/30"
+                    key={id}
+                    type="button"
+                    aria-pressed={isSelected}
+                    onClick={() => setPlanId(id)}
+                    className={`rounded-xl border p-3 text-left transition ${
+                      isSelected ? "border-gold bg-gold/10 gold-glow" : "border-border bg-charcoal hover:border-gold/30"
                     }`}
                   >
-                    <div className="flex items-center gap-2 mb-2">
-                      <TIcon className={`h-5 w-5 ${isSelected ? "text-gold" : "text-muted-foreground"}`} />
-                      <span className="text-sm font-semibold">{opt.name}</span>
+                    <div className="flex items-center gap-2 mb-1">
+                      <OptionIcon className={`h-4 w-4 ${isSelected ? "text-gold" : "text-muted-foreground"}`} />
+                      <span className="text-xs font-semibold">{option.nameEn}</span>
                     </div>
-                    <div className="text-[10px] text-gold/70 mb-2">{opt.nameAr}</div>
-                    <ul className="space-y-1">
-                      {opt.features.map((f) => (
-                        <li key={f} className="text-[10px] text-muted-foreground flex items-center gap-1">
-                          <Check className="h-2.5 w-2.5 text-gold/60 shrink-0" />
-                          {f}
+                    <div className="text-[10px] text-gold/70 mb-2">{option.name} · {option.period}</div>
+                    <div className="text-sm font-semibold">{option.price.toLocaleString()} DZD</div>
+                    <ul className="mt-2 space-y-1">
+                      {PLAN_FEATURES[id].map((feature) => (
+                        <li key={feature} className="text-[10px] text-muted-foreground flex items-start gap-1">
+                          <Check className="h-2.5 w-2.5 text-gold/60 shrink-0 mt-0.5" />
+                          {feature}
                         </li>
                       ))}
                     </ul>
@@ -105,14 +87,11 @@ export function PaywallGate() {
               })}
             </div>
 
-  <p className="mt-4 text-center text-xs text-muted-foreground">الفوترة شهرية فقط</p>
-
-            {/* Price display */}
             <div className="mt-4 text-center">
               <div className="flex items-baseline justify-center gap-2">
-                <span className="font-display text-3xl gold-shine">{price.toLocaleString()}</span>
+                <span className="font-display text-3xl gold-shine">{plan.price.toLocaleString()}</span>
                 <span className="text-muted-foreground text-sm">DZD</span>
-                <span className="text-muted-foreground/60 text-xs">/ {"شهر"}</span>
+                <span className="text-muted-foreground/60 text-xs">/ {plan.period}</span>
               </div>
             </div>
 
@@ -145,13 +124,13 @@ export function PaywallGate() {
 
             {/* CTA */}
             <Button asChild variant="gold" className="w-full mt-5 h-12">
-              <Link to="/checkout" state={{ plan: planId }}>
+              <Link to="/checkout" state={(previous) => ({ ...previous, plan: planId })}>
                 <Sparkles className="h-4 w-4 mr-2" />
                 رفع وصل الدفع · Continue <ArrowRight className="h-4 w-4 ml-2" />
               </Link>
             </Button>
             <p className="text-[10px] text-muted-foreground text-center mt-3">
-              بعد التحويل، أرفع صورة الوصل وسيقوم المسؤول بتفعيل حسابك خلال دقائق.
+              يتم تفعيل الاشتراك بعد مراجعة وصل الدفع يدويًا.
             </p>
           </div>
         </div>

@@ -12,7 +12,7 @@ const localEnv = {
   ...loadEnv("development", process.cwd(), ""),
   ...loadEnv("production", process.cwd(), ""),
 };
-const firebaseApiKey = process.env.VITE_FIREBASE_API_KEY || process.env.apiKey || localEnv.VITE_FIREBASE_API_KEY || localEnv.apiKey;
+const firebaseApiKey = process.env.VITE_FIREBASE_API_KEY || localEnv.VITE_FIREBASE_API_KEY || process.env.apiKey || localEnv.apiKey;
 const isNetlifyBuild = process.env.NETLIFY === "true";
 
 export default defineConfig({

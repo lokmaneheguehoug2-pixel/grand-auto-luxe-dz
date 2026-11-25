@@ -116,17 +116,14 @@ function SellerProfile() {
     async function load() {
       setLoading(true);
       try {
-        console.log("[Profile] Fetching profile for id:", id);
 
         // Strategy 1: direct lookup at users/{id}
         let profileSnap = await get(ref(realtimeDb, `users/${id}`));
-        console.log("[Profile] Direct lookup users/" + id + ":", profileSnap.exists());
 
         // Strategy 2: strip admin- prefix
         if (!profileSnap.exists() && id.startsWith("admin-")) {
           const phonePart = id.replace("admin-", "");
           profileSnap = await get(ref(realtimeDb, `users/${phonePart}`));
-          console.log("[Profile] Stripped admin- prefix, lookup users/" + phonePart + ":", profileSnap.exists());
         }
 
         // Strategy 3: search vehicles for matching sellerId/sellerPhone to recover phone
@@ -134,14 +131,14 @@ function SellerProfile() {
         if (!profileSnap.exists()) {
           const vehiclesSnap = await get(ref(realtimeDb, "vehicles"));
           if (vehiclesSnap.exists()) {
-            const allV = vehiclesSnap.val() as Record<string, any>;
+            const allV = vehiclesSnap.val() as Record<string, { sellerId?: unknown; sellerPhone?: unknown }>;
             const match = Object.values(allV).find(
-              (v) => v.sellerId === id || v.sellerPhone === id,
+              (vehicle) => vehicle.sellerId === id || vehicle.sellerPhone === id,
             );
-            if (match?.sellerPhone) {
+            if (typeof match?.sellerPhone === "string") {
               recoveredPhone = match.sellerPhone;
               profileSnap = await get(ref(realtimeDb, `users/${match.sellerPhone}`));
-              console.log("[Profile] Vehicle lookup recovered phone:", match.sellerPhone, "→ exists:", profileSnap.exists());
+
             }
           }
         }
@@ -191,7 +188,6 @@ function SellerProfile() {
         if (profileSnap.exists()) {
           // Profile found in Firebase
           const data = profileSnap.val();
-          console.log("[Profile] Found profile data:", { phone: data.phone, first_name: data.first_name, subscription_tier: data.subscription_tier });
           setProfile({
             id,
             phone: phoneKey,
@@ -214,8 +210,7 @@ function SellerProfile() {
           setEditShowroomName(data.showroom_name || "");
         } else if (sellerVehicles.length > 0 || reelsSnap.exists() || storiesSnap.exists()) {
           // No users/ entry but has content — build a minimal profile from vehicle/reel metadata
-          console.log("[Profile] No users/ entry but content exists. Building fallback profile for phone:", phoneKey);
-          const firstVehicle = sellerVehicles[0];
+            const firstVehicle = sellerVehicles[0];
           setProfile({
             id,
             phone: phoneKey,
@@ -231,8 +226,6 @@ function SellerProfile() {
             is_showroom: false,
             instagram: undefined,
           });
-        } else {
-          console.log("[Profile] No profile and no content found for id:", id);
         }
       } catch (err) {
         console.error("[Profile] Error loading seller profile:", err);

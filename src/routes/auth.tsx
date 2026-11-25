@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { useAuth, normalizePhone, isAdminPhone } from "@/hooks/use-auth";
+import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -127,7 +127,6 @@ function SignIn({ t }: { t: Record<string, string> }) {
   const { signIn } = useAuth();
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
-  const [promoCode, setPromoCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -137,16 +136,11 @@ function SignIn({ t }: { t: Record<string, string> }) {
     setErr(null);
 
     try {
-      const result = await signIn(phone, password, promoCode || undefined);
-      const normalizedPhone = normalizePhone(phone);
+      const result = await signIn(phone, password);
 
-      // Check if admin bypass or admin user
-      if (result.bypass || isAdminPhone(normalizedPhone) || isAdminPhone(phone)) {
+      if (result.isAdmin) {
         toast.success(t.adminAccess);
         navigate({ to: "/admin" });
-      } else if (result.promoApplied) {
-        toast.success("Promo code applied! Subscription activated.");
-        navigate({ to: "/" });
       } else {
         toast.success(t.welcome);
         navigate({ to: "/" });
@@ -185,15 +179,6 @@ function SignIn({ t }: { t: Record<string, string> }) {
           required
         />
       </div>
-      <div>
-        <Label className="text-xs uppercase tracking-widest text-gold/70">Promo Code (optional) · كود البرومو</Label>
-        <Input
-          className="mt-1.5 bg-charcoal border-gold/30"
-          placeholder="GRAND2025"
-          value={promoCode}
-          onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
-        />
-      </div>
       {err && <ErrorBox>{err}</ErrorBox>}
       <Button variant="gold" className="w-full h-11" disabled={loading}>
         {loading && <Loader2 className="h-4 w-4 animate-spin" />} {t.signin}
@@ -205,7 +190,7 @@ function SignIn({ t }: { t: Record<string, string> }) {
 function SignUp({ t }: { t: Record<string, string> }) {
   const navigate = useNavigate();
   const { signUp } = useAuth();
-  const [f, setF] = useState({ first_name: "", last_name: "", phone: "", password: "", promoCode: "" });
+  const [f, setF] = useState({ first_name: "", last_name: "", phone: "", password: "" });
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -215,19 +200,10 @@ function SignUp({ t }: { t: Record<string, string> }) {
     setErr(null);
 
     try {
-      const result = await signUp(f.phone, f.password, { first_name: f.first_name, last_name: f.last_name }, f.promoCode) as any;
+      await signUp(f.phone, f.password, { first_name: f.first_name, last_name: f.last_name });
 
-      // Check if admin phone
-      if (isAdminPhone(normalizePhone(f.phone))) {
-        toast.success(t.adminAccess);
-        navigate({ to: "/admin" });
-      } else if (result?.promoApplied) {
-        toast.success("Promo code applied! Your subscription is now active.");
-        navigate({ to: "/" });
-      } else {
-        toast.success(t.welcomeNew);
-        navigate({ to: "/" });
-      }
+      toast.success(t.welcomeNew);
+      navigate({ to: "/" });
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : "";
       if (msg.includes("email-already-in-use") || msg.includes("already")) {
@@ -277,14 +253,6 @@ function SignUp({ t }: { t: Record<string, string> }) {
           minLength={6}
           value={f.password}
           onChange={(e) => setF({ ...f, password: e.target.value })}
-        />
-      </Field>
-      <Field label="Promo Code (optional) · كود البرومو">
-        <Input
-          className="bg-charcoal border-border border-gold/30"
-          placeholder="GRAND2025"
-          value={f.promoCode}
-          onChange={(e) => setF({ ...f, promoCode: e.target.value.toUpperCase() })}
         />
       </Field>
       {err && <ErrorBox>{err}</ErrorBox>}

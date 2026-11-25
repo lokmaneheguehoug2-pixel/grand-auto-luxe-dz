@@ -98,6 +98,8 @@ function DiscoveryHub() {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [showrooms, setShowrooms] = useState<Showroom[]>([]);
   const [loading, setLoading] = useState(true);
+  const [vehiclesError, setVehiclesError] = useState(false);
+  const [retryKey, setRetryKey] = useState(0);
   const [budgetMin, setBudgetMin] = useState(0);
   const [budgetMax, setBudgetMax] = useState(10000);
   const [activePreset, setActivePreset] = useState<number | null>(null);
@@ -108,65 +110,110 @@ function DiscoveryHub() {
   const userId = auth?.user?.id ?? auth?.user?.phone ?? null;
 
   useEffect(() => {
+    if (!realtimeDb) {
+      setVehicles([]);
+      setVehiclesError(true);
+      setLoading(false);
+      return;
+    }
+
+    let cancelled = false;
     const vehiclesRef = ref(realtimeDb, "vehicles");
-    const handleSnapshot = (snapshot: { val: () => Record<string, any> | null }) => {
-      const data = snapshot.val();
-      if (data) {
-        const list: Vehicle[] = Object.entries(data)
-          .map(([id, v]) => ({
-            id,
-            brand: v.brand || "",
-            model: v.model || "",
-            year: v.year || 0,
-            mileage: v.mileage ?? 0,
-            fuel_type: v.fuel_type || "",
-            transmission: v.transmission || "",
-            wilaya: v.wilaya || "",
-            phone: v.phone || "",
-            sellerPhone: v.sellerPhone || "",
-            sellerId: v.sellerId || "",
-            images: v.images || [],
-            video_url: v.video_url || null,
-            price_type: v.price_type || "fixed",
-            fixed_price: v.fixed_price ?? null,
-            starting_price: v.starting_price ?? null,
-            current_highest_bid: v.current_highest_bid ?? null,
-            auction_ends_at: v.auction_ends_at ?? null,
-            status: v.status || "active",
-            created_at: v.created_at || "",
-            previous_price: v.previous_price ?? null,
-          }))
-          .filter((v) => v.status === "active" || v.status === "sold");
-        setVehicles(list);
-      } else {
-        setVehicles([]);
-      }
+    setLoading(true);
+    setVehiclesError(false);
+    const timeoutId = window.setTimeout(() => {
+      if (cancelled) return;
+      setVehiclesError(true);
+      setLoading(false);
+    }, 12000);
+
+    const handleSnapshot = (snapshot: { val: () => unknown }) => {
+      if (cancelled) return;
+      window.clearTimeout(timeoutId);
+      const raw = snapshot.val();
+      const data = raw && typeof raw === "object" && !Array.isArray(raw)
+        ? raw as Record<string, unknown>
+        : null;
+      const list: Vehicle[] = data
+        ? Object.entries(data).flatMap(([id, value]) => {
+            if (!value || typeof value !== "object" || Array.isArray(value)) return [];
+            const vehicle = value as Record<string, unknown>;
+            return [{
+              id,
+              brand: typeof vehicle.brand === "string" ? vehicle.brand : "",
+              model: typeof vehicle.model === "string" ? vehicle.model : "",
+              year: typeof vehicle.year === "number" ? vehicle.year : 0,
+              mileage: typeof vehicle.mileage === "number" ? vehicle.mileage : 0,
+              fuel_type: typeof vehicle.fuel_type === "string" ? vehicle.fuel_type : "",
+              transmission: typeof vehicle.transmission === "string" ? vehicle.transmission : "",
+              wilaya: typeof vehicle.wilaya === "string" ? vehicle.wilaya : "",
+              phone: typeof vehicle.phone === "string" ? vehicle.phone : "",
+              sellerPhone: typeof vehicle.sellerPhone === "string" ? vehicle.sellerPhone : "",
+              sellerId: typeof vehicle.sellerId === "string" ? vehicle.sellerId : "",
+              images: Array.isArray(vehicle.images) ? vehicle.images.filter((image): image is string => typeof image === "string") : [],
+              video_url: typeof vehicle.video_url === "string" ? vehicle.video_url : null,
+              price_type: vehicle.price_type === "auction" ? "auction" as const : "fixed" as const,
+              fixed_price: typeof vehicle.fixed_price === "number" ? vehicle.fixed_price : null,
+              starting_price: typeof vehicle.starting_price === "number" ? vehicle.starting_price : null,
+              current_highest_bid: typeof vehicle.current_highest_bid === "number" ? vehicle.current_highest_bid : null,
+              auction_ends_at: typeof vehicle.auction_ends_at === "string" ? vehicle.auction_ends_at : null,
+              status: typeof vehicle.status === "string" ? vehicle.status : "active",
+              created_at: typeof vehicle.created_at === "string" ? vehicle.created_at : "",
+              previous_price: typeof vehicle.previous_price === "number" ? vehicle.previous_price : null,
+            }];
+          }).filter((vehicle) => vehicle.status === "active" || vehicle.status === "sold")
+        : [];
+      setVehicles(list);
+      setVehiclesError(false);
       setLoading(false);
     };
-    onValue(vehiclesRef, handleSnapshot);
-    return () => off(vehiclesRef);
-  }, []);
+
+    const handleError = (error: Error) => {
+      if (cancelled) return;
+      window.clearTimeout(timeoutId);
+      console.error("[v0] Discover vehicles failed to load", error);
+      setVehicles([]);
+      setVehiclesError(true);
+      setLoading(false);
+    };
+
+    onValue(vehiclesRef, handleSnapshot, handleError);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+      off(vehiclesRef, "value", handleSnapshot);
+    };
+  }, [retryKey]);
 
   useEffect(() => {
+    if (!realtimeDb) {
+      setShowrooms([]);
+      return;
+    }
     const usersRef = ref(realtimeDb, "users");
-    const handleSnapshot = (snapshot: { val: () => Record<string, any> | null }) => {
-      const data = snapshot.val();
-      if (!data) {
+    const handleSnapshot = (snapshot: { val: () => unknown }) => {
+      const raw = snapshot.val();
+      if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
         setShowrooms([]);
         return;
       }
-      const list: Showroom[] = Object.entries(data)
-        .map(([phone, u]) => ({
+      const data = raw as Record<string, unknown>;
+      const list: Showroom[] = Object.entries(data).flatMap(([phone, value]) => {
+        if (!value || typeof value !== "object" || Array.isArray(value)) return [];
+        const user = value as Record<string, unknown>;
+        const showroomName = typeof user.showroom_name === "string" ? user.showroom_name : "";
+        if (!showroomName) return [];
+        return [{
           phone,
-          first_name: u.first_name || "",
-          last_name: u.last_name || "",
-          showroom_name: u.showroom_name || "",
-          wilaya: u.wilaya || "",
-          bio: u.bio,
-          showroom_logo: u.showroom_logo,
-          subscription_status: u.subscription_status || "trial",
-        }))
-        .filter((u) => u.showroom_name && u.showroom_name.length > 0);
+          first_name: typeof user.first_name === "string" ? user.first_name : "",
+          last_name: typeof user.last_name === "string" ? user.last_name : "",
+          showroom_name: showroomName,
+          wilaya: typeof user.wilaya === "string" ? user.wilaya : "",
+          bio: typeof user.bio === "string" ? user.bio : undefined,
+          showroom_logo: typeof user.showroom_logo === "string" ? user.showroom_logo : undefined,
+          subscription_status: typeof user.subscription_status === "string" ? user.subscription_status : "trial",
+        }];
+      });
       setShowrooms(list);
     };
     onValue(usersRef, handleSnapshot);
@@ -179,7 +226,9 @@ function DiscoveryHub() {
     const { data } = await client.from("vehicle_favorites").select("vehicle_id").eq("user_id", userId);
     if (!data) return;
     const map: FavoriteData = {};
-    for (const row of data) map[row.vehicle_id] = true;
+    for (const row of data) {
+      if (typeof row.vehicle_id === "string") map[row.vehicle_id] = true;
+    }
     setFavorites(map);
   }, [userId]);
 
@@ -190,9 +239,12 @@ function DiscoveryHub() {
     if (!data) return;
     const map: LikeData = {};
     for (const row of data) {
-      if (!map[row.vehicle_id]) map[row.vehicle_id] = { count: 0, liked: false };
-      map[row.vehicle_id].count++;
-      if (row.user_id === userId) map[row.vehicle_id].liked = true;
+      if (typeof row.vehicle_id !== "string") continue;
+      const current = map[row.vehicle_id] ?? { count: 0, liked: false };
+      map[row.vehicle_id] = {
+        count: current.count + 1,
+        liked: current.liked || row.user_id === userId,
+      };
     }
     setLikeData(map);
   }, [userId]);
@@ -204,6 +256,7 @@ function DiscoveryHub() {
     if (!data) return;
     const map: ViewData = {};
     for (const row of data) {
+      if (typeof row.vehicle_id !== "string") continue;
       map[row.vehicle_id] = (map[row.vehicle_id] ?? 0) + 1;
     }
     setViewData(map);
@@ -292,19 +345,18 @@ function DiscoveryHub() {
     const minDZD = millionCentimesToDZD(budgetMin);
     const maxDZD = millionCentimesToDZD(budgetMax);
 
-    return vehicles.filter((v) => {
-      if (wilaya !== "all" && v.wilaya !== wilaya) return false;
+    const list = vehicles.filter((vehicle) => {
+      if (wilaya !== "all" && vehicle.wilaya !== wilaya) return false;
       if (query) {
-        const q = query.toLowerCase();
-        if (!`${v.brand} ${v.model}`.toLowerCase().includes(q)) return false;
+        const normalizedQuery = query.toLowerCase();
+        if (!`${vehicle.brand} ${vehicle.model}`.toLowerCase().includes(normalizedQuery)) return false;
       }
-      const price = priceOf(v);
+      const price = priceOf(vehicle);
       if (budgetMin > 0 && price < minDZD) return false;
       if (budgetMax < 10000 && price > maxDZD) return false;
       return true;
     });
-    // Randomized order instead of newest-first
-    const seed = list.map((v) => v.id).sort().join(",");
+    const seed = list.map((vehicle) => vehicle.id).sort().join(",");
     return seededShuffle(list, seed);
   }, [vehicles, query, wilaya, budgetMin, budgetMax]);
 
@@ -449,6 +501,12 @@ function DiscoveryHub() {
             {[...Array(8)].map((_, i) => (
               <div key={i} className="animate-pulse bg-charcoal rounded-xl h-48 sm:h-56" />
             ))}
+          </div>
+        ) : searchTab === "vehicles" && vehiclesError ? (
+          <div className="text-center py-16 text-muted-foreground">
+            <Car className="h-12 w-12 mx-auto mb-3 text-gold/30" />
+            <p>تعذر تحميل السيارات. تحقق من الاتصال ثم أعد المحاولة.</p>
+            <Button variant="outline" className="mt-4" onClick={() => setRetryKey((key) => key + 1)}>إعادة المحاولة</Button>
           </div>
         ) : searchTab === "vehicles" ? (
           filteredVehicles.length === 0 ? (
